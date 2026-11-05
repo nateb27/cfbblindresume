@@ -1,0 +1,49 @@
+{
+  "name": "cfbblindresume",
+  "version": "0.1.0",
+  "description": "Independent College Football Playoff resume site: blind-resume game + resume pages, FEI ratings, no ESPN metrics.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "wrangler pages dev dist",
+    "check": "astro check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pipeline": "python3 pipeline/run.py",
+    "validate": "python3 pipeline/validate.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nateb27/cfbblindresume.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nateb27/cfbblindresume/issues"
+  },
+  "homepage": "https://github.com/nateb27/cfbblindresume#readme",
+  "dependencies": {
+    "@astrojs/react": "^7.1.4",
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.4",
+    "astro": "^7.4.7",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.4",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "lighthouse": "^13.6.0",
+    "satori": "^0.63.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.158.0"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}
