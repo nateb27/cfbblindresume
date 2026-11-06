@@ -187,6 +187,8 @@ Key = stars x 10 (`tierKey(stars)`): `data-tier="50|45|40|30|20|15|10|05"` on an
   `animate-rise` (8px up + fade), `animate-fade`, `animate-wipe` (left-to-right clip reveal),
   `meter[data-animate]` (bar fill). Use `duration-(--duration-base)` for custom transitions.
 - Focus: 2px `focus` outline, 2px offset, on `:focus-visible` (global). Do not remove it.
+- `html` sets `scrollbar-gutter: stable`: on desktops with classic scrollbars the centered page never
+  shifts when the scrollbar appears mid-load (no effect with overlay scrollbars). Never size with `100vw`.
 - Touch targets: 44px minimum (`.btn`, `.switch`, `.tab`); segments 40px inside a 48px control.
 
 ## 7. Component classes (global.css)
@@ -395,7 +397,9 @@ agreement sentence, share module, play again.
   rules, "Proposed for 2027 — not final" (`label-caps text-fg-muted`), source link (`.link`).
 - **Legend** (13px `fg-muted`, under the controls): the delta triangle, the field ring, `AQ`
   (automatic bid tag, also on the tiles), Unseen / Not shown. "NR" marks positions past what the
-  selected source ranked (committee 25; the fans' list length).
+  selected source ranked (committee 25; the fans' list length). The Fans tab's next five shows only
+  the fans' own teams past 25 (as many as they ranked, up to five), then "The fans' ranking stops at
+  N teams so far."
 - **Grid (>= 640px):** `grid grid-cols-5 gap-x-3 gap-y-3.5` of tiles (team block, tile size).
   >= 1024px: `grid lg:grid-cols-[minmax(0,5fr)_minmax(0,1fr)] gap-6`; right column `lg:border-l
   lg:border-line lg:pl-6`, `label-caps` "First 5 out", tiles 26-30 in one column. 640-1023px: the

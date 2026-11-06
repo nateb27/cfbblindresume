@@ -211,8 +211,9 @@ export function Results() {
           subject: 'fans rank',
           order: extendTo(fans, gd, GRID + NEXT),
           ranked: fans.length,
-          // Positions past the fans' own list would be FEI's, not theirs.
-          hasNext: fans.length >= GRID + NEXT,
+          // The server sends every voted team (the pool, about 27-35): show the fans' own teams past
+          // 25 (up to five); positions past their list would be FEI's, not theirs (see `next`).
+          hasNext: fans.length > GRID,
           playoffs: gamePlayoffs(gd, fans),
         }),
       });
@@ -237,7 +238,9 @@ export function Results() {
   const field = useMemo(() => new Set(playoff.field.map((s) => s.slug)), [playoff]);
   const auto = useMemo(() => new Set(playoff.autoBids.map((s) => s.slug)), [playoff]);
   const top = view.order.slice(0, GRID);
-  const next = view.hasNext ? view.order.slice(GRID, GRID + NEXT) : [];
+  // The fans' next five stops where their list does; other tabs always show five.
+  const next = view.hasNext ? view.order.slice(GRID, view.id === 'fans' ? Math.min(GRID + NEXT, view.ranked) : GRID + NEXT) : [];
+  const nextShort = view.id === 'fans' && next.length < NEXT;
   const showCompare = compare && gd.hasCommittee && view.id !== 'committee';
   const unseen = view.id === 'you' ? results.ranking.unseen : new Set<string>();
   /** Your ranking: teams past the week's pool (never in the game) are placed in FEI order. */
@@ -456,14 +459,17 @@ export function Results() {
             <h3 id="next-h" className="label-caps mb-2 text-fg-muted lg:mb-1.5">
               Next five
             </h3>
-            {next.length ? (
+            {next.length > 0 && (
               <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 lg:grid-cols-1">
                 {next.map((slug, i) => (
                   <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} />
                 ))}
               </ol>
-            ) : (
-              <p className="text-[0.875rem] leading-5 text-fg-muted">{view.id === 'committee' ? 'The committee ranks only 25 teams.' : 'The fans’ ranking stops at 25 teams so far.'}</p>
+            )}
+            {(next.length === 0 || nextShort) && (
+              <p className={`text-[0.875rem] leading-5 text-fg-muted ${next.length ? 'mt-2' : ''}`}>
+                {view.id === 'committee' ? 'The committee ranks only 25 teams.' : `The fans’ ranking stops at ${view.ranked} teams so far.`}
+              </p>
             )}
           </section>
         </div>
@@ -483,6 +489,7 @@ export function Results() {
                   <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} />
                 ))}
               </ol>
+              {nextShort && <p className="mt-2 text-[0.875rem] leading-5 text-fg-muted">{`The fans’ ranking stops at ${view.ranked} teams so far.`}</p>}
             </>
           )}
         </div>

@@ -120,7 +120,8 @@ the code the same way the island does: `parseShareCode`, then the code's week fr
 - `meta description` and `og:description`: rounds played (marked as a partial run when short),
   the week, the first-round byes, and an invitation to compare and play.
 - `link rel=canonical` and `og:url`: `{site origin}/r/{code}`. The site origin is read from the
-  shell's own canonical, which comes from Astro `site`.
+  shell's own canonical (the site root, `https://cfbblindresume.com`, from Astro `site`); only its
+  origin is used.
 - `og:image` and `twitter:image`: `{request origin}/og/r/{code}.png`, so preview deployments
   show their own image.
 - `og:image:alt` and `twitter:image:alt`: the top 12 written out.

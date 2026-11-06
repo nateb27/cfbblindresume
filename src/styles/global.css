@@ -112,6 +112,10 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
+    /* Desktop browsers with classic scrollbars: reserve the gutter, so the scrollbar appearing
+       mid-load (a first paint before the body is parsed) or a modal never shifts the centered
+       header and page. No effect with overlay scrollbars (phones, macOS default). */
+    scrollbar-gutter: stable;
   }
   body {
     min-height: 100dvh;
