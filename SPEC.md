@@ -83,13 +83,27 @@ The snapshot built on 2026-11-05 contains games through week 9, FEI "through Wee
 Nov 3 committee release: it is `data/2026/week-9.json`, label "After Week 9". The weekly
 rankings archive URL is `/rankings/2026/week-9`.
 
-### Playoff format (2026), stored in the week file
+### Playoff formats, stored in the week file (UX priority: users want both)
 
-`size: 12, byes: 4, seeding: 'straight', autoBids: { conferenceChampions: 5, guaranteed:
-[{ slug: 'notre-dame', ifRankedAtOrAbove: 12 }] }, nonConferences: ['FBS Independents']`.
-The pipeline writes this from `pipeline/playoff_format.json` (hand-maintained config, the one
-place it lives). Verify against collegefootballplayoff.com's format page if reachable and record
-the URL in `sourceUrl`.
+The week file carries `playoffFormats: PlayoffFormat[]` (replaces the single `playoff`; schemaVersion 2).
+Exactly one has `default: true`. Formats come from `pipeline/playoff_formats.json` (the one place they
+live). The results page and content pages show the default (12-team, current) and offer a one-tap
+toggle to the other (24-team, proposed). Copy always labels the proposed format "Proposed for 2027 —
+not final".
+
+| id | status | size | byes | auto bids | guaranteed | note |
+| --- | --- | --- | --- | --- | --- | --- |
+| `12-team` | current, default | 12 | 4 | 5 highest-ranked conference champions (`{from:'all', count:5}`) | Notre Dame if ranked ≤ 12 | 2026 format |
+| `24-team` | proposed | 24 | 8 | the 4 Power 4 champions (`{from:'power', count:4}`) + the highest-ranked champion of the other conferences (`{from:'nonPower', count:1}`) | none | 19 at-large; source: Deseret News, Oct 15 2026 (https://www.deseret.com/sports/2026/10/15/college-football-playoff-reportedly-expanding-24-teams/) — never link ESPN |
+
+`powerConferences: ['ACC','Big 12','Big Ten','SEC']`, `nonConferences: ['FBS Independents']`.
+Seeding is straight by the given order. Brackets use the standard seeded bracket for the next power
+of two (validator: `byes == nextPow2(size) - size`): 12 → 16-slot bracket (5v12, 6v11, 7v10, 8v9;
+1 vs 8/9 winner, 4 vs 5/12, 2 vs 7/10, 3 vs 6/11); 24 → 32-slot bracket (first round 16v17, 9v24,
+13v20, 12v21, 15v18, 10v23, 14v19, 11v22; second round 1 vs 16/17, 8 vs 9/24, 4 vs 13/20,
+5 vs 12/21, 2 vs 15/18, 7 vs 10/23, 3 vs 14/19, 6 vs 11/22). Ordering longer than the pool:
+extend the user's order with non-pool teams in GWD order (champion candidates guaranteed
+present) so a 24 field + first five out always exists.
 
 ### Opponent tiers (cut on opponent's overall FEI rank)
 
@@ -183,7 +197,7 @@ ALL FBS slugs in that week's file (fits a byte), then a CRC-16/CCITT of everythi
 index out of range, duplicate team in a trio, week not found) — never throws to the UI.
 Round-trip test on 1,000 random runs.
 
-### Playoff (`playoff.ts`)
+### Playoff (`playoff.ts`) — generalized to any PlayoffFormat (see Playoff formats)
 
 Input: user's ordered list (pool order, extended with non-pool conference leaders appended in
 GWD order so 5 champions always exist), week file. Champions: `week.champions[conf]` if set,
@@ -205,11 +219,11 @@ the field. Byes = top `byes` seeds. First round pairs (5v12, 6v11, 7v10, 8v9 for
 | URL | Page |
 | --- | --- |
 | `/` | Home: H1 + one indexable paragraph above the fold, the game island, then current top 12 (independent vs committee) as static HTML below |
-| `/rankings` | FEI GWD top 25 beside committee top 25 with deltas (current week) |
+| `/rankings` | FEI GWD top 25 beside committee top 25 with deltas (current week), with "in the 12" / "in the 24 (proposed)" cut lines for both orders and the projected fields |
 | `/rankings/{season}/week-{N}` | Frozen weekly copy; canonical to itself |
 | `/teams/{slug}` | Team resume page: header with four ranks + committee rank, un-blinded card, game log table with tiers, resume strip, rank history by week (from all week files), "committee vs FEI" callout, links to 3 nearest compares |
 | `/compare/{a}-vs-{b}` | Every pair in the committee top 25 (300). Slug order: better committee rank first. Two cards side by side, head-to-head note, who FEI and the committee prefer |
-| `/bubble` | Committee 8-20 sorted by GWD rank, gap highlighted |
+| `/bubble` | Committee 8-20 sorted by GWD rank, gap highlighted; who is in/out of the 12 and of the proposed 24 by committee vs by FEI |
 | `/r/{code}` | Shared result (island renders from code; Pages Function injects per-code title/OG tags) |
 | `/how-it-works` | Glossary: GWD, ELS, OFEI, DFEI, tiers, ranking method, playoff format |
 | `/about` | Who/why, the independence statement (the ONLY place "ESPN", "FPI", "SP+", "Game Control" may appear), attribution, contact |
@@ -260,9 +274,12 @@ OG images: one per team (1200×630 PNG generated at build with @resvg/resvg-js i
 - Results: tabs Your ranking / Committee / FEI / Fans (when ≥ threshold); the selected list as
   a 5×5 grid of numbered team tiles (color block + condensed name, no logos; single column list
   on phones) with a "First 5 out" column (26-30); two toggles: "Compare with committee" (each
-  tile shows the committee rank and an up/down delta) and "Highlight playoff field" (the 12 teams
-  in the bracket are outlined). Unseen teams marked. Below: 12-team bracket (first round 5v12,
-  6v11, 7v10, 8v9; quarterfinals vs seeds 1-4 with byes; semifinal slots), automatic bids and
+  tile shows the committee rank and an up/down delta) and "Highlight playoff field" (the teams
+  in the selected format's field are outlined). A segmented control "12 teams · 2026 format" |
+  "24 teams · proposed" (default 12) switches the bracket, bid lists, highlight and first five out;
+  the 24 view shows the one-line rules + "Proposed for 2027 — not final" + source link. Unseen teams marked. Below: the bracket for the selected format
+  (12: first round 5v12, 6v11, 7v10, 8v9, quarterfinals vs byes 1-4; 24: first round 9-24, byes 1-8),
+  readable on a phone (horizontal scroll by round or stacked rounds), automatic bids and
   at-large lists; agreement sentence; share (copy link, Web Share API, image); play again.
   One ad slot between the top 25 and the share module (when ads on).
 - Mobile (390px): cards in a horizontal snap-scroll row at 88% width with a sticky footer holding
@@ -288,9 +305,22 @@ on pages.dev previews). Binding `DB` (D1). `wrangler.toml` with `pages_build_out
   under a threshold (e.g. 200 votes). Cache 300s.
 - `POST /api/event` → increments `(day, name, prop)` counter; no IP, no IDs.
 - `GET /og/r/{code}.png` → 1200×630 PNG of the user's top 12 computed from the code alone
-  (no DB), via resvg-wasm with an embedded font; long cache headers; invalid code → default image.
+  (no DB); long cache headers + Cache API so each code renders once; invalid code → default image.
+  HARD CONSTRAINT: Cloudflare Workers/Pages Functions FREE plan = 10 ms CPU per request and 3 MiB
+  compressed bundle. satori/resvg are likely too slow/heavy. Design for it (e.g. build-time glyph
+  atlas of the condensed font + palette PNG + native CompressionStream) and measure render CPU in
+  Node (target < 8 ms) — report the number. If it truly cannot fit, report and propose the
+  Workers Paid plan ($5/mo) as the human's decision; keep the default-image fallback working.
 - `GET /r/{code}` → serves the static results shell with per-code `<title>`, description,
   `og:image`, canonical, via HTMLRewriter; invalid code still serves the shell (UI shows error).
+
+## Working in parallel (build-time rules for agents)
+
+Several agents share this checkout. Never run a bare `npm run build` / `astro build` into `dist/`
+except in the final integration step: build with `npx astro build --outDir <scratch>/<area>-dist`.
+Dev servers: content 4321, game 4322, backend 8788 (`wrangler pages dev <dir> --port 8788`).
+Lighthouse: `CHROME_PATH=/opt/pw-browsers/chromium npx lighthouse <url> --chrome-flags="--headless=new --no-sandbox" --form-factor=mobile`.
+Playwright: `require('playwright')` works from any directory; `chromium.launch()` needs no options.
 
 ## Ads
 
