@@ -1,0 +1,128 @@
+---
+/**
+ * Projected field for one playoff format, by the committee's order and by FEI's strength of
+ * record (GWD) order, side by side: seed, team, bid, opening game, then the first five out.
+ * Formats come from the week file (label, status, note, source); proposed formats carry
+ * "Proposed for {season + 1} — not final".
+ */
+import type { PlayoffFormat, WeekFile } from '@lib/types';
+import TeamChip from './TeamChip.astro';
+import { bidLabel, formatSizeLabel, formatStatus, openingGame, playoffViews, teamHref } from './site';
+
+interface Props {
+  week: WeekFile;
+  format: PlayoffFormat;
+  headingLevel?: 'h2' | 'h3';
+  /** Which orders to show (default both when a committee ranking exists). */
+  orders?: ('committee' | 'fei')[];
+  class?: string;
+}
+const { week, format: f, headingLevel = 'h2', orders = ['committee', 'fei'], class: cls } = Astro.props;
+const views = playoffViews(week);
+const H = headingLevel;
+const Sub = headingLevel === 'h2' ? 'h3' : 'h4';
+const id = `field-${f.id}-${week.season}-${week.week}`;
+const columns = orders
+  .map((o) => ({ o, res: o === 'committee' ? views.committee?.[f.id] : views.fei[f.id] }))
+  .filter((c): c is { o: 'committee' | 'fei'; res: NonNullable<typeof c.res> } => !!c.res);
+const titleFor = (o: 'committee' | 'fei') => (o === 'committee' ? "By the committee's ranking" : "By FEI's strength of record");
+const proposed = f.status === 'proposed';
+const standIns = columns.some((c) => c.res.champions.some((ch) => ch.standIn));
+---
+
+<section aria-labelledby={id} class={cls}>
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line pb-2">
+    <H id={id} class="cond text-heading uppercase">{formatSizeLabel(f)} field</H>
+    {
+      proposed ? (
+        <span class="label-caps rounded-slab border border-control px-1.5 py-0.5 text-fg">{formatStatus(f, week.season)}</span>
+      ) : (
+        <span class="label-caps text-fg-muted">{formatStatus(f, week.season)}</span>
+      )
+    }
+  </div>
+  <p class="mt-2.5 max-w-read text-sm text-fg-muted">
+    {f.note}{' '}
+    <span class="whitespace-nowrap">Source: <a class="link" href={f.sourceUrl}>{f.sourceName}</a>.</span>
+  </p>
+  <div class:list={['mt-5 grid gap-x-10 gap-y-9', columns.length > 1 && 'lg:grid-cols-2']}>
+    {
+      columns.map(({ o, res }) => (
+        <div class="min-w-0">
+          <Sub class="label-caps text-fg">{titleFor(o)}</Sub>
+          <div class="table-wrap mt-1">
+            <table class="data-table [&_td]:h-10">
+              <caption class="sr-only">
+                Projected {formatSizeLabel(f)} field {titleFor(o).toLowerCase()}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="w-12">
+                    Seed
+                  </th>
+                  <th scope="col">Team</th>
+                  <th scope="col" class="max-sm:hidden">
+                    Bid
+                  </th>
+                  <th scope="col">Opening game</th>
+                </tr>
+              </thead>
+              <tbody>
+                {res.field.map((s) => {
+                  const g = openingGame(res, s.slug);
+                  const opp = g && g.kind !== 'bye' ? week.teams[g.opp.slug] : undefined;
+                  return (
+                    <tr>
+                      <td class="cond text-[1.0625rem] font-bold">{s.seed}</td>
+                      <td>
+                        <span class="flex flex-col items-start">
+                          <TeamChip week={week} slug={s.slug} />
+                          <span class="pl-5 text-[0.8125rem] leading-4 text-fg-muted sm:hidden">{bidLabel(s, res)}</span>
+                        </span>
+                      </td>
+                      <td class:list={['max-sm:hidden', s.bid === 'at-large' ? 'text-fg-muted' : 'text-fg']}>{bidLabel(s, res)}</td>
+                      <td class="whitespace-nowrap">
+                        {!g ? (
+                          '—'
+                        ) : g.kind === 'bye' ? (
+                          <span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5 text-fg">Bye</span>
+                        ) : (
+                          <span class="text-fg-muted">
+                            {g.kind === 'home' ? 'vs' : 'at'} <b class="cond text-[1.0625rem] text-fg">{g.opp.seed}</b>{' '}
+                            <a href={teamHref(g.opp.slug)} class="hover:text-fg hover:underline">
+                              <span class="max-sm:hidden">{opp?.name}</span>
+                              <span class="sm:hidden">{opp?.short}</span>
+                            </a>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span class="label-caps text-fg-muted">First five out</span>
+            <ol class="flex flex-wrap gap-x-4 gap-y-2">
+              {res.firstFiveOut.map((slug, i) => (
+                <li class="flex items-center gap-1.5">
+                  <span class="cond text-[0.9375rem] font-bold text-fg-muted">{i + 1}</span>
+                  <TeamChip week={week} slug={slug} />
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+  {
+    standIns && (
+      <p class="mt-4 text-[0.8125rem] text-fg-muted">
+        "Leader" = best conference record so far, standing in for the champion until title games are played. Teams outside a ranking are added in
+        FEI strength-of-record order.
+      </p>
+    )
+  }
+</section>

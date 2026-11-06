@@ -1,0 +1,335 @@
+---
+/**
+ * /teams/{slug}: one resume page per FBS team in the latest week file (never a hard-coded count).
+ * Header with record and the ranks, committee vs FEI callout, the blind card's content un-blinded
+ * (quality wins, resume strip, toughest-first game log), where the team stands in every playoff
+ * format by the committee and by FEI, rank history from every week file, nearest compares and the
+ * conference table. Static HTML, no JS.
+ */
+import { conferenceStandings, nearestCompares } from '@lib/data';
+import type { PlayoffFormat } from '@lib/types';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import GameLogTable from '../../components/GameLogTable.astro';
+import QualityWins from '../../components/QualityWins.astro';
+import RankBars from '../../components/RankBars.astro';
+import ResumeStrip from '../../components/ResumeStrip.astro';
+import TeamBlock from '../../components/TeamBlock.astro';
+import TeamChip from '../../components/TeamChip.astro';
+import { teamVars } from '../../styles/tokens';
+import {
+  bidLabel,
+  committeeVsFei,
+  compareHref,
+  confAnchor,
+  confRecord,
+  feiValue,
+  formatShortLabel,
+  formatStatus,
+  latestWeek,
+  ordinal,
+  playoffViews,
+  record,
+  seasonWeeks,
+  sportsTeamLd,
+  standingIn,
+  teamHref,
+  teamOgPath,
+  type FieldStanding,
+} from '../../components/site';
+
+export function getStaticPaths() {
+  return Object.keys(latestWeek().teams).map((slug) => ({ params: { slug } }));
+}
+
+const { slug } = Astro.params as { slug: string };
+const week = latestWeek();
+const t = week.teams[slug]!;
+const n = week.fbsCount;
+const views = playoffViews(week);
+const c = t.ranks.committee;
+const g = t.ranks.sor;
+const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.conference));
+const labelLower = week.label.replace(/^After/, 'after');
+
+// SEO
+const formatsPhrase = views.formats.map((f) => (f.status === 'proposed' ? `proposed ${f.size}-team` : `${f.size}-team`)).join(' and ');
+const title = `${t.name} Playoff Resume: ${week.committee ? (c ? `#${c} Committee` : 'Unranked by Committee') : record(t)}, #${g} FEI Strength of Record — ${week.label}`;
+const description =
+  `${t.name} (${record(t)}${independent ? '' : `, ${confRecord(t)} ${t.conference}`}) ` +
+  (week.committee ? (c ? `is #${c} in the committee's ranking` : `is outside the committee's top ${week.committee.length}`) + ' and ' : 'is ') +
+  `#${g} of ${n} in FEI strength of record ${labelLower}. Game log with opponent tiers, quality wins, and where they stand in the ${formatsPhrase} fields.`;
+
+// Callout
+const phrase = committeeVsFei(t, week);
+
+// Where they stand
+const orders = [
+  ...(views.committee ? [{ key: 'committee' as const, title: 'By the committee', res: views.committee }] : []),
+  { key: 'fei' as const, title: "By FEI's strength of record", res: views.fei },
+];
+function standingText(st: FieldStanding, f: PlayoffFormat, key: 'committee' | 'fei', res: (typeof orders)[number]['res']) {
+  const p = res[f.id]!;
+  if (st.kind === 'in') {
+    const bid = bidLabel(st.seed!, p);
+    const bidText = st.seed!.bid === 'champion' ? `Auto bid as ${bid}` : bid.charAt(0).toUpperCase() + bid.slice(1);
+    const bits = [st.bye ? 'First-round bye' : null, bidText].filter(Boolean) as string[];
+    return { main: `No. ${st.seed!.seed} seed`, sub: bits.join(' · '), tone: 'in' as const };
+  }
+  const rankSub =
+    key === 'committee'
+      ? c === null
+        ? `Not in the committee's top ${week.committee?.length ?? ''}`.trim()
+        : `Committee #${c}`
+      : `FEI strength of record #${g}`;
+  if (st.kind === 'first-out') {
+    return { main: st.outPos === 1 ? 'First team out' : `${ordinal(st.outPos!)} team out`, sub: rankSub, tone: 'out' as const };
+  }
+  return { main: 'Out', sub: rankSub, tone: 'out' as const };
+}
+
+// Rank history (every week file of the season)
+const history = seasonWeeks(week.season).map((w) => ({
+  week: w.week,
+  label: w.label,
+  team: w.teams[slug],
+  hasCommittee: w.committee !== null,
+}));
+
+// Nearest compares and the conference table
+const compares = nearestCompares(week, slug, 3);
+const standing = conferenceStandings(week).find((s) => s.conference === t.conference)!;
+
+const ld = {
+  ...sportsTeamLd(t, { withContext: true }),
+  description,
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  path={teamHref(slug)}
+  ogImage={teamOgPath(slug)}
+  ogImageAlt={`${t.name} ${record(t)}: ${week.committee ? `committee ${c ? `#${c}` : 'unranked'}, ` : ''}FEI strength of record #${g}, ${week.label}`}
+  jsonLd={ld}
+  current="teams"
+  week={week}
+>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs
+      items={[
+        { name: 'Teams', href: '/teams' },
+        { name: t.conference, href: `/teams#${confAnchor(t.conference)}` },
+        { name: t.name, href: teamHref(slug) },
+      ]}
+    />
+    <TeamBlock team={t} size="hero" href={false} nameAs="h1" meta={record(t)} class="mt-2">
+      <Fragment slot="meta">
+        {record(t)}
+        <span class="block text-[0.8125rem] leading-4 font-semibold tracking-[0.06em] sm:text-[0.9375rem] sm:leading-5">
+          {independent ? 'Independent' : `${t.conference} ${confRecord(t)}`}
+        </span>
+      </Fragment>
+    </TeamBlock>
+    <p class="mt-3 text-sm text-fg-muted">
+      {t.mascot ? `${t.name} ${t.mascot}` : t.name} · {t.conference} · {week.label}, {week.season}
+    </p>
+
+    <RankBars team={t} week={week} class="mt-6" />
+    <p class="mt-4 text-[0.8125rem] leading-5 text-fg-muted">
+      Ranks among all {n} FBS teams (schedule: 1 = hardest). Strength of record is FEI's GWD; offense and defense are OFEI and DFEI; schedule is
+      ELS. <a class="link" href="/how-it-works">What these measure</a>
+    </p>
+
+    <aside class="callout mt-8" aria-labelledby="cvf">
+      <h2 id="cvf" class="label-caps text-fg-muted">How the committee sees them vs FEI</h2>
+      <p class="mt-1 text-lg leading-7">
+        {phrase.map((p) => ('rank' in p ? <b class="cond text-[1.25rem]">{p.rank}</b> : p.text))}
+      </p>
+      <p class="mt-1.5 text-sm text-fg-muted">
+        Strength of record rates the wins and losses against the schedule played. FEI overall rates per-possession efficiency: {t.name} is{' '}
+        <b class="cond text-[1.0625rem] text-fg">#{t.ranks.fei}</b> there ({feiValue(t.values.fei)}).
+      </p>
+    </aside>
+
+    <div class="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12">
+      <div class="min-w-0">
+        <section aria-labelledby="resume">
+          <h2 id="resume" class="cond text-heading uppercase">Resume</h2>
+          <p class="mt-1 text-sm text-fg-muted">What the blind game shows for {t.name}, with the name on.</p>
+          <div class="mt-4 flex flex-wrap gap-x-12 gap-y-5">
+            <div class="max-w-md min-w-0 flex-[1_1_18rem]">
+              <h3 class="label-caps text-fg-muted">Quality wins (by current FEI rank)</h3>
+              <QualityWins week={week} slug={slug} class="mt-1.5" />
+            </div>
+            <div class="max-w-full min-w-0 flex-none">
+              <h3 class="label-caps text-fg-muted">Season in order</h3>
+              <ResumeStrip week={week} slug={slug} class="mt-2" />
+            </div>
+          </div>
+          <p class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-fg-muted">
+            <span>Dot size and color = opponent tier</span>
+            <span class="flex items-center gap-1.5"><span class="tier-dot" data-tier="50" aria-hidden="true"></span>FEI 1-5</span>
+            <span class="flex items-center gap-1.5"><span class="tier-dot" data-tier="30" aria-hidden="true"></span>26-50</span>
+            <span class="flex items-center gap-1.5"><span class="tier-dot" data-tier="10" aria-hidden="true"></span>101+</span>
+          </p>
+        </section>
+
+        <AdSlot kind="incontent" class="my-10" />
+
+        <section aria-labelledby="stand" class="mt-10">
+          <h2 id="stand" class="cond text-heading uppercase">Where {t.name} stands</h2>
+          <p class="mt-1 text-sm text-fg-muted">Projected fields if the season ended today, from each ranking.</p>
+          <div class="table-wrap mt-3">
+            <table class="data-table">
+              <caption class="sr-only">{t.name} in each projected playoff field</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="max-sm:hidden">Format</th>
+                  {orders.map((o) => <th scope="col">{o.title}</th>)}
+                </tr>
+              </thead>
+              {
+                views.formats.map((f) => (
+                  <tbody>
+                    <tr class="sm:hidden">
+                      <th scope="rowgroup" colspan={orders.length} class="!pt-4 !pb-1 !text-fg">
+                        {formatShortLabel(f, week.season)}
+                        {f.status === 'proposed' && <span class="!normal-case !tracking-normal font-sans text-[0.75rem] font-normal text-fg-muted"> · {formatStatus(f, week.season)}</span>}
+                      </th>
+                    </tr>
+                    <tr>
+                      <th scope="row" class="!border-b-line !align-middle !text-fg max-sm:hidden">
+                        <span class="block">{formatShortLabel(f, week.season)}</span>
+                        {f.status === 'proposed' && <span class="block !normal-case !tracking-normal font-sans text-[0.75rem] font-normal text-fg-muted">{formatStatus(f, week.season)}</span>}
+                      </th>
+                      {orders.map((o) => {
+                        const s = standingText(standingIn(o.res[f.id]!, slug), f, o.key, o.res);
+                        return (
+                          <td class="!py-2">
+                            <span class:list={['cond block text-[1.125rem] leading-6 font-bold', s.tone === 'out' && 'text-fg-muted']}>{s.main}</span>
+                            {s.sub && <span class="block text-[0.8125rem] leading-4 text-fg-muted">{s.sub}</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                ))
+              }
+            </table>
+          </div>
+          <p class="mt-2 text-[0.8125rem] text-fg-muted">
+            Full fields and first-round games: <a class="link" href="/rankings">rankings</a> · <a class="link" href="/bubble">bubble</a>.
+          </p>
+        </section>
+
+        <section aria-labelledby="log" class="mt-10">
+          <h2 id="log" class="cond text-heading uppercase">Game log <span class="text-fg-muted">· toughest first</span></h2>
+          <GameLogTable week={week} slug={slug} caption={`${t.name} game log, toughest opponent first`} />
+          <p class="mt-2 text-[0.8125rem] text-fg-muted">Opponent tiers use this week's FEI ranks, so they move as the season goes on.</p>
+        </section>
+
+        <section aria-labelledby="history" class="mt-10">
+          <h2 id="history" class="cond text-heading uppercase">Rank by week</h2>
+          <ol class="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+            {
+              history.map((h) => (
+                <li class:list={['w-20 flex-none rounded-slab bg-surface px-2.5 py-2', h.week === week.week && 'shadow-[inset_0_-2px_0_var(--color-line-strong)]']}>
+                  <span class="label-caps block text-fg-muted">Wk {h.week}</span>
+                  {h.team ? (
+                    <>
+                      <span class="cond block text-[1.5rem] leading-7 font-bold">
+                        #{h.team.ranks.sor}
+                        <span class="sr-only"> in FEI strength of record</span>
+                      </span>
+                      <span class="label-caps block text-fg-muted">CFP {h.hasCommittee ? (h.team.ranks.committee ?? 'NR') : '—'}</span>
+                    </>
+                  ) : (
+                    <span class="cond block text-[1.5rem] leading-7 font-bold text-fg-faint">—</span>
+                  )}
+                </li>
+              ))
+            }
+          </ol>
+          <p class="mt-2 text-[0.8125rem] text-fg-muted">
+            Big number: FEI strength of record rank after that week. CFP: committee rank (NR = unranked, — = no ranking released yet).
+            {history.length === 1 && ` This is the first week on file for ${week.season}; a new column is added every week.`}
+          </p>
+        </section>
+      </div>
+
+      <aside class="mt-12 flex flex-col gap-10 lg:mt-0" aria-label={`More on ${t.name}`}>
+        {
+          compares.length > 0 && (
+            <section aria-labelledby="compares">
+              <h2 id="compares" class="label-caps text-fg-muted">
+                Compare with the teams around them
+              </h2>
+              <ul class="mt-2 flex flex-col gap-2">
+                {compares.map((p) => {
+                  const other = week.teams[p.a === slug ? p.b : p.a]!;
+                  return (
+                    <li>
+                      <a href={compareHref(p.slug)} class="flex min-h-12 items-center justify-between gap-3 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface">
+                        <span class="flex items-center gap-2 text-sm text-fg-muted">
+                          vs
+                          <span class="team-chip text-fg" style={teamVars(other.colors)}>
+                            {other.name}
+                          </span>
+                        </span>
+                        <span class="label-caps text-fg-muted">CFP {other.ranks.committee}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )
+        }
+
+        <section aria-labelledby="conf">
+          <h2 id="conf" class="label-caps text-fg-muted">
+            {standing.crownsChampion ? `${t.conference} standings` : t.conference}
+          </h2>
+          <div class="table-wrap mt-1">
+            <table class="data-table [&_:is(td,th)[data-num]]:pl-1.5 [&_td]:h-9">
+              <caption class="sr-only">{t.conference} teams by conference record</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Team</th>
+                  {standing.crownsChampion && <th scope="col" data-num>Conf</th>}
+                  <th scope="col" data-num>All</th>
+                  <th scope="col" data-num>
+                    <abbr title="FEI strength of record rank" class="no-underline">SoR</abbr>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {standing.teams.map((r) => (
+                  <tr class:list={[r.slug === slug && 'bg-surface']} aria-current={r.slug === slug ? 'true' : undefined}>
+                    <td class="w-full">
+                      <TeamChip week={week} slug={r.slug} class={r.slug === slug ? 'font-bold' : ''} />
+                    </td>
+                    {standing.crownsChampion && (
+                      <td data-num>
+                        {r.confRecord.w}-{r.confRecord.l}
+                      </td>
+                    )}
+                    <td data-num>
+                      {r.record.w}-{r.record.l}
+                    </td>
+                    <td data-num>{r.gwd}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <AdSlot kind="sidebar" />
+      </aside>
+    </div>
+  </div>
+</BaseLayout>

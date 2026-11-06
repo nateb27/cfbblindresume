@@ -67,7 +67,10 @@ describe.skipIf(!HAVE)('real data: data/2026/week-9.json', () => {
       const res = computeRunResults(gd, rounds);
       expect(res.ranking.order).toEqual(gd.prior);
       if (gd.committee) expect(res.ranking.order.slice(0, 25)).toEqual(gd.committee);
-      expect(res.playoff.field).toHaveLength(week.playoff.size);
+      for (const f of week.playoffFormats) {
+        expect(res.playoffs[f.id]!.field).toHaveLength(f.size);
+        expect(res.playoffs[f.id]!.firstFiveOut).toHaveLength(5);
+      }
     }
   }, 120_000);
 });

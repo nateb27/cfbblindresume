@@ -1,0 +1,54 @@
+---
+/**
+ * Site header: wordmark + main nav (Play, Rankings, Bubble, Teams, How it works).
+ * Phones: wordmark + Play on the first row, the other four links on a second row. No JS.
+ */
+import Wordmark from './Wordmark.astro';
+import type { NavKey } from './site';
+
+interface Props {
+  current?: NavKey;
+}
+const { current } = Astro.props;
+
+const items: { key: NavKey; href: string; label: string }[] = [
+  { key: 'play', href: '/', label: 'Play' },
+  { key: 'rankings', href: '/rankings', label: 'Rankings' },
+  { key: 'bubble', href: '/bubble', label: 'Bubble' },
+  { key: 'teams', href: '/teams', label: 'Teams' },
+  { key: 'how', href: '/how-it-works', label: 'How it works' },
+];
+---
+
+<header class="border-b border-line">
+  <div class="mx-auto grid max-w-page grid-cols-[1fr_auto] items-center px-gutter sm:flex sm:h-14 sm:justify-between sm:gap-6 lg:px-gutter-lg">
+    <a href="/" class="flex h-12 items-center sm:h-14" aria-label="CFB Blind Resume home">
+      <Wordmark />
+    </a>
+    <a
+      href="/#play"
+      class="btn btn-primary min-h-9 px-3.5 text-[0.9375rem] sm:hidden"
+      aria-current={current === 'play' ? 'page' : undefined}>Play</a
+    >
+    <nav aria-label="Main" class="col-span-2 -mx-gutter overflow-x-auto border-t border-line sm:mx-0 sm:self-stretch sm:overflow-visible sm:border-0">
+      <ul class="flex h-11 items-stretch justify-between px-1.5 sm:h-full sm:justify-end sm:gap-1 sm:px-0">
+        {
+          items.map((it) => (
+            <li class:list={['flex', it.key === 'play' && 'max-sm:hidden']}>
+              <a
+                href={it.href}
+                aria-current={current === it.key ? 'page' : undefined}
+                class:list={[
+                  'flex items-center px-2.5 text-sm whitespace-nowrap transition-colors hover:text-fg sm:px-3',
+                  current === it.key ? 'font-semibold text-fg shadow-[inset_0_-2px_0_var(--color-accent-edge)]' : 'text-fg-muted',
+                ]}
+              >
+                {it.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>

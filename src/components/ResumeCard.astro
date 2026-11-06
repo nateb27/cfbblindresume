@@ -1,0 +1,79 @@
+---
+/**
+ * The un-blinded resume card (compare page): the same content the blind game card shows, with the
+ * team's lower-third on top instead of the redacted header. Static HTML, no JS.
+ */
+import { gameRows } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import QualityWins from './QualityWins.astro';
+import ResumeStrip from './ResumeStrip.astro';
+import Stars from './Stars.astro';
+import TeamBlock from './TeamBlock.astro';
+import TeamChip from './TeamChip.astro';
+import { METRICS, SITE_LABELS, bandKey, confRecord, fill, record, signed } from './site';
+
+interface Props {
+  week: WeekFile;
+  slug: string;
+  headingLevel?: 'h2' | 'h3';
+}
+const { week, slug, headingLevel = 'h2' } = Astro.props;
+const t = week.teams[slug]!;
+const n = week.fbsCount;
+const rows = gameRows(week, slug);
+const metrics = [
+  { ...METRICS.sor, rank: t.ranks.sor, span: true },
+  { ...METRICS.off, rank: t.ranks.off, span: false },
+  { ...METRICS.def, rank: t.ranks.def, span: false },
+  { ...METRICS.sos, rank: t.ranks.sos, span: true },
+];
+const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.conference));
+---
+
+<article class="flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card" aria-label={`${t.name} resume`}>
+  <TeamBlock team={t} size="reveal" meta={record(t)} class="rounded-none" nameAs={headingLevel} />
+  <p class="flex flex-wrap gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 text-sm text-fg-muted">
+    <span>{independent ? t.conference : `${t.conference} ${confRecord(t)}`}</span>
+    {week.committee && <span>Committee <b class="cond text-[1.0625rem] text-fg">{t.ranks.committee === null ? 'NR' : `#${t.ranks.committee}`}</b></span>}
+    <span>FEI overall <b class="cond text-[1.0625rem] text-fg">#{t.ranks.fei}</b></span>
+  </p>
+  <dl class="grid grid-cols-2 gap-x-5 gap-y-3 px-4 pt-3 pb-4">
+    {
+      metrics.map((m) => (
+        <div class:list={['grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2', m.span && 'col-span-2']}>
+          <dt class="label-caps text-fg-muted">{m.label}</dt>
+          <dd class="cond text-stat">#{m.rank}</dd>
+          <dd class="meter col-span-2 mt-1.5" data-tier={bandKey(m.rank)} style={`--fill:${fill(m.rank, n)}`}>
+            <span />
+          </dd>
+        </div>
+      ))
+    }
+  </dl>
+  <section class="border-t border-line px-4 py-3">
+    <h3 class="label-caps text-fg-muted">Quality wins</h3>
+    <QualityWins week={week} slug={slug} class="mt-1.5" />
+    <h3 class="label-caps mt-3 text-fg-muted">Season in order</h3>
+    <ResumeStrip week={week} slug={slug} variant="full" class="mt-2" />
+  </section>
+  <section class="border-t border-line px-4 pt-3 pb-2">
+    <h3 class="label-caps text-fg-muted">Toughest opponent first</h3>
+    <ol class="mt-1">
+      {
+        rows.map((g) => (
+          <li class="grid min-h-9 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 border-t border-line py-1 first:border-t-0">
+            <Stars stars={g.tier.stars} label={g.tier.label} />
+            <span class="min-w-0 truncate">
+              <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} />
+            </span>
+            <span class="text-[0.8125rem] text-fg-muted">{SITE_LABELS[g.site]}</span>
+            <span class="result-chip" data-result={g.result}>
+              <span>{g.result}</span>
+              <span>{signed(g.margin)}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+</article>

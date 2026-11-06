@@ -12,7 +12,9 @@ from .names import SlugBook, resolve_names
 
 HEX6 = re.compile(r"^#?([0-9a-fA-F]{6})$")
 HEX3 = re.compile(r"^#?([0-9a-fA-F]{3})$")
-PLAYOFF_KEYS = ("size", "byes", "seeding", "autoBids", "nonConferences", "sourceUrl")
+# PlayoffFormat fields copied from pipeline/playoff_formats.json (src/lib/types.ts documents each).
+FORMAT_KEYS = ("id", "label", "status", "default", "note", "sourceName", "sourceUrl", "checkedOn", "size", "byes",
+               "seeding", "autoBids", "powerConferences", "nonConferences")
 
 
 @dataclass
@@ -63,7 +65,7 @@ def build_week(
     cfbd_games: list[dict],
     committee: Release | None,
     committee_url: str | None,
-    playoff: dict,
+    playoff_formats: list[dict],
     aliases: dict[str, dict[str, str]],
     slugs: SlugBook,
 ) -> BuildResult:
@@ -218,7 +220,7 @@ def build_week(
         }
 
     # ---- conference champions (championship games within the included weeks)
-    non_conf = set(playoff.get("nonConferences", []))
+    non_conf = {c for f in playoff_formats for c in f.get("nonConferences", [])}
     champions: dict[str, str] = {}
     for g in games:
         h, a = int(g["homeId"]), int(g["awayId"])
@@ -252,7 +254,7 @@ def build_week(
                 else None
             ),
         },
-        "playoff": {k: playoff[k] for k in PLAYOFF_KEYS},
+        "playoffFormats": [{k: f[k] for k in FORMAT_KEYS if k in f} for f in playoff_formats],
         "fbsCount": fbs_count,
         "teams": teams,
         "opponents": opponents,

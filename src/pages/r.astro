@@ -1,0 +1,32 @@
+---
+/**
+ * /r (dark, noindex): the shared-result shell. The Pages Function serves this page for /r/{code}
+ * with per-code title, description, og:image and canonical; the island reads the code from the URL.
+ */
+import GameApp from '../game/GameApp.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { ADS_ON, latestWeek } from '../components/site';
+
+const week = latestWeek();
+const title = 'A Shared Blind Resume Ranking | CFB Blind Resume';
+const description =
+  'Someone ranked college football playoff resumes without seeing the names. See their top 25 and bracket next to the committee and FEI, then play your own.';
+---
+
+<BaseLayout title={title} description={description} path="/r" game noindex week={week}>
+  <h1 class="sr-only">Shared blind resume ranking</h1>
+  <div class="pt-6 lg:pt-10">
+    <GameApp client:load mode="shared" season={week.season} week={week.week} adsEnabled={ADS_ON} />
+  </div>
+  <noscript>
+    <div class="mx-auto max-w-read px-gutter py-10">
+      <p class="text-lg">This shared ranking is decoded from the link in your browser, which needs JavaScript.</p>
+      <p class="mt-3 text-fg-muted">
+        You can still browse the <a class="link text-fg" href="/rankings">rankings</a>, the <a class="link text-fg" href="/bubble">bubble</a>{' and '}<a
+          class="link text-fg"
+          href="/teams">every team's resume</a
+        >.
+      </p>
+    </div>
+  </noscript>
+</BaseLayout>

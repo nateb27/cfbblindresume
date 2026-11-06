@@ -10,9 +10,16 @@
  *   pipeline/slugs.json so they never change between weeks.
  * - All ranks are 1-based integers among FBS teams (1 = best). For `sos`, 1 = hardest schedule.
  * - `week` is the last regular-season week whose games are included ("After Week 9").
+ *
+ * Schema history
+ * - 1: a single `playoff: PlayoffFormat`.
+ * - 2: `playoffFormats: PlayoffFormat[]` (exactly one `default`), so the site can show the current
+ *   12-team format and the proposed 24-team format side by side. PlayoffFormat gained id, label,
+ *   status, default, note, sourceName, checkedOn and powerConferences; `autoBids.conferenceChampions`
+ *   became `autoBids.rules`. Every other field kept its meaning.
  */
 
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 2 as const;
 
 export type Site = 'home' | 'away' | 'neutral';
 export type Result = 'W' | 'L';
@@ -27,7 +34,12 @@ export interface WeekFile {
   /** Human label, e.g. "After Week 9". */
   label: string;
   sources: Sources;
-  playoff: PlayoffFormat;
+  /**
+   * Every playoff format the site can show, from pipeline/playoff_formats.json (the one place they
+   * live). Exactly one has `default: true`; ids are unique. Order is the config's order; use
+   * `orderedFormats()` from playoff.ts for default-first.
+   */
+  playoffFormats: PlayoffFormat[];
   /** Number of FBS teams this season (138 in 2026). Bars and validation use this, never a constant. */
   fbsCount: number;
   /** FBS teams keyed by slug. */
@@ -52,23 +64,65 @@ export interface Sources {
   committee: { name: 'College Football Playoff Selection Committee'; url: string; releaseDate: string } | null;
 }
 
+/** Which conference champions an auto-bid rule draws from (see PlayoffFormat.powerConferences). */
+export type AutoBidPool = 'all' | 'power' | 'nonPower';
+
+/**
+ * One automatic-bid rule: the `count` highest-ranked conference champions from `from` that do not
+ * already hold a champion bid. Rules apply in listed order.
+ * - 'all': any conference champion.
+ * - 'power': champions of conferences in `powerConferences`.
+ * - 'nonPower': champions of every other conference that crowns one (not in `nonConferences`).
+ */
+export interface AutoBidRule {
+  from: AutoBidPool;
+  /** Positive int, e.g. 5 for the 2026 format's "five highest-ranked conference champions". */
+  count: number;
+}
+
+/**
+ * A playoff format: how a field is chosen, seeded and bracketed from an ordered list of teams.
+ * Pure data; src/lib/playoff.ts applies it. Nothing about any format is hard-coded in app code.
+ */
 export interface PlayoffFormat {
+  /**
+   * Stable id: lowercase ascii letters, digits and hyphens with at least one letter (never purely
+   * numeric, so object keys keep insertion order), e.g. "12-team" or "24-team". Keys results.
+   */
+  id: string;
+  /** Short UI label, e.g. "12 teams". */
+  label: string;
+  /** 'current' = the format in force this season; 'proposed' = reported/proposed, not final. */
+  status: 'current' | 'proposed';
+  /** Exactly one format per week file is the default (shown first, selected initially). */
+  default: boolean;
+  /** One plain-English sentence stating the rules, shown under the format toggle and on how-it-works. */
+  note: string;
+  /** Who states the rule, e.g. "College Football Playoff" or "Deseret News". */
+  sourceName: string;
+  /** Where the rule comes from (https URL), linked next to `note`. */
+  sourceUrl: string;
+  /** Date the source was last checked, YYYY-MM-DD. */
+  checkedOn: string;
   /** Field size, e.g. 12. */
   size: number;
-  /** Number of top seeds with first-round byes, e.g. 4. */
+  /**
+   * Number of top seeds with first-round byes. Brackets are the standard seeded bracket for the next
+   * power of two, so this always equals nextPow2(size) - size (validated): 12 -> 4, 24 -> 8.
+   */
   byes: number;
   /** Seeding rule. 'straight' = seeds 1..size in ranking order of the selected field. */
   seeding: 'straight';
   autoBids: {
-    /** Number of highest-ranked conference champions that receive automatic bids, e.g. 5. */
-    conferenceChampions: number;
+    /** Champion auto-bid rules, applied in order (2026: [{ from: 'all', count: 5 }]). */
+    rules: AutoBidRule[];
     /** Teams guaranteed a spot if ranked at or above a position (2026: Notre Dame if top 12). */
     guaranteed: { slug: string; ifRankedAtOrAbove: number }[];
   };
+  /** Conference names whose champions count as 'power' (e.g. ACC, Big 12, Big Ten, SEC). */
+  powerConferences: string[];
   /** Conference names that do not crown a champion (e.g. "FBS Independents"). */
   nonConferences: string[];
-  /** Where the format rule comes from (URL), shown on how-it-works. */
-  sourceUrl: string;
 }
 
 export interface Team {

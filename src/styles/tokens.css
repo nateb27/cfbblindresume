@@ -1,0 +1,216 @@
+/*
+ * cfbblindresume design tokens (Tailwind 4).
+ *
+ * One source of truth for color, type, space, radius, shadow and motion. DESIGN.md explains
+ * every token and lists the measured contrast ratios; src/styles/tokens.ts mirrors the color
+ * values for renderers that cannot read CSS (build-time OG images, the share-image Function).
+ * Keep the three in sync: tests/design-tokens.test.ts fails if tokens.ts drifts from this file
+ * or if a text/background pair drops below WCAG AA.
+ *
+ * Themes
+ * - The @theme block holds the DARK theme. It is the default and the game's theme.
+ * - Content pages follow the OS: global.css switches to the LIGHT values under
+ *   prefers-color-scheme: light unless <html data-theme="dark"> (game pages set that).
+ * - data-theme="light" | "dark" on any element forces that theme for its subtree.
+ *
+ * `static` emits every variable on :root even when no utility uses it, so plain CSS
+ * (style="background: var(--color-surface)") and non-Tailwind consumers can rely on them.
+ */
+
+@theme static {
+  /* ---------------------------------------------------------------- color: surfaces (dark) */
+  --color-page: #0e0f12;        /* page background */
+  --color-surface: #16181d;     /* cards, panels, tables on content pages */
+  --color-raised: #1e2128;      /* card header slab, game-log rows, chips, inputs */
+  --color-raised-2: #272b33;    /* hover/pressed, seed plates */
+  --color-line: #2a2e36;        /* hairline dividers (decorative) */
+  --color-line-strong: #3a3f49; /* stronger dividers, the blind card's neutral 4px rule */
+  --color-control: #7a808a;     /* boundary of interactive controls: >= 3:1 on page/surface/raised */
+  --color-track: #2b2f37;       /* empty part of metric bars and stars */
+
+  /* ---------------------------------------------------------------- color: text (dark) */
+  --color-fg: #ecedee;          /* primary text */
+  --color-fg-muted: #9ba1ab;    /* labels, secondary text */
+  --color-fg-faint: #878d97;    /* meta, disabled text; on page/surface/raised only */
+
+  /* ---------------------------------------------------------------- color: accent (dark) */
+  /* Accent means "you": the user's picks, the current selection, the primary action, focus. */
+  --color-accent: #c8f135;      /* accent as text/icon on page, surface, raised */
+  --color-accent-fill: #c8f135; /* filled buttons, picked state, highlight plates */
+  --color-on-accent: #0e0f12;   /* text on accent-fill */
+  --color-accent-tint: #333f22; /* selected background (accent 14% over surface) */
+  --color-accent-edge: #c8f135; /* accent rules/outlines that must stay visible */
+  --color-focus: #c8f135;       /* focus-visible ring */
+
+  /* ---------------------------------------------------------------- color: results (dark) */
+  --color-win: #3dd68c;
+  --color-loss: #ff6b6b;
+  --color-win-tint: #1b3a2f;    /* W chip background (solid) */
+  --color-loss-tint: #3e2329;   /* L chip background (solid) */
+
+  /* ---------------------------------------------------------------- color: opponent-tier ramp (dark) */
+  /* Keyed by stars x 10. Bars (by rank band), stars and resume-strip dots all use this ramp.
+     Every step is >= 3:1 against page, surface and raised (graphics contrast). */
+  --color-tier-50: #ffcd34;     /* 5    stars  FEI 1-5      gold   */
+  --color-tier-45: #f8b23d;     /* 4.5  stars  FEI 6-10     amber  */
+  --color-tier-40: #d9a461;     /* 4    stars  FEI 11-25    bronze */
+  --color-tier-30: #77abd7;     /* 3    stars  FEI 26-50    steel  */
+  --color-tier-20: #7f96af;     /* 2    stars  FEI 51-75    slate  */
+  --color-tier-15: #7c8999;     /* 1.5  stars  FEI 76-100          */
+  --color-tier-10: #777e87;     /* 1    star   FEI 101+            */
+  --color-tier-05: #717579;     /* 0.5  star   FCS / non-FBS       */
+
+  /* ---------------------------------------------------------------- color: misc */
+  --color-scrim: rgb(6 7 9 / 0.8);     /* modal backdrop */
+  --color-selection: #c8f135;
+  --color-on-selection: #0e0f12;
+  --color-ink: #0e0f12;                /* constant: dark ink on team blocks / OG images */
+  --color-paper: #ffffff;              /* constant: light ink on team blocks */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* ---------------------------------------------------------------- type */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", sans-serif;
+  --font-condensed: "Barlow Condensed", "Barlow Condensed Fallback", "Arial Narrow",
+    "Roboto Condensed", sans-serif;
+
+  /* Role sizes (utility = text-<role>; sets size, line-height, tracking, weight).
+     Pair the condensed roles with `font-condensed`; body copy uses Tailwind's text-sm/base/lg. */
+  --text-label: 0.75rem;                 /* 12px condensed caps labels */
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.08em;
+  --text-label--font-weight: 600;
+  --text-label-lg: 0.9375rem;            /* 15px tabs, buttons, table team names */
+  --text-label-lg--line-height: 1.25rem;
+  --text-label-lg--letter-spacing: 0.06em;
+  --text-label-lg--font-weight: 600;
+  --text-team: 1rem;                     /* 16px team name on tiles / bracket slots */
+  --text-team--line-height: 1.0625rem;
+  --text-team--letter-spacing: 0.02em;
+  --text-team--font-weight: 700;
+  --text-stat: 1.375rem;                 /* 22px "#N" beside card bars */
+  --text-stat--line-height: 1.5rem;
+  --text-stat--letter-spacing: 0;
+  --text-stat--font-weight: 700;
+  --text-heading: 1.5rem;                /* 24px h2, panel titles, reveal names */
+  --text-heading--line-height: 1.625rem;
+  --text-heading--letter-spacing: 0.01em;
+  --text-heading--font-weight: 700;
+  --text-title: 2rem;                    /* 32px h1 on phones, section titles */
+  --text-title--line-height: 2rem;
+  --text-title--letter-spacing: 0.005em;
+  --text-title--font-weight: 700;
+  --text-stat-lg: 2.25rem;               /* 36px stat row numerals on content pages */
+  --text-stat-lg--line-height: 2.25rem;
+  --text-stat-lg--letter-spacing: 0;
+  --text-stat-lg--font-weight: 700;
+  --text-record: 2.75rem;                /* 44px card letter + record */
+  --text-record--line-height: 2.5rem;
+  --text-record--letter-spacing: -0.005em;
+  --text-record--font-weight: 700;
+  --text-display: 3.5rem;                /* 56px h1 on desktop, team hero name */
+  --text-display--line-height: 3.25rem;
+  --text-display--letter-spacing: 0;
+  --text-display--font-weight: 700;
+  --text-hero: 6rem;                     /* 96px the "15" numeral */
+  --text-hero--line-height: 5.5rem;
+  --text-hero--letter-spacing: -0.01em;
+  --text-hero--font-weight: 700;
+
+  /* ---------------------------------------------------------------- space & layout */
+  --spacing: 0.25rem;            /* Tailwind base unit: p-4 = 16px */
+  --spacing-gutter: 1rem;        /* page side gutter on phones (px-gutter) */
+  --spacing-gutter-lg: 2rem;     /* page side gutter >= 1024px */
+  --container-read: 42rem;       /* prose column (max-w-read) */
+  --container-page: 76rem;       /* content pages (max-w-page) */
+  --container-game: 78rem;       /* game + results (max-w-game) */
+
+  /* ---------------------------------------------------------------- radius */
+  --radius-slab: 2px;            /* team blocks, seed plates, bars */
+  --radius-chip: 4px;            /* chips, buttons, inputs, tiles */
+  --radius-card: 8px;            /* cards, panels, table wrappers */
+  --radius-panel: 12px;          /* modal / reveal panel */
+
+  /* ---------------------------------------------------------------- shadow (dark) */
+  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.04), 0 18px 36px -18px rgb(0 0 0 / 0.75);
+  --shadow-panel: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 28px 72px -16px rgb(0 0 0 / 0.8);
+  --shadow-footer: 0 -14px 28px -14px rgb(0 0 0 / 0.7);
+
+  /* ---------------------------------------------------------------- motion (< 300ms) */
+  --duration-instant: 90ms;      /* press feedback, color changes */
+  --duration-fast: 140ms;        /* hover, toggles, chip state */
+  --duration-base: 200ms;        /* card pick, panel fade, tab switch */
+  --duration-slow: 280ms;        /* reveal wipe, bar fill, modal enter (max) */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+  --ease-snap: cubic-bezier(0.3, 1.3, 0.5, 1); /* tiny overshoot for the pick press */
+  --default-transition-duration: var(--duration-fast);
+  --default-transition-timing-function: var(--ease-out);
+
+  --animate-wipe: wipe var(--duration-slow) var(--ease-out) both;
+  --animate-rise: rise var(--duration-base) var(--ease-out) both;
+  --animate-fade: fade var(--duration-base) var(--ease-out) both;
+  --animate-fill: fill var(--duration-slow) var(--ease-out) both;
+
+  @keyframes wipe {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fill {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+}
+
+/*
+ * LIGHT theme values. global.css applies this block under prefers-color-scheme: light
+ * (content pages) and for [data-theme="light"]. Same token names, so every utility follows.
+ * Parsed by tests/design-tokens.test.ts: keep one `--name: value;` per line.
+ */
+@utility theme-light-values {
+  --color-page: #ffffff;
+  --color-surface: #f5f6f8;
+  --color-raised: #ebedf0;
+  --color-raised-2: #e1e4e8;
+  --color-line: #e1e4e8;
+  --color-line-strong: #c5cad1;
+  --color-control: #6e7581;
+  --color-track: #e1e4e8;
+  --color-fg: #121317;
+  --color-fg-muted: #555b66;
+  --color-fg-faint: #5f6570;
+  --color-accent: #4a6b00;
+  --color-accent-fill: #c8f135;
+  --color-on-accent: #0e0f12;
+  --color-accent-tint: #eef8d4;
+  --color-accent-edge: #5f8700;
+  --color-focus: #4a6b00;
+  --color-win: #087040;
+  --color-loss: #b91e2a;
+  --color-win-tint: #e3f3e9;
+  --color-loss-tint: #fbe7e8;
+  --color-tier-50: #a07300;
+  --color-tier-45: #ae6408;
+  --color-tier-40: #9b724b;
+  --color-tier-30: #4479a9;
+  --color-tier-20: #698098;
+  --color-tier-15: #768392;
+  --color-tier-10: #7e858e;
+  --color-tier-05: #84888c;
+  --color-scrim: rgb(14 15 18 / 0.55);
+  --color-selection: #d9f27a;
+  --color-on-selection: #0e0f12;
+  --shadow-card: 0 1px 2px rgb(18 19 23 / 0.06), 0 12px 28px -18px rgb(18 19 23 / 0.28);
+  --shadow-panel: 0 28px 72px -18px rgb(18 19 23 / 0.35);
+  --shadow-footer: 0 -10px 24px -14px rgb(18 19 23 / 0.25);
+  color-scheme: light;
+}

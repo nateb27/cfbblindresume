@@ -1,0 +1,57 @@
+---
+/**
+ * The team stat row (DESIGN §14): committee rank and FEI's strength of record first (the two
+ * verdicts), then FEI overall, offense, defense and schedule. Each: label, "#N", a 6px bar
+ * (tier color of that rank band, filled by rankFill), and the raw FEI value.
+ */
+import type { Team, WeekFile } from '@lib/types';
+import { METRICS, bandKey, feiValue, fill, fmtShortDate } from './site';
+
+interface Props {
+  team: Team;
+  week: WeekFile;
+  class?: string;
+}
+const { team: t, week, class: cls } = Astro.props;
+const n = week.fbsCount;
+const cells = [
+  { ...METRICS.sor, rank: t.ranks.sor, value: `GWD ${feiValue(t.values.gwd)}` },
+  { ...METRICS.fei, rank: t.ranks.fei, value: `FEI ${feiValue(t.values.fei)}` },
+  { ...METRICS.off, rank: t.ranks.off, value: `OFEI ${feiValue(t.values.ofei)}` },
+  { ...METRICS.def, rank: t.ranks.def, value: `DFEI ${feiValue(t.values.dfei)}` },
+  { ...METRICS.sos, rank: t.ranks.sos, value: `ELS ${feiValue(t.values.els)}` },
+];
+const c = t.ranks.committee;
+const release = week.sources.committee?.releaseDate;
+---
+
+<dl class:list={['grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6', cls]}>
+  {
+    week.committee && (
+      <div>
+        <dt class="label-caps text-fg-muted">Committee</dt>
+        <dd class="cond text-stat-lg">{c === null ? 'NR' : `#${c}`}</dd>
+        <dd class:list={['mt-1.5 h-1.5 rounded-slab', c === null ? 'bg-track' : 'bg-accent-fill']} />
+        <dd class="mt-1.5 text-[0.8125rem] leading-4 text-fg-muted">
+          {c === null ? `Outside the top ${week.committee.length}` : release ? `Released ${fmtShortDate(release)}` : 'Top 25'}
+        </dd>
+      </div>
+    )
+  }
+  {
+    cells.map((m, i) => (
+      <div class:list={[i === 0 && week.committee && 'lg:border-r lg:border-line lg:pr-6']}>
+        <dt class="label-caps text-fg-muted">
+          <a href={`/how-it-works#${m.anchor}`} class="hover:text-fg">
+            {m.label}
+          </a>
+        </dt>
+        <dd class="cond text-stat-lg">#{m.rank}</dd>
+        <dd class="meter mt-1.5" data-tier={bandKey(m.rank)} style={`--fill:${fill(m.rank, n)}`}>
+          <span />
+        </dd>
+        <dd class="mt-1.5 text-[0.8125rem] leading-4 text-fg-muted">{m.value}</dd>
+      </div>
+    ))
+  }
+</dl>

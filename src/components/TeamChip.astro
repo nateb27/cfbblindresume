@@ -1,0 +1,37 @@
+---
+/**
+ * Inline team mark for tables, lists and prose (DESIGN §7 `.team-chip`): 12x20 color block with
+ * the secondary rule + condensed caps name. FBS teams link to their page; non-FBS opponents are
+ * plain text on a neutral block.
+ */
+import type { WeekFile } from '@lib/types';
+import { teamVars } from '../styles/tokens';
+import { teamHref } from './site';
+
+interface Props {
+  week: WeekFile;
+  slug: string;
+  /** Non-FBS opponent (looked up in week.opponents). */
+  nonFbs?: boolean;
+  /** Override the visible text (defaults to the team name). */
+  label?: string;
+  class?: string;
+}
+const { week, slug, nonFbs = false, label, class: cls } = Astro.props;
+const t = nonFbs ? undefined : week.teams[slug];
+const o = nonFbs ? week.opponents[slug] : undefined;
+if (!t && !o) throw new Error(`TeamChip: unknown team ${slug}`);
+const name = label ?? t?.name ?? o!.name;
+---
+
+{
+  t ? (
+    <a href={teamHref(t.slug)} class:list={['team-chip hover:underline hover:decoration-2 hover:underline-offset-4', cls]} style={teamVars(t.colors)}>
+      {name}
+    </a>
+  ) : (
+    <span class:list={['team-chip', cls]} style="--team-bg: var(--color-raised-2)">
+      {name}
+    </span>
+  )
+}

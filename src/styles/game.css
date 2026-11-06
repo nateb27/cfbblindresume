@@ -1,0 +1,34 @@
+/*
+ * Game island extras (owner: game). Everything else is tokens.css / global.css utilities and
+ * components; this file only holds what Tailwind utilities cannot express.
+ */
+
+/* Phone card carousel: no visible scrollbar, no scroll chaining into the page. */
+.game-carousel {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.game-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* Reveal dialog backdrop (::backdrop may not inherit custom properties in older engines). */
+.game-dialog::backdrop {
+  background-color: var(--color-scrim, rgb(6 7 9 / 0.8));
+}
+.game-dialog {
+  color-scheme: dark;
+}
+
+/* Lock-in countdown: a fill that sweeps across the Lock in button during the undo window. */
+.game-countdown {
+  transform-origin: left center;
+  animation-name: game-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes game-countdown {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}

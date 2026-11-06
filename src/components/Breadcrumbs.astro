@@ -1,0 +1,35 @@
+---
+/**
+ * Kicker breadcrumbs above an h1 (`label-caps text-fg-muted`) + BreadcrumbList JSON-LD.
+ * Home is implied visually and included in the JSON-LD. The last item is the current page.
+ */
+import JsonLd from './JsonLd.astro';
+import { breadcrumbLd } from './site';
+
+interface Props {
+  items: { name: string; href: string }[];
+  class?: string;
+}
+const { items, class: cls } = Astro.props;
+const ld = breadcrumbLd([{ name: 'Home', path: '/' }, ...items.map((i) => ({ name: i.name, path: i.href }))]);
+---
+
+<nav aria-label="Breadcrumb" class:list={['pt-6', cls]}>
+  <ol class="label-caps flex flex-wrap items-center gap-x-1.5 text-fg-muted">
+    {
+      items.map((it, i) => (
+        <li class="flex items-center gap-x-1.5">
+          {i > 0 && <span aria-hidden="true">/</span>}
+          {i === items.length - 1 ? (
+            <span aria-current="page">{it.name}</span>
+          ) : (
+            <a href={it.href} class="hover:text-fg">
+              {it.name}
+            </a>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</nav>
+<JsonLd data={ld} />

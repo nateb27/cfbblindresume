@@ -1,0 +1,349 @@
+---
+/**
+ * /compare/{a}-vs-{b}: every pair in the committee top 25 (better committee rank first). Two
+ * un-blinded resume cards side by side (stacked on phones), the head-to-head note, who the
+ * committee and FEI prefer, shared opponents and where each stands in every playoff format.
+ */
+import { comparePairs, gameRows, headToHead, nearestCompares, type GameRow } from '@lib/data';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import ResumeCard from '../../components/ResumeCard.astro';
+import Stars from '../../components/Stars.astro';
+import TeamChip from '../../components/TeamChip.astro';
+import TeamLink from '../../components/TeamLink.astro';
+import { teamVars } from '../../styles/tokens';
+import {
+  ADS_ON,
+  SITE_LABELS,
+  absUrl,
+  compareHref,
+  compareOgPath,
+  fmtShortDate,
+  formatShortLabel,
+  formatStatus,
+  latestWeek,
+  ordinal,
+  playoffViews,
+  record,
+  signed,
+  sportsTeamLd,
+  standingIn,
+} from '../../components/site';
+
+export function getStaticPaths() {
+  return comparePairs(latestWeek()).map((p) => ({ params: { pair: p.slug }, props: { a: p.a, b: p.b } }));
+}
+
+const { a, b } = Astro.props as { a: string; b: string };
+const week = latestWeek();
+const A = week.teams[a]!;
+const B = week.teams[b]!;
+const views = playoffViews(week);
+const path = compareHref(`${a}-vs-${b}`);
+const labelLower = week.label.replace(/^After/, 'after');
+
+// Verdicts
+const cPref = A.ranks.committee! <= B.ranks.committee! ? [A, B] : [B, A];
+const fPref = A.ranks.sor <= B.ranks.sor ? [A, B] : [B, A];
+const oPref = A.ranks.fei <= B.ranks.fei ? [A, B] : [B, A];
+const agree = cPref[0]!.slug === fPref[0]!.slug;
+
+// Head to head
+const h2h = headToHead(week, a, b);
+const siteWord = (s: 'home' | 'away' | 'neutral') => (s === 'home' ? 'at home' : s === 'away' ? 'on the road' : 'at a neutral site');
+
+// Shared opponents (FBS and non-FBS), by toughest tier first
+const rowsA = gameRows(week, a);
+const rowsB = gameRows(week, b);
+const key = (r: GameRow) => `${r.opp.fbs ? 'f' : 'n'}:${r.opp.slug}`;
+const byOpp = (rows: GameRow[]) => {
+  const m = new Map<string, GameRow[]>();
+  for (const r of rows) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
+  return m;
+};
+const aByOpp = byOpp(rowsA);
+const bByOpp = byOpp(rowsB);
+const shared = [...aByOpp.keys()]
+  .filter((k) => bByOpp.has(k) && k !== `f:${a}` && k !== `f:${b}`)
+  .map((k) => ({ opp: aByOpp.get(k)![0]!.opp, tier: aByOpp.get(k)![0]!.tier, a: aByOpp.get(k)!, b: bByOpp.get(k)! }));
+
+// More compares around each team
+const more = [...nearestCompares(week, a, 4), ...nearestCompares(week, b, 4)]
+  .filter((p, i, arr) => p.slug !== `${a}-vs-${b}` && arr.findIndex((x) => x.slug === p.slug) === i)
+  .slice(0, 6);
+
+const title = `${A.name} vs ${B.name} Playoff Resume: #${A.ranks.committee} vs #${B.ranks.committee} Committee, FEI Prefers ${fPref[0]!.name} — ${week.label}`;
+const description =
+  `${A.name} (${record(A)}) vs ${B.name} (${record(B)}) side by side ${labelLower}: the committee has ${cPref[0]!.name} ahead (#${cPref[0]!.ranks.committee} vs #${cPref[1]!.ranks.committee}), ` +
+  `FEI's strength of record ${agree ? 'agrees' : `prefers ${fPref[0]!.name}`} (#${fPref[0]!.ranks.sor} vs #${fPref[1]!.ranks.sor})` +
+  (h2h.length ? `, and ${week.teams[h2h[h2h.length - 1]!.winner]!.name} won the head-to-head.` : '. Ratings, quality wins and game logs compared.');
+const ld = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: `${A.name} vs ${B.name}`,
+  url: absUrl(path),
+  numberOfItems: 2,
+  itemListElement: [A, B].map((t, i) => ({ '@type': 'ListItem', position: i + 1, item: sportsTeamLd(t) })),
+};
+const orders = [
+  ...(views.committee ? [{ key: 'committee' as const, title: 'By the committee', res: views.committee }] : []),
+  { key: 'fei' as const, title: 'By FEI', res: views.fei },
+];
+const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) => {
+  const st = standingIn(p, slug);
+  return st.kind === 'in' ? `In · ${ordinal(st.seed!.seed)} seed${st.bye ? ', bye' : ''}` : st.kind === 'first-out' ? `${ordinal(st.outPos!)} out` : 'Out';
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  path={path}
+  ogImage={compareOgPath(`${a}-vs-${b}`)}
+  ogImageAlt={`${A.name} vs ${B.name}: committee #${A.ranks.committee} vs #${B.ranks.committee}, FEI strength of record #${A.ranks.sor} vs #${B.ranks.sor}`}
+  jsonLd={ld}
+  current="rankings"
+  week={week}
+>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs
+      items={[
+        { name: 'Rankings', href: '/rankings' },
+        { name: `${A.name} vs ${B.name}`, href: path },
+      ]}
+    />
+    <h1 class="cond mt-2 text-title uppercase lg:text-display">
+      {A.name}{' '}<span class="text-fg-muted">vs</span>{' '}{B.name}
+    </h1>
+    <p class="mt-2 text-sm text-fg-muted">Playoff resumes compared · {week.label}, {week.season}</p>
+
+    <div class="mt-6 flex flex-col gap-1.5">
+      {
+        h2h.length ? (
+          h2h.map((g) => (
+            <p class="inline-flex w-fit flex-wrap items-center gap-2.5 rounded-chip border border-line bg-surface py-1.5 pr-3 pl-2">
+              <span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5">H2H</span>
+              <span class="cond text-[1.0625rem] font-semibold">
+                <TeamLink team={week.teams[g.winner]!} /> beat <TeamLink team={week.teams[g.loser]!} />{' '}
+                {`${g.winnerPoints}-${g.loserPoints} ${siteWord(g.winnerSite)} · ${fmtShortDate(g.date)}`}
+              </span>
+            </p>
+          ))
+        ) : (
+          <p class="inline-flex w-fit items-center gap-2.5 rounded-chip border border-line bg-surface py-1.5 pr-3 pl-2">
+            <span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5">H2H</span>
+            <span class="cond text-[1.0625rem] font-semibold">No meeting this season</span>
+          </p>
+        )
+      }
+    </div>
+
+    <dl class="mt-5 grid gap-3 sm:grid-cols-3">
+      {
+        [
+          { k: 'Committee', w: cPref, r: (t: typeof A) => `#${t.ranks.committee}` },
+          { k: 'FEI strength of record', w: fPref, r: (t: typeof A) => `#${t.ranks.sor}` },
+          { k: 'FEI overall', w: oPref, r: (t: typeof A) => `#${t.ranks.fei}` },
+        ].map((v) => (
+          <div class="rounded-card border border-line px-4 py-3">
+            <dt class="label-caps text-fg-muted">{v.k} prefers</dt>
+            <dd class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <TeamChip week={week} slug={v.w[0]!.slug} />
+              <b class="cond text-[1.25rem]">{v.r(v.w[0]!)}</b>
+              <span class="text-sm text-fg-muted">
+                over <TeamLink team={v.w[1]!} class="text-fg-muted" />
+              </span>
+              <b class="cond text-[1.0625rem] text-fg-muted">{v.r(v.w[1]!)}</b>
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+    <p class="mt-3 text-lg leading-7">
+      {
+        agree ? (
+          <>
+            The committee and FEI's strength of record agree: <TeamLink team={cPref[0]!} /> has the better resume.
+          </>
+        ) : (
+          <>
+            The committee and FEI's strength of record disagree: the committee has <TeamLink team={cPref[0]!} /> ahead, FEI has{' '}
+            <TeamLink team={fPref[0]!} />.
+          </>
+        )
+      }
+    </p>
+
+    <div class="mt-8 grid items-start gap-5 md:grid-cols-2">
+      <ResumeCard week={week} slug={a} />
+      <ResumeCard week={week} slug={b} />
+    </div>
+    <p class="mt-3 text-[0.8125rem] text-fg-muted">
+      #N = rank among all {week.fbsCount} FBS teams. Opponent tiers use this week's FEI ranks. Ratings:{' '}
+      <a class="link" href={week.sources.ratings.url}>FEI by {week.sources.ratings.author}</a>
+    </p>
+
+    <AdSlot kind="incontent" class="mt-10" />
+
+    <div class:list={['mt-12 grid gap-12', ADS_ON && 'lg:grid-cols-[minmax(0,1fr)_300px]']}>
+      <div class="flex min-w-0 flex-col gap-12">
+        <div class="grid gap-12 lg:grid-cols-2">
+        <section aria-labelledby="shared" class="min-w-0 lg:order-2">
+          <h2 id="shared" class="cond text-heading uppercase">Shared opponents</h2>
+          {
+            shared.length === 0 ? (
+              <p class="mt-2 text-fg-muted">
+                <TeamLink team={A} class="text-fg-muted" /> and <TeamLink team={B} class="text-fg-muted" /> have no common opponents this season.
+              </p>
+            ) : (
+              <div class="table-wrap mt-3">
+                <table class="data-table">
+                  <caption class="sr-only">
+                    Results against common opponents
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Opponent</th>
+                      <th scope="col" class="max-sm:hidden">
+                        Tier
+                      </th>
+                      <th scope="col" data-num>
+                        <TeamChip week={week} slug={a} label={A.short} />
+                      </th>
+                      <th scope="col" data-num>
+                        <TeamChip week={week} slug={b} label={B.short} />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shared.map((s) => (
+                      <tr>
+                        <td>
+                          <TeamChip week={week} slug={s.opp.slug} nonFbs={!s.opp.fbs} />
+                        </td>
+                        <td class="max-sm:hidden">
+                          <span class="flex items-center gap-2">
+                            <Stars stars={s.tier.stars} label={s.tier.label} />
+                            <span class="text-fg-muted" aria-hidden="true">
+                              {s.tier.label}
+                            </span>
+                          </span>
+                        </td>
+                        {[s.a, s.b].map((games, i) => (
+                          <td data-num>
+                            <span class="inline-flex flex-col items-end gap-1">
+                              {games.map((g) => (
+                                <span class="inline-flex items-center gap-2">
+                                  <span class="text-[0.8125rem] font-normal text-fg-muted max-sm:hidden">{SITE_LABELS[g.site]}</span>
+                                  <span class="result-chip" data-result={g.result}>
+                                    <span>{g.result}</span>
+                                    <span>{signed(g.margin)}</span>
+                                  </span>
+                                  <span class="sr-only">{`${[A, B][i]!.name} ${g.result === 'W' ? 'won' : 'lost'} ${g.pf}-${g.pa}`}</span>
+                                </span>
+                              ))}
+                            </span>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          }
+        </section>
+
+        <section aria-labelledby="fields" class="min-w-0 lg:order-1">
+          <h2 id="fields" class="cond text-heading uppercase">In the projected fields</h2>
+          <div class="table-wrap mt-3">
+            <table class="data-table">
+              <caption class="sr-only">Where each team stands in every projected playoff field</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Field</th>
+                  <th scope="col">
+                    <TeamChip week={week} slug={a} label={A.short} />
+                  </th>
+                  <th scope="col">
+                    <TeamChip week={week} slug={b} label={B.short} />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  views.formats.flatMap((f) =>
+                    orders.map((o) => (
+                      <tr>
+                        <th scope="row" class="!border-b-line !align-middle !normal-case !tracking-normal font-sans text-sm font-normal text-fg">
+                          {formatShortLabel(f, week.season)}
+                          <span class="block text-[0.8125rem] text-fg-muted">{o.title}</span>
+                        </th>
+                        {[a, b].map((s) => (
+                          <td class="cond text-[1.0625rem] font-semibold">{standingShort(o.res[f.id]!, s)}</td>
+                        ))}
+                      </tr>
+                    )),
+                  )
+                }
+              </tbody>
+            </table>
+          </div>
+          {
+            views.formats
+              .filter((f) => f.status === 'proposed')
+              .map((f) => (
+                <p class="mt-2 text-[0.8125rem] text-fg-muted">
+                  {`${f.label}: ${formatStatus(f, week.season)}. `}
+                  <a class="link" href={f.sourceUrl}>
+                    Source: {f.sourceName}
+                  </a>
+                </p>
+              ))
+          }
+        </section>
+        </div>
+
+        {
+          more.length > 0 && (
+            <section aria-labelledby="more">
+              <h2 id="more" class="cond text-heading uppercase">
+                More comparisons
+              </h2>
+              <ul class="mt-3 grid gap-2 sm:grid-cols-2">
+                {more.map((p) => {
+                  const x = week.teams[p.a]!;
+                  const y = week.teams[p.b]!;
+                  return (
+                    <li>
+                      <a href={compareHref(p.slug)} class="flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface">
+                        <span class="team-chip" style={teamVars(x.colors)}>
+                          {x.name}
+                        </span>
+                        <span class="text-sm text-fg-muted">vs</span>
+                        <span class="team-chip" style={teamVars(y.colors)}>
+                          {y.name}
+                        </span>
+                        <span class="label-caps ml-auto text-fg-muted">
+                          {p.aRank} v {p.bRank}
+                        </span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )
+        }
+      </div>
+      {
+        ADS_ON && (
+          <div>
+            <AdSlot kind="sidebar" />
+          </div>
+        )
+      }
+    </div>
+  </div>
+</BaseLayout>

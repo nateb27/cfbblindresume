@@ -1,0 +1,11 @@
+---
+/** "CFB·BLIND RESUME" wordmark: condensed 700 caps with an accent middot. */
+interface Props {
+  class?: string;
+}
+const { class: cls } = Astro.props;
+---
+
+<span class:list={['cond text-[1.25rem] leading-none font-bold tracking-[0.02em] whitespace-nowrap uppercase', cls]}
+  >CFB<span class="text-accent" aria-hidden="true">·</span><span class="sr-only"> </span>Blind Resume</span
+>

@@ -1,3 +1,167 @@
 ---
+/**
+ * / (dark): H1 + one indexable paragraph above the fold, the game island (the only JS on the
+ * site), the leaderboard ad below the game container, then a static "This week" section:
+ * committee top 12 vs FEI strength-of-record top 12 and the projected fields.
+ */
+import { committeeOrder, gwdOrder } from '@lib/data';
+import { TRIO_RULES } from '@lib/trios';
+import GameApp from '../game/GameApp.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AdSlot from '../components/AdSlot.astro';
+import Delta from '../components/Delta.astro';
+import PlayoffBlock from '../components/PlayoffBlock.astro';
+import TeamBlock from '../components/TeamBlock.astro';
+import { ADS_ON, SITE, absUrl, fmtLongDate, formatShortLabel, formatStatus, latestWeek, playoffViews, record } from '../components/site';
+
+const week = latestWeek();
+const views = playoffViews(week);
+const def = views.formats[0]!;
+const others = views.formats.slice(1);
+const committee = committeeOrder(week);
+const fei = gwdOrder(week);
+const TOP = def.size;
+const rounds = TRIO_RULES.baseRounds;
+const release = week.sources.committee?.releaseDate;
+
+const title = `Blind Resume Game: Rank the College Football Playoff Contenders — ${week.label}, ${week.season}`;
+const description = `Three college football resumes per round, names hidden. Rank them for ${rounds} rounds and get your own top 25 and ${def.size}-team bracket, side by side with the committee and FEI. Free, no sign-up. ${SITE.tagline}`;
+const ld = [
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE.name, url: absUrl('/') },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: `${SITE.name} game`,
+    url: absUrl('/'),
+    description,
+    applicationCategory: 'GameApplication',
+    operatingSystem: 'Any (web browser)',
+    isAccessibleForFree: true,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  },
+];
+const lists = [
+  ...(committee ? [{ id: 'cmte', title: `Committee top ${TOP}`, order: committee, other: 'FEI' as const }] : []),
+  { id: 'fei', title: `FEI strength of record top ${TOP}`, order: fei, other: 'CFP' as const },
+];
 ---
-<html lang="en"><head><meta charset="utf-8"><title>CFB Blind Resume</title></head><body><h1>CFB Blind Resume</h1></body></html>
+
+<BaseLayout title={title} description={description} path="/" jsonLd={ld} game current="play" week={week}>
+  <div class="mx-auto max-w-game px-gutter lg:px-gutter-lg">
+    <section class="pt-6 lg:pt-10" aria-labelledby="hero">
+      <p class="label-caps text-fg-muted">
+        {week.label}, {week.season}{release && <span class="max-sm:hidden">{` · committee ranking of ${fmtLongDate(release)}`}</span>}
+      </p>
+      <h1 id="hero" class="cond mt-2 text-title uppercase lg:text-display">
+        Rank the resumes.{' '}<span class="text-fg-muted">Names hidden.</span>
+      </h1>
+      <p class="mt-3 max-w-read text-[0.9375rem] leading-6 sm:text-lg sm:leading-7">
+        {
+          `Three college football resumes a round, names and logos hidden. Rank them 1-2-3 for ${rounds} rounds and get your own top 25 and ${def.size}-team bracket, side by side with the committee's and FEI's. ${SITE.tagline}`
+        }
+      </p>
+    </section>
+  </div>
+
+  <div id="play" class="mt-6 lg:mt-8">
+    <GameApp client:load mode="play" season={week.season} week={week.week} adsEnabled={ADS_ON} />
+  </div>
+
+  <div class="mx-auto mt-10 max-w-game px-gutter lg:px-gutter-lg">
+    <AdSlot kind="leaderboard" />
+  </div>
+
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <section aria-labelledby="this-week" class="mt-16 border-t border-line pt-10">
+      <h2 id="this-week" class="cond text-title uppercase lg:text-display">This week</h2>
+      <p class="mt-2 max-w-read text-fg-muted">
+        {
+          committee
+            ? `The committee's top ${TOP} next to FEI's strength of record top ${TOP}, ${week.label.replace(/^After/, 'after')}.`
+            : `FEI's strength of record top ${TOP}, ${week.label.replace(/^After/, 'after')}. The committee has not released a ranking yet.`
+        }
+      </p>
+
+      <div class:list={['mt-6 grid gap-x-12 gap-y-10', lists.length > 1 && 'md:grid-cols-2']}>
+        {
+          lists.map((l) => (
+            <section aria-labelledby={`top-${l.id}`}>
+              <h3 id={`top-${l.id}`} class="label-caps text-fg">
+                {l.title}
+              </h3>
+              <ol class="mt-2 flex flex-col gap-2">
+                {l.order.slice(0, TOP).map((slug, i) => {
+                  const t = week.teams[slug]!;
+                  const otherRank = l.other === 'FEI' ? t.ranks.sor : t.ranks.committee;
+                  return (
+                    <li class="flex items-center gap-3">
+                      <TeamBlock team={t} size="row" seed={i + 1} meta={record(t)} class="min-w-0 flex-1" />
+                      <span class="flex w-[4.75rem] flex-none flex-col items-start gap-1">
+                        <span class="label-caps text-fg-muted">
+                          {l.other} {otherRank ?? 'NR'}
+                        </span>
+                        {committee && <Delta value={t.ranks.committee === null ? null : t.ranks.committee - t.ranks.sor} />}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))
+        }
+      </div>
+      <p class="mt-4 text-[0.8125rem] text-fg-muted">
+        Triangles: how many spots higher (up) or lower (down) FEI's strength of record ranks a team than the committee does.
+      </p>
+
+      <PlayoffBlock week={week} format={def} headingLevel="h3" class="mt-14" />
+
+      {
+        others.map((f) => (
+          <aside class="callout mt-10" aria-label={formatShortLabel(f, week.season)}>
+            <p class="label-caps flex flex-wrap gap-x-2 text-fg">
+              {formatShortLabel(f, week.season)}
+              <span class="text-fg-muted">· {formatStatus(f, week.season)}</span>
+            </p>
+            <p class="mt-1.5">
+              {f.note}{' '}
+              <a class="link" href={f.sourceUrl}>
+                Source: {f.sourceName}
+              </a>
+            </p>
+            <p class="mt-2 text-sm text-fg-muted">
+              Seeds, byes and first-round games for the {f.size}-team field by both rankings are on the{' '}
+              <a class="link text-fg" href="/rankings">
+                rankings page
+              </a>
+              .
+            </p>
+          </aside>
+        ))
+      }
+
+      <nav aria-label="More" class="mt-12">
+        <ul class="grid gap-3 sm:grid-cols-3">
+          <li>
+            <a href="/rankings" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
+              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">Full rankings</span>
+              <span class="text-sm text-fg-muted">Top 25 both ways, cut lines, every field</span>
+            </a>
+          </li>
+          <li>
+            <a href="/bubble" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
+              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">Bubble watch</span>
+              <span class="text-sm text-fg-muted">Who is in, who is out, and who changes sides</span>
+            </a>
+          </li>
+          <li>
+            <a href="/teams" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
+              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">All {Object.keys(week.teams).length} teams</span>
+              <span class="text-sm text-fg-muted">Every FBS resume, by conference</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </section>
+  </div>
+</BaseLayout>

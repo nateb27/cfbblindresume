@@ -65,7 +65,8 @@ N", as on Fremeau's final post-bowl page, after the season's last scheduled comm
   a mismatch is printed as a warning only, because that page can lag a new release.
 - **Champions**: conference championship games (both teams in the same conference, CFBD notes
   mention "Championship") within the included weeks.
-- **Playoff format**: copied from `pipeline/playoff_format.json` (the one place it lives).
+- **Playoff formats** (`playoffFormats`, schemaVersion 2): copied from `pipeline/playoff_formats.json`
+  (the one place they live), in config order. Champion detection skips every format's `nonConferences`.
 - **asOf**: today's date (US Eastern). If a rebuild changes nothing but the date, the existing
   `asOf` is kept, so scheduled runs do not create empty commits. Same inputs give byte-identical
   output.
@@ -86,6 +87,17 @@ known slugs, each with a game log, matching `ranks.committee`; colors are `#rrgg
 games; games chronological; label "After Week N"; week/asOf/hasCommittee match `index.json`; the
 house-rule strings (see SPEC.md rule 1) never appear. `--all` also checks that `index.json` and
 the week files on disk list the same weeks.
+
+Playoff formats (schemaVersion 2): a non-empty list; every field present (id, label, status,
+default, note, sourceName, sourceUrl, checkedOn, size, byes, seeding, autoBids, powerConferences,
+nonConferences); exactly one `default: true`; unique ids (lowercase, hyphens); status is `current` or
+`proposed`; `note` is one sentence ending in a period; `sourceUrl` is https and never on the excluded
+network's domain; `checkedOn` is a date; `byes == nextPow2(size) - size` (12 -> 4, 24 -> 8);
+seeding `straight`; each auto-bid rule has `from` in all/power/nonPower (no pool twice) and a
+positive `count`, a `power` count no larger than the number of power conferences, and power/nonPower
+rules need `powerConferences`; rule counts + guaranteed teams fit in `size`; guaranteed slugs are
+FBS teams in the file with a threshold in 1..size; every power conference is the conference of some
+team in the file and is not also a non-conference.
 
 ## CSV fallback (when bcftoys.com cannot be fetched)
 
@@ -129,8 +141,14 @@ only from a table through week N.)
 
 ## Other config
 
-- `pipeline/playoff_format.json`: playoff format per season (size, byes, seeding, automatic bids,
-  conferences without a champion, source URL).
+- `pipeline/playoff_formats.json`: playoff formats per season, `{"2026": [format, ...]}` (fields as
+  `PlayoffFormat` in `src/lib/types.ts`). 2026: `12-team` (current, default: five highest-ranked
+  champions + Notre Dame if top 12, 4 byes; source collegefootballplayoff.com) and `24-team` (proposed
+  for 2027, not final: the four power-conference champions + the best other champion, 19 at-large,
+  8 byes; source Deseret News, Oct 15 2026). Changing a format or adding one is a config edit plus a
+  pipeline re-run (`python3 pipeline/run.py --season 2026 --use-cache --as-of <the week's asOf>` keeps
+  a week's data and date). Tests use `pipeline/tests/fixtures/playoff_formats_mini.json` because the
+  six-team fixture has only one power conference.
 - `pipeline/committee_schedule.json`: the season's published committee release dates. CFBD does
   not give a release date, so when the CFP page cannot be read the n-th CFBD committee poll is
   dated with the n-th scheduled release, after checking it falls inside that CFBD week. Dates

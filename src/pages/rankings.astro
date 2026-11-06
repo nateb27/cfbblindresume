@@ -1,0 +1,29 @@
+---
+/** /rankings: the latest week's committee top 25 beside FEI's strength of record, with cut lines and projected fields. */
+import { committeeOrder, gwdOrder, TOP_N } from '@lib/data';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import RankingsView from '../components/RankingsView.astro';
+import { formatSizeLabel, itemListLd, latestWeek, playoffViews, teamHref } from '../components/site';
+
+const week = latestWeek();
+const views = playoffViews(week);
+const c = committeeOrder(week);
+const fei = gwdOrder(week);
+const n = c?.length ?? TOP_N;
+const top = (o: string[], k: number) => o.slice(0, k).map((s) => week.teams[s]!.name);
+const sizes = views.formats.map((f) => (f.status === 'proposed' ? `proposed ${formatSizeLabel(f)}` : formatSizeLabel(f))).join(' and ');
+const title = c
+  ? `CFP Rankings vs FEI Strength of Record: Committee Top ${n} Compared — ${week.label}, ${week.season}`
+  : `FEI Strength of Record Top ${n} — ${week.label}, ${week.season}`;
+const description = c
+  ? `The committee's top ${n} next to FEI's strength of record ${week.label.replace(/^After/, 'after')}: ${top(c, 3).join(', ')} lead the committee; FEI has ${top(fei, 3).join(', ')}. Deltas, cut lines and projected ${sizes} fields.`
+  : `FEI's strength of record top ${n} ${week.label.replace(/^After/, 'after')}, led by ${top(fei, 3).join(', ')}, with projected ${sizes} fields.`;
+const ld = itemListLd(
+  c ? `Committee top ${n}, ${week.label} ${week.season}` : `FEI strength of record top ${n}, ${week.label} ${week.season}`,
+  (c ?? fei.slice(0, n)).map((s) => ({ name: week.teams[s]!.name, path: teamHref(s) })),
+);
+---
+
+<BaseLayout title={title} description={description} path="/rankings" jsonLd={ld} current="rankings" week={week}>
+  <RankingsView week={week} archive={false} />
+</BaseLayout>

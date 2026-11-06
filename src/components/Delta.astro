@@ -1,0 +1,30 @@
+---
+/**
+ * FEI vs committee delta (`.delta`, drawn triangle). `value` = committee rank − FEI strength-of-
+ * record rank: positive means FEI ranks the team higher (up), negative lower (down).
+ */
+import { deltaSr } from './site';
+
+interface Props {
+  value: number | null;
+}
+const { value } = Astro.props;
+---
+
+{
+  value === null ? (
+    <span class="text-fg-faint">
+      <span aria-hidden="true">—</span>
+      <span class="sr-only">No committee rank</span>
+    </span>
+  ) : value === 0 ? (
+    <span class="delta" data-dir="same">
+      0<span class="sr-only"> FEI and the committee agree</span>
+    </span>
+  ) : (
+    <span class="delta" data-dir={value > 0 ? 'up' : 'down'}>
+      {Math.abs(value)}
+      <span class="sr-only">{deltaSr(value)}</span>
+    </span>
+  )
+}

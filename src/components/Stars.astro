@@ -1,0 +1,15 @@
+---
+/** Opponent-tier stars (DESIGN §4): one masked element, filled in the tier color. */
+import { tierKey } from '../styles/tokens';
+
+interface Props {
+  stars: number;
+  /** Appended to the accessible name, e.g. "FEI 6-10 team". */
+  label?: string;
+  class?: string;
+}
+const { stars, label, class: cls } = Astro.props;
+const name = `${stars} of 5 stars${label ? `, ${label}` : ''}`;
+---
+
+<span class:list={['stars', cls]} data-tier={tierKey(stars)} role="img" aria-label={name}></span>

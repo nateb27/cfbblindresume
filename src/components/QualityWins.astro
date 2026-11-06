@@ -1,0 +1,35 @@
+---
+/** Quality-win chips (DESIGN §9): records vs FEI top 10 / 11-25 / 26-50 (current ranks). */
+import { qualityWins } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+
+interface Props {
+  week: WeekFile;
+  slug: string;
+  class?: string;
+}
+const { week, slug, class: cls } = Astro.props;
+const q = qualityWins(week, slug);
+const chips = [
+  { label: 'Top 10', tier: '50', wl: q.top10, sr: 'against FEI top 10 teams' },
+  { label: 'FEI 11-25', tier: '40', wl: q.r11to25, sr: 'against FEI 11-25 teams' },
+  { label: 'FEI 26-50', tier: '30', wl: q.r26to50, sr: 'against FEI 26-50 teams' },
+];
+---
+
+<ul class:list={['grid grid-cols-3 gap-1.5', cls]}>
+  {
+    chips.map((c) => (
+      <li class="flex h-8 min-w-0 items-center gap-1.5 rounded-chip bg-raised px-2">
+        <span class="tier-dot" data-tier={c.tier} style="--tier-dot:8px" aria-hidden="true" />
+        <span class="label-caps flex-1 truncate tracking-[0.04em] text-fg-muted" aria-hidden="true">
+          {c.label}
+        </span>
+        <span class="sr-only">Record {c.sr}:</span>
+        <span class:list={['cond text-[1.0625rem] leading-none font-bold whitespace-nowrap', c.wl.w + c.wl.l === 0 && 'text-fg-faint']}>
+          {c.wl.w}-{c.wl.l}
+        </span>
+      </li>
+    ))
+  }
+</ul>

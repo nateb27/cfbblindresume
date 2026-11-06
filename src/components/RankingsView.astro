@@ -1,0 +1,202 @@
+---
+/**
+ * The rankings page body, shared by /rankings (latest week) and /rankings/{season}/week-{N}
+ * (frozen copy): committee top 25 beside FEI's strength-of-record top 25 with deltas and a cut line
+ * per playoff format, the biggest disagreements, and the projected field for every format by both
+ * orders. Falls back to FEI alone before the committee's first release.
+ */
+import { deltas, gwdOrder, TOP_N } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import AdSlot from './AdSlot.astro';
+import Breadcrumbs from './Breadcrumbs.astro';
+import Delta from './Delta.astro';
+import JumpNav from './JumpNav.astro';
+import PlayoffBlock from './PlayoffBlock.astro';
+import RankingsTable from './RankingsTable.astro';
+import TeamChip from './TeamChip.astro';
+import { ADS_ON, allWeekRefs, archiveHref, fmtDate, fmtLongDate, playoffViews } from './site';
+
+interface Props {
+  week: WeekFile;
+  archive: boolean;
+}
+const { week, archive } = Astro.props;
+const views = playoffViews(week);
+const refs = allWeekRefs();
+const latestRef = refs[refs.length - 1]!;
+const isLatest = latestRef.season === week.season && latestRef.week === week.week;
+const committee = week.committee;
+const release = week.sources.committee?.releaseDate;
+const n = committee?.length ?? TOP_N;
+const formatsWords = views.formats.map((f) => (f.status === 'proposed' ? `the proposed ${f.size}-team field` : `the ${f.size}-team field`)).join(' and ');
+
+// Biggest disagreements among teams the committee ranks, plus FEI top-25 teams it leaves out.
+const ranked = deltas(week).filter((d) => d.delta !== null) as { slug: string; committee: number; gwd: number; delta: number }[];
+const feiHigher = ranked.filter((d) => d.delta > 0).sort((a, b) => b.delta - a.delta || a.gwd - b.gwd).slice(0, 4);
+const cmteHigher = ranked.filter((d) => d.delta < 0).sort((a, b) => a.delta - b.delta || a.committee - b.committee).slice(0, 4);
+const leftOut = committee ? gwdOrder(week).slice(0, n).filter((s) => week.teams[s]!.ranks.committee === null) : [];
+const groups = [
+  { title: 'FEI is higher than the committee', rows: feiHigher },
+  { title: 'The committee is higher than FEI', rows: cmteHigher },
+];
+---
+
+<div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+  <Breadcrumbs
+    items={archive
+      ? [
+          { name: 'Rankings', href: '/rankings' },
+          { name: `${week.label}, ${week.season}`, href: archiveHref(week.season, week.week) },
+        ]
+      : [{ name: 'Rankings', href: '/rankings' }]}
+  />
+  <h1 class="cond mt-2 text-title uppercase lg:text-display">
+    {committee ? 'Committee vs FEI' : 'FEI strength of record'}
+    <span class="block text-fg-muted">{archive ? `${week.label}, ${week.season}` : `Top ${n}, ${week.label.replace(/^After/, 'after')}`}</span>
+  </h1>
+  <p class="mt-4 max-w-read text-lg leading-7">
+    {
+      committee ? (
+        <>
+          The selection committee's top {n}
+          {release && <> from its {fmtLongDate(release)} release</>} beside FEI's strength of record, which rates every FBS team's wins and losses
+          against the schedule it played. Lines mark who is in {formatsWords} under each ranking.
+        </>
+      ) : (
+        <>
+          The committee has not released a ranking yet. This is FEI's strength of record top {n}, which rates every FBS team's wins and losses
+          against the schedule it played, with lines for {formatsWords}.
+        </>
+      )
+    }
+  </p>
+  {
+    archive && (
+      <p class="mt-3 text-sm text-fg-muted">
+        {`Frozen copy of the rankings as of ${fmtDate(week.asOf)}. ${isLatest ? 'This is also the current week, live at' : 'For the current week, see'} `}
+        <a class="link text-fg" href="/rankings">the latest rankings</a>.
+      </p>
+    )
+  }
+
+  <JumpNav
+    class="mt-6"
+    items={[
+      ...(committee ? [{ href: '#t-cmte', label: `Committee top ${n}` }] : []),
+      { href: '#t-fei', label: `FEI top ${n}` },
+      ...views.formats.map((f) => ({ href: `#field-${f.id}-${week.season}-${week.week}`, label: `${f.size}-team field` })),
+      { href: '#archive', label: 'Every week' },
+    ]}
+  />
+
+  <div class:list={['mt-10 grid gap-x-12 gap-y-12', committee && 'lg:grid-cols-2']}>
+    {
+      committee && (
+        <section aria-labelledby="t-cmte">
+          <h2 id="t-cmte" class="cond text-heading uppercase">
+            Committee top {n}
+          </h2>
+          <p class="mt-1 text-sm text-fg-muted">With FEI's strength-of-record rank for each team.</p>
+          <RankingsTable week={week} kind="committee" caption={`Committee top ${n} with FEI strength of record ranks`} class="mt-3" />
+        </section>
+      )
+    }
+    <section aria-labelledby="t-fei">
+      <h2 id="t-fei" class="cond text-heading uppercase">FEI strength of record top {n}</h2>
+      <p class="mt-1 text-sm text-fg-muted">{committee ? 'With the committee rank for each team (NR = unranked).' : `Among all ${week.fbsCount} FBS teams.`}</p>
+      <RankingsTable week={week} kind="fei" caption={`FEI strength of record top ${n}${committee ? ' with committee ranks' : ''}`} class="mt-3" />
+    </section>
+  </div>
+  <p class="mt-4 text-[0.8125rem] text-fg-muted">
+    FEI vs CFP: how many spots higher (up) or lower (down) FEI's strength of record ranks a team than the committee does. Field teams below a line
+    got in on an automatic bid.
+  </p>
+
+  <AdSlot kind="incontent" class="mt-10" />
+
+  {
+    committee && (
+      <div class:list={['mt-12', ADS_ON && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12']}>
+        <section aria-labelledby="disagree">
+          <h2 id="disagree" class="cond text-heading uppercase">
+            Where they disagree most
+          </h2>
+          <div class:list={['mt-4 grid gap-x-12 gap-y-8 sm:grid-cols-2', !ADS_ON && 'lg:max-w-[56rem]']}>
+            {groups.map((g) => (
+              <div>
+                <h3 class="label-caps text-fg-muted">{g.title}</h3>
+                <ul class="mt-2">
+                  {g.rows.map((r) => (
+                    <li class="flex min-h-11 items-center justify-between gap-3 border-b border-line py-1.5">
+                      <TeamChip week={week} slug={r.slug} />
+                      <span class="flex items-center gap-3 whitespace-nowrap">
+                        <span class="label-caps text-fg-muted">
+                          CFP {r.committee} · FEI {r.gwd}
+                        </span>
+                        <Delta value={r.delta} />
+                      </span>
+                    </li>
+                  ))}
+                  {g.rows.length === 0 && <li class="py-2 text-sm text-fg-muted">None this week.</li>}
+                </ul>
+              </div>
+            ))}
+          </div>
+          {leftOut.length > 0 && (
+            <p class="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-fg-muted">
+              <span>In FEI's top {n}, not in the committee's:</span>
+              {leftOut.map((s) => (
+                <span class="flex items-center gap-1.5">
+                  <TeamChip week={week} slug={s} />
+                  <span class="label-caps">FEI {week.teams[s]!.ranks.sor}</span>
+                </span>
+              ))}
+            </p>
+          )}
+        </section>
+        {ADS_ON && (
+          <div class="mt-10 lg:mt-0">
+            <AdSlot kind="sidebar" />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  <div class="mt-14 flex flex-col gap-14">
+    {views.formats.map((f) => <PlayoffBlock week={week} format={f} />)}
+  </div>
+
+  <section aria-labelledby="archive" class="mt-14">
+    <h2 id="archive" class="cond text-heading uppercase">Every week</h2>
+    <ul class="mt-3 flex flex-wrap gap-2">
+      {
+        refs
+          .slice()
+          .reverse()
+          .map((r) => {
+            const here = r.season === week.season && r.week === week.week && archive;
+            return (
+              <li>
+                <a
+                  href={archiveHref(r.season, r.week)}
+                  aria-current={here ? 'page' : undefined}
+                  class:list={[
+                    'flex min-h-11 flex-col justify-center rounded-chip border px-3 py-1.5 transition-colors hover:bg-surface',
+                    here ? 'border-accent-edge' : 'border-line hover:border-control',
+                  ]}
+                >
+                  <span class="cond text-[1.0625rem] leading-5 font-bold uppercase">
+                    {r.label}, {r.season}
+                  </span>
+                  <span class="text-[0.8125rem] leading-4 text-fg-muted">
+                    {r.hasCommittee ? 'Committee + FEI' : 'FEI only'} · {fmtDate(r.asOf)}
+                  </span>
+                </a>
+              </li>
+            );
+          })
+      }
+    </ul>
+  </section>
+</div>

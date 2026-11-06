@@ -20,13 +20,24 @@ def mini_json(name: str):
     return json.loads(read(MINI / "2026" / name))
 
 
+# The mini fixture has six teams and only one of the four real power conferences (SEC), so it uses
+# its own playoff formats (same shape; powerConferences limited to SEC). The real config is checked
+# in test_validate.PlayoffFormatsConfig and against the committed week files.
+MINI_FORMATS = FIX / "playoff_formats_mini.json"
+
+
+def mini_formats() -> list:
+    return json.loads(read(MINI_FORMATS))["2026"]
+
+
 def make_workspace() -> Path:
     """Temp dir with a copy of the pipeline config (empty slugs) and the mini fixture cache."""
     tmp = Path(tempfile.mkdtemp(prefix="cfbpipe-test-"))
     cfg = tmp / "config"
     cfg.mkdir()
-    for name in ("aliases.json", "playoff_format.json", "committee_schedule.json"):
+    for name in ("aliases.json", "committee_schedule.json"):
         shutil.copy(PIPE / name, cfg / name)
+    shutil.copy(MINI_FORMATS, cfg / "playoff_formats.json")
     (cfg / "slugs.json").write_text("{}\n", encoding="utf-8")
     shutil.copytree(MINI, tmp / "cache")
     (tmp / "data").mkdir()

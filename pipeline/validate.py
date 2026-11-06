@@ -19,7 +19,7 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 COMMITTEE_SIZE = 25
 REPO = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO / "data"
@@ -29,8 +29,13 @@ WEEK_FILE = re.compile(r"^week-(\d+)\.json$")
 # House rule 1 (SPEC.md): the names of the excluded network and its metrics must never appear in
 # shipped JSON. Spelled in pieces so repo-wide greps for those names stay clean.
 BANNED = tuple("".join(parts) for parts in (("ES", "PN"), ("F", "PI"), ("SP", "+"), ("Game ", "Control")))
+# Playoff format sources must never point at that network's site (lowercase host check).
+BANNED_HOST = "".join(("es", "pn"))
+# At least one letter: a purely numeric id would reorder JS object keys (results are keyed by id).
+FORMAT_ID = re.compile(r"^(?=[a-z0-9-]*[a-z])[a-z0-9]+(-[a-z0-9]+)*$")
+AUTO_BID_POOLS = ("all", "power", "nonPower")
 
-TOP_KEYS = {"schemaVersion", "season", "week", "asOf", "label", "sources", "playoff", "fbsCount",
+TOP_KEYS = {"schemaVersion", "season", "week", "asOf", "label", "sources", "playoffFormats", "fbsCount",
             "teams", "opponents", "committee"}
 OPTIONAL_TOP = {"champions"}
 TEAM_KEYS = {"slug", "id", "name", "short", "mascot", "conference", "colors", "record", "confRecord",
@@ -39,7 +44,8 @@ RANK_KEYS = {"sor", "sos", "off", "def", "fei", "committee"}
 VALUE_KEYS = {"fei", "ofei", "dfei", "gwd", "els"}
 GAME_KEYS = {"week", "date", "opp", "oppFbs", "site", "pf", "pa", "result", "conf"}
 OPP_KEYS = {"slug", "name", "classification"}
-PLAYOFF_KEYS = {"size", "byes", "seeding", "autoBids", "nonConferences", "sourceUrl"}
+FORMAT_KEYS = {"id", "label", "status", "default", "note", "sourceName", "sourceUrl", "checkedOn", "size", "byes",
+               "seeding", "autoBids", "powerConferences", "nonConferences"}
 
 
 class Errors:
@@ -138,36 +144,126 @@ def _validate_sources(doc: dict, err: Errors) -> None:
             err.add("sources.committee is set but committee is null")
 
 
-def _validate_playoff(doc: dict, teams: dict, err: Errors) -> None:
-    p = doc["playoff"]
-    if not check_keys(p, PLAYOFF_KEYS, "playoff", err):
+def next_pow2(n: int) -> int:
+    p = 1
+    while p < n:
+        p *= 2
+    return p
+
+
+def _str_list(v) -> bool:
+    return isinstance(v, list) and all(isinstance(x, str) and x for x in v)
+
+
+def _validate_format(f, path: str, teams: dict, conferences: set[str], err: Errors) -> None:
+    if not check_keys(f, FORMAT_KEYS, path, err):
         return
-    if not is_int(p["size"]) or p["size"] < 1:
-        err.add(f"playoff.size: expected a positive int, got {p['size']!r}")
-    if not is_int(p["byes"]) or p["byes"] < 0 or (is_int(p["size"]) and p["byes"] >= p["size"]):
-        err.add(f"playoff.byes: expected an int in 0..size-1, got {p['byes']!r}")
-    if p["seeding"] != "straight":
-        err.add(f"playoff.seeding: expected 'straight', got {p['seeding']!r}")
-    ab = p["autoBids"]
-    if check_keys(ab, {"conferenceChampions", "guaranteed"}, "playoff.autoBids", err):
-        if not is_int(ab["conferenceChampions"]) or ab["conferenceChampions"] < 0:
-            err.add(f"playoff.autoBids.conferenceChampions: expected a non-negative int, got {ab['conferenceChampions']!r}")
-        if not isinstance(ab["guaranteed"], list):
-            err.add("playoff.autoBids.guaranteed: expected a list")
-        else:
-            for i, gr in enumerate(ab["guaranteed"]):
-                path = f"playoff.autoBids.guaranteed[{i}]"
-                if check_keys(gr, {"slug", "ifRankedAtOrAbove"}, path, err):
-                    if not isinstance(gr["slug"], str):
-                        err.add(f"{path}.slug: expected a slug string, got {gr['slug']!r}")
-                    elif gr["slug"] not in teams:
-                        err.add(f"{path}.slug: {gr['slug']!r} is not an FBS team in this file")
-                    if not is_int(gr["ifRankedAtOrAbove"]) or gr["ifRankedAtOrAbove"] < 1:
-                        err.add(f"{path}.ifRankedAtOrAbove: expected a positive int")
-    if not isinstance(p["nonConferences"], list) or not all(isinstance(x, str) for x in p["nonConferences"]):
-        err.add("playoff.nonConferences: expected a list of strings")
-    if not isinstance(p["sourceUrl"], str) or not p["sourceUrl"].startswith("https://"):
-        err.add(f"playoff.sourceUrl: expected an https URL, got {p['sourceUrl']!r}")
+    for k in ("label", "note", "sourceName"):
+        if not isinstance(f[k], str) or not f[k].strip():
+            err.add(f"{path}.{k}: expected a non-empty string, got {f[k]!r}")
+    if not isinstance(f["id"], str) or not FORMAT_ID.match(f["id"]):
+        err.add(f"{path}.id: expected lowercase letters, digits and hyphens with a letter (e.g. '12-team'), got {f['id']!r}")
+    if isinstance(f["note"], str) and f["note"].strip() and ("\n" in f["note"] or not f["note"].rstrip().endswith(".")):
+        err.add(f"{path}.note: expected one plain-English sentence ending in a period")
+    if f["status"] not in ("current", "proposed"):
+        err.add(f"{path}.status: expected 'current' or 'proposed', got {f['status']!r}")
+    if not isinstance(f["default"], bool):
+        err.add(f"{path}.default: expected a boolean, got {f['default']!r}")
+    url = f["sourceUrl"]
+    if not isinstance(url, str) or not url.startswith("https://"):
+        err.add(f"{path}.sourceUrl: expected an https URL, got {url!r}")
+    elif BANNED_HOST in url.lower().split("/")[2]:
+        err.add(f"{path}.sourceUrl: links to a banned network's site (house rule 1); cite another source")
+    if not valid_date(f["checkedOn"]):
+        err.add(f"{path}.checkedOn: expected YYYY-MM-DD, got {f['checkedOn']!r}")
+    size = f["size"]
+    size_ok = is_int(size) and size >= 2
+    if not size_ok:
+        err.add(f"{path}.size: expected an int >= 2, got {size!r}")
+    if not is_int(f["byes"]):
+        err.add(f"{path}.byes: expected an int, got {f['byes']!r}")
+    elif size_ok and f["byes"] != next_pow2(size) - size:
+        err.add(f"{path}.byes: {f['byes']} but a standard seeded bracket of {size} teams has "
+                f"nextPow2({size}) - {size} = {next_pow2(size) - size} byes")
+    if f["seeding"] != "straight":
+        err.add(f"{path}.seeding: expected 'straight', got {f['seeding']!r}")
+
+    power = f["powerConferences"]
+    non = f["nonConferences"]
+    if not _str_list(non):
+        err.add(f"{path}.nonConferences: expected a list of conference names")
+        non = []
+    if not _str_list(power):
+        err.add(f"{path}.powerConferences: expected a list of conference names")
+        power = []
+    else:
+        if len(set(power)) != len(power):
+            err.add(f"{path}.powerConferences: duplicate names")
+        for c in power:
+            if c not in conferences:
+                err.add(f"{path}.powerConferences: {c!r} is not the conference of any FBS team in this file")
+            if c in non:
+                err.add(f"{path}.powerConferences: {c!r} is also listed in nonConferences")
+
+    ab = f["autoBids"]
+    if not check_keys(ab, {"rules", "guaranteed"}, f"{path}.autoBids", err):
+        return
+    total = 0
+    if not isinstance(ab["rules"], list):
+        err.add(f"{path}.autoBids.rules: expected a list")
+    else:
+        seen = set()
+        for i, r in enumerate(ab["rules"]):
+            rp = f"{path}.autoBids.rules[{i}]"
+            if not check_keys(r, {"from", "count"}, rp, err):
+                continue
+            if r["from"] not in AUTO_BID_POOLS:
+                err.add(f"{rp}.from: expected one of {', '.join(AUTO_BID_POOLS)}, got {r['from']!r}")
+            elif r["from"] in seen:
+                err.add(f"{rp}.from: {r['from']!r} appears in more than one rule")
+            else:
+                seen.add(r["from"])
+            if not is_int(r["count"]) or r["count"] < 1:
+                err.add(f"{rp}.count: expected a positive int, got {r['count']!r}")
+                continue
+            total += r["count"]
+            if r["from"] == "power" and r["count"] > len(power):
+                err.add(f"{rp}.count: {r['count']} power champions but only {len(power)} power conferences")
+            if r["from"] in ("power", "nonPower") and not power:
+                err.add(f"{rp}: a {r['from']!r} rule needs powerConferences")
+    if not isinstance(ab["guaranteed"], list):
+        err.add(f"{path}.autoBids.guaranteed: expected a list")
+    else:
+        for i, gr in enumerate(ab["guaranteed"]):
+            gp = f"{path}.autoBids.guaranteed[{i}]"
+            if check_keys(gr, {"slug", "ifRankedAtOrAbove"}, gp, err):
+                if not isinstance(gr["slug"], str):
+                    err.add(f"{gp}.slug: expected a slug string, got {gr['slug']!r}")
+                elif gr["slug"] not in teams:
+                    err.add(f"{gp}.slug: {gr['slug']!r} is not an FBS team in this file")
+                if not is_int(gr["ifRankedAtOrAbove"]) or gr["ifRankedAtOrAbove"] < 1 or (
+                        size_ok and gr["ifRankedAtOrAbove"] > size):
+                    err.add(f"{gp}.ifRankedAtOrAbove: expected an int in 1..size, got {gr['ifRankedAtOrAbove']!r}")
+                total += 1
+    if size_ok and total > size:
+        err.add(f"{path}.autoBids: {total} automatic bids do not fit a field of {size}")
+
+
+def _validate_playoff_formats(doc: dict, teams: dict, err: Errors) -> None:
+    formats = doc["playoffFormats"]
+    if not isinstance(formats, list) or not formats:
+        err.add("playoffFormats: expected a non-empty list of formats")
+        return
+    conferences = {t.get("conference") for t in teams.values() if isinstance(t, dict)}
+    for i, f in enumerate(formats):
+        _validate_format(f, f"playoffFormats[{i}]", teams, conferences, err)
+    good = [f for f in formats if isinstance(f, dict)]
+    ids = [f.get("id") for f in good]
+    for dup in sorted({x for x in ids if isinstance(x, str) and ids.count(x) > 1}):
+        err.add(f"playoffFormats: id {dup!r} is used more than once")
+    defaults = [f.get("id") for f in good if f.get("default") is True]
+    if len(defaults) != 1:
+        err.add(f"playoffFormats: exactly one format must have default: true, found {len(defaults)} {defaults}")
 
 
 def _validate_game(g, path: str, file_week: int, err: Errors) -> bool:
@@ -230,7 +326,7 @@ def validate_week(doc, index: dict | None = None, label: str = "week file") -> l
     if n is not None and n != len(teams):
         err.add(f"fbsCount is {n} but teams has {len(teams)} entries (missing or extra FBS teams)")
     _validate_sources(doc, err)
-    _validate_playoff(doc, teams, err)
+    _validate_playoff_formats(doc, teams, err)
 
     # ---- opponents
     for slug, o in opponents.items():

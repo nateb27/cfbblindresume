@@ -105,8 +105,14 @@ class ValidatorCatches(unittest.TestCase):
         self.assertTrue(any("oppFbs: expected a boolean" in p for p in probs), probs)
 
     def test_schema_version(self):
-        self.doc["schemaVersion"] = 2
-        self.assertProblem("schemaVersion: expected 1")
+        self.doc["schemaVersion"] = 1
+        self.assertProblem("schemaVersion: expected 2, got 1")
+
+    def test_v1_playoff_field_is_rejected(self):
+        self.doc["playoff"] = self.doc.pop("playoffFormats")[0]
+        probs = self.problems()
+        self.assertIn("file.playoffFormats: missing", probs)
+        self.assertIn("file.playoff: unexpected field", probs)
 
     def test_committee_rules(self):
         com = ["texas-am", "notre-dame", "unknown-u"] + [f"x{i}" for i in range(22)]
@@ -147,8 +153,78 @@ class ValidatorCatches(unittest.TestCase):
         self.assertTrue(any("expected exactly one entry for week 3" in p for p in probs), probs)
 
     def test_guaranteed_slug_must_exist(self):
-        self.doc["playoff"]["autoBids"]["guaranteed"][0]["slug"] = "nowhere"
-        self.assertProblem("playoff.autoBids.guaranteed[0].slug")
+        self.doc["playoffFormats"][0]["autoBids"]["guaranteed"][0]["slug"] = "nowhere"
+        self.assertProblem("playoffFormats[0].autoBids.guaranteed[0].slug: 'nowhere' is not an FBS team")
+
+    def fmt(self, i=1):
+        return self.doc["playoffFormats"][i]
+
+    def test_exactly_one_default(self):
+        self.fmt()["default"] = True
+        self.assertProblem("exactly one format must have default: true, found 2")
+        self.fmt(0)["default"] = self.fmt(1)["default"] = False
+        self.assertProblem("exactly one format must have default: true, found 0")
+
+    def test_unique_ids(self):
+        self.fmt()["id"] = "12-team"
+        self.assertProblem("playoffFormats: id '12-team' is used more than once")
+        self.fmt()["id"] = "24 Team"
+        self.assertProblem("playoffFormats[1].id: expected lowercase letters")
+        self.fmt()["id"] = "24"  # purely numeric ids would reorder JS object keys
+        self.assertProblem("playoffFormats[1].id: expected lowercase letters")
+        self.fmt()["id"] = "24-team"
+        self.assertEqual(self.problems(), [])
+
+    def test_byes_must_complete_the_next_power_of_two(self):
+        self.fmt()["byes"] = 4
+        self.assertProblem("playoffFormats[1].byes: 4 but a standard seeded bracket of 24 teams has nextPow2(24) - 24 = 8 byes")
+        self.fmt(0)["size"], self.fmt(0)["byes"] = 16, 0
+        self.fmt()["byes"] = 8
+        self.assertEqual(self.problems(), [])
+
+    def test_rule_counts(self):
+        rules = self.fmt()["autoBids"]["rules"]
+        rules[0]["count"] = 2  # 2 power champions, only SEC listed
+        self.assertProblem("playoffFormats[1].autoBids.rules[0].count: 2 power champions but only 1 power conferences")
+        rules[0]["count"] = 0
+        self.assertProblem("playoffFormats[1].autoBids.rules[0].count: expected a positive int, got 0")
+        rules[0] = {"from": "mid-major", "count": 1}
+        self.assertProblem("rules[0].from: expected one of all, power, nonPower")
+        rules[0] = {"from": "nonPower", "count": 1}
+        self.assertProblem("rules[1].from: 'nonPower' appears in more than one rule")
+        self.fmt(0)["autoBids"]["rules"] = [{"from": "all", "count": 12}]
+        self.assertProblem("playoffFormats[0].autoBids: 13 automatic bids do not fit a field of 12")
+
+    def test_power_conferences_must_exist(self):
+        self.fmt()["powerConferences"] = ["SEC", "Big Twelve"]
+        self.assertProblem("playoffFormats[1].powerConferences: 'Big Twelve' is not the conference of any FBS team")
+        self.fmt()["powerConferences"] = ["SEC", "FBS Independents"]
+        self.assertProblem("'FBS Independents' is also listed in nonConferences")
+        self.fmt()["powerConferences"] = []
+        self.assertProblem("rules[0]: a 'power' rule needs powerConferences")
+
+    def test_format_text_fields(self):
+        f = self.fmt()
+        f["note"] = "No period"
+        f["label"] = ""
+        f["status"] = "rumored"
+        f["checkedOn"] = "2026-13-01"
+        f["sourceUrl"] = "http://example.com"
+        probs = self.problems()
+        for needle in ("playoffFormats[1].note: expected one plain-English sentence", "playoffFormats[1].label: expected a non-empty string",
+                       "playoffFormats[1].status: expected 'current' or 'proposed'", "playoffFormats[1].checkedOn: expected YYYY-MM-DD",
+                       "playoffFormats[1].sourceUrl: expected an https URL"):
+            self.assertTrue(any(needle in p for p in probs), f"{needle!r} not in {probs}")
+
+    def test_source_url_never_on_the_banned_network(self):
+        self.fmt()["sourceUrl"] = "https://www." + V.BANNED_HOST + ".com/college-football/story"
+        self.assertProblem("playoffFormats[1].sourceUrl: links to a banned network's site")
+
+    def test_formats_must_be_a_list(self):
+        self.doc["playoffFormats"] = []
+        self.assertProblem("playoffFormats: expected a non-empty list")
+        self.doc["playoffFormats"] = [{"id": "x"}]
+        self.assertProblem("playoffFormats[0].size: missing")
 
     def test_ratings_week_must_equal_file_week(self):
         self.doc["sources"]["ratings"]["throughWeek"] = 4
@@ -187,7 +263,7 @@ class ValidatorCatches(unittest.TestCase):
         self.doc["committee"] = [["texas-am"]] + [f"x{i}" for i in range(24)]
         self.doc["sources"]["committee"] = {"name": "College Football Playoff Selection Committee",
                                             "url": "https://collegefootballplayoff.com/rankings", "releaseDate": "2026-09-22"}
-        self.doc["playoff"]["autoBids"]["guaranteed"][0]["slug"] = {"slug": "notre-dame"}
+        self.doc["playoffFormats"][0]["autoBids"]["guaranteed"][0]["slug"] = {"slug": "notre-dame"}
         self.doc["champions"] = {"SEC": ["texas-am"]}
         probs = self.problems()
         self.assertIn("committee: expected a list of slugs or null", probs)
@@ -208,6 +284,41 @@ class ValidatorCatches(unittest.TestCase):
                 self.assertEqual(V.main(["--all", "--data-dir", d]), 1)
             self.assertIn("week-4.json exists but is not listed in index.json", out.getvalue())
             self.assertIn("file name says week 4 but the file says week 3", out.getvalue())
+
+
+class PlayoffFormatsConfig(unittest.TestCase):
+    """pipeline/playoff_formats.json holds the formats SPEC.md "Playoff formats" describes."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.formats = V.load_json(PIPE / "playoff_formats.json")["2026"]
+
+    def test_two_formats_12_default(self):
+        f12, f24 = self.formats
+        self.assertEqual([f["id"] for f in self.formats], ["12-team", "24-team"])
+        self.assertEqual((f12["status"], f12["default"], f12["size"], f12["byes"]), ("current", True, 12, 4))
+        self.assertEqual(f12["autoBids"], {"rules": [{"from": "all", "count": 5}],
+                                           "guaranteed": [{"slug": "notre-dame", "ifRankedAtOrAbove": 12}]})
+        self.assertEqual((f24["status"], f24["default"], f24["size"], f24["byes"]), ("proposed", False, 24, 8))
+        self.assertEqual(f24["autoBids"], {"rules": [{"from": "power", "count": 4}, {"from": "nonPower", "count": 1}],
+                                           "guaranteed": []})
+        for f in self.formats:
+            self.assertEqual(f["powerConferences"], ["ACC", "Big 12", "Big Ten", "SEC"])
+            self.assertEqual(f["nonConferences"], ["FBS Independents"])
+        self.assertEqual(f24["sourceName"], "Deseret News")
+        self.assertTrue(f24["sourceUrl"].startswith("https://www.deseret.com/"))
+
+    def test_validates_against_a_full_conference_set(self):
+        teams = {"notre-dame": {"conference": "FBS Independents"}}
+        for c in ("ACC", "Big 12", "Big Ten", "SEC", "Mountain West"):
+            teams[c] = {"conference": c}
+        err = V.Errors("config")
+        V._validate_playoff_formats({"playoffFormats": self.formats}, teams, err)
+        self.assertEqual(err.items, [])
+        blob = json.dumps(self.formats)
+        self.assertNotIn(V.BANNED_HOST, blob.lower())
+        for b in V.BANNED:
+            self.assertNotIn(b, blob)
 
 
 class CommittedData(unittest.TestCase):

@@ -11,22 +11,32 @@ import { fbsSlugsSorted, gameRows, headToHead, qualityWins, resumeStrip, type WL
 import { gwdOrder, prior as priorOf, TOP_N } from './pool';
 import {
   championCandidates,
-  computePlayoff,
+  computePlayoffs,
+  defaultFormat,
+  FIRST_OUT_COUNT,
   nonPoolLeaders,
+  orderedFormats,
   playoffContext,
   type PlayoffConference,
   type PlayoffContext,
   type PlayoffResult,
+  type PlayoffResults,
 } from './playoff';
 import { rankFromPicks, type RankingResult } from './ranking';
 import { agreement, type AgreementRefs, type AgreementSummary, type RankLookup } from './agreement';
 import { runViolations, TRIO_RULES, type TrioState } from './trios';
 
-/** Payload format version. */
-export const GAME_DATA_VERSION = 1 as const;
+/** Payload format version. 2: `playoffFormats` (all formats, default first) and `gwdOrder` replace `playoff`. */
+export const GAME_DATA_VERSION = 2 as const;
 
 /** Length of GameData.feiOrder: a top 25 plus the "first five out" column. */
 export const FEI_ORDER_LENGTH = TOP_N + 5;
+
+/**
+ * Minimum GWD depth of GameData.teams / gwdOrder (raised to the largest field + five out if a format
+ * is bigger). Any order over the payload's teams then extends to a full field + first five out.
+ */
+export const GWD_DEPTH = 40;
 
 /** Tier legend entry; a card's tier number indexes GameData.tiers. */
 export interface GameTier {
@@ -97,15 +107,24 @@ export interface GameData {
   committee: string[] | null;
   /** FEI GWD order, top 30 (the FEI top 25 plus the next five, for the results grid). */
   feiOrder: string[];
+  /**
+   * Every team in `teams`, in FEI GWD order (best first; ties: higher GWD value, then slug). Starts
+   * with the GWD top {@link GWD_DEPTH}. The playoff extends short orders from it.
+   */
+  gwdOrder: string[];
   /** Tier legend, index = tier order. */
   tiers: GameTier[];
-  /** Pool teams, FEI top 30, and every conference champion candidate. */
+  /** Pool teams, the GWD top {@link GWD_DEPTH}, and every conference champion candidate. */
   teams: Record<string, GameTeam>;
   /** Pool teams only. */
   cards: Record<string, BlindCard>;
   /** Head-to-head index for pool pairs that met, keyed by {@link h2hKey}. */
   h2h: Record<string, H2HEntry[]>;
-  playoff: PlayoffFormat;
+  /**
+   * Every playoff format, default first (`playoffFormats[0].default === true`). The results screen
+   * shows the default and toggles to the others; label, status, note and source are display-ready.
+   */
+  playoffFormats: PlayoffFormat[];
   /**
    * Conference "standings" as the playoff needs them: per champion-crowning conference, the decided
    * champion or every team tied for the best conference win pct (all have `teams` entries).
@@ -133,11 +152,15 @@ export function buildGameData(week: WeekFile): GameData {
   const ctx = playoffContext(week);
   const conferences = ctx.conferences;
   const leaders = nonPoolLeaders(prior, ctx);
-  const feiOrder = gwdOrder(week).slice(0, FEI_ORDER_LENGTH);
+  const fullGwd = gwdOrder(week);
+  const feiOrder = fullGwd.slice(0, FEI_ORDER_LENGTH);
+  const depth = Math.max(GWD_DEPTH, FEI_ORDER_LENGTH, ...ctx.formats.map((f) => f.size + FIRST_OUT_COUNT));
   const inPool = new Set(prior);
+  const included = new Set([...fullGwd.slice(0, depth), ...prior, ...championCandidates(ctx)]);
+  const gwdSubset = fullGwd.filter((s) => included.has(s));
 
   const teams: Record<string, GameTeam> = {};
-  for (const s of new Set([...prior, ...feiOrder, ...championCandidates(ctx)])) {
+  for (const s of gwdSubset) {
     const t = week.teams[s]!;
     teams[s] = {
       name: t.name,
@@ -188,11 +211,12 @@ export function buildGameData(week: WeekFile): GameData {
     prior,
     committee: week.committee ? week.committee.slice() : null,
     feiOrder,
+    gwdOrder: gwdSubset,
     tiers: TIERS.map((t) => ({ key: t.key, stars: t.stars, label: t.label })),
     teams,
     cards,
     h2h,
-    playoff: week.playoff,
+    playoffFormats: ctx.formats,
     conferences,
     leaders,
   };
@@ -221,11 +245,17 @@ export function headToHeadFlags(gd: GameData, slugs: readonly string[]): H2HFlag
   return out.sort((x, y) => x.week - y.week || (x.winner < y.winner ? -1 : x.winner > y.winner ? 1 : 0));
 }
 
-/** Playoff context from game data (for computePlayoff). */
+/** Playoff context from game data (for computePlayoff / computePlayoffs). */
 export function gamePlayoffContext(gd: GameData): PlayoffContext {
-  const gwdRank: Record<string, number> = {};
-  for (const [s, t] of Object.entries(gd.teams)) gwdRank[s] = t.sor;
-  return { format: gd.playoff, conferences: gd.conferences, gwdRank };
+  return { formats: orderedFormats(gd.playoffFormats), conferences: gd.conferences, gwdOrder: gd.gwdOrder };
+}
+
+/**
+ * Playoff results for any order over the payload's teams (your ranking, committee, FEI, fans), for
+ * every format, keyed by format id (default first). Short orders are extended in GWD order.
+ */
+export function gamePlayoffs(gd: GameData, order: readonly string[]): PlayoffResults {
+  return computePlayoffs(order, gamePlayoffContext(gd));
 }
 
 /** Trio-selection state from game data and the rounds played so far. */
@@ -249,7 +279,10 @@ export function gameAgreementRefs(gd: GameData): AgreementRefs {
 /** Everything the results screen (and the OG image Function) shows for a run. */
 export interface RunResults {
   ranking: RankingResult;
+  /** The default format's result (the same object as `playoffs[defaultId]`). */
   playoff: PlayoffResult;
+  /** Every format's result for the user's ranking, keyed by format id; key order = default first. */
+  playoffs: PlayoffResults;
   agreement: AgreementSummary;
   /** True when the run stopped before the standard 15 rounds. */
   partial: boolean;
@@ -269,9 +302,11 @@ export function gameRunViolations(gd: GameData, rounds: readonly (readonly strin
  */
 export function computeRunResults(gd: GameData, rounds: readonly (readonly string[])[]): RunResults {
   const ranking = rankFromPicks(gd.prior, rounds);
+  const playoffs = gamePlayoffs(gd, ranking.order);
   return {
     ranking,
-    playoff: computePlayoff(ranking.order, gamePlayoffContext(gd)),
+    playoff: playoffs[defaultFormat(gd.playoffFormats).id]!,
+    playoffs,
     agreement: agreement(rounds, gameAgreementRefs(gd)),
     partial: rounds.length < TRIO_RULES.baseRounds,
   };

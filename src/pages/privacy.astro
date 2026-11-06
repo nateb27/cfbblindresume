@@ -1,0 +1,66 @@
+---
+/** /privacy: plain-language privacy page (SPEC house rule 6). */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { SITE, absUrl, latestWeek } from '../components/site';
+
+const week = latestWeek();
+const title = 'Privacy: No Accounts, No Cookies | CFB Blind Resume';
+const description =
+  'CFB Blind Resume has no accounts and sets no cookies. Votes are anonymous, a salted hash of your IP is kept for 24 hours to stop spam, and usage counts carry no IDs.';
+const ld = { '@context': 'https://schema.org', '@type': 'WebPage', name: 'Privacy', url: absUrl('/privacy'), description };
+const items = [
+  {
+    h: 'No accounts, no cookies',
+    p: 'There is nothing to sign up for and the site sets no cookies. We do not use third-party analytics or tracking pixels.',
+  },
+  {
+    h: 'What your browser keeps',
+    p: 'Two small settings stay in your browser\'s local storage: whether you have seen the intro and whether you turned off the reveal after each round. They never leave your device, and clearing site data removes them.',
+  },
+  {
+    h: 'Your votes',
+    p: 'After each round the game sends your order for that trio (for example, team A over team B over team C) with the season and week. It is stored without any identifier, so it cannot be tied back to you. These anonymous votes power the "Fans" ranking.',
+  },
+  {
+    h: 'Spam protection',
+    p: 'To stop one person from flooding the votes, we keep a salted, one-way hash of your IP address for rate limiting. The salt changes every day, the hash cannot be turned back into your address, and every record is deleted after 24 hours.',
+  },
+  {
+    h: 'Usage counts',
+    p: 'We count events such as "a round was completed" or "a result was shared" per day. The counts carry no IP address, ID or anything else about you.',
+  },
+  {
+    h: 'Shared links',
+    p: 'A shared result link contains your picks for that run, encoded in the URL, and nothing else. Anyone with the link can see that ranking.',
+  },
+  {
+    h: 'Hosting and ads',
+    p: 'The site is served by Cloudflare, which processes requests to deliver pages. If advertising is ever turned on, ad slots will be clearly labeled, will load only after the page is usable, and this page will name the ad network and what it collects before that happens.',
+  },
+];
+---
+
+<BaseLayout title={title} description={description} path="/privacy" jsonLd={ld} week={week}>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs items={[{ name: 'Privacy', href: '/privacy' }]} />
+    <article class="max-w-read">
+      <h1 class="cond mt-2 text-title uppercase lg:text-display">Privacy</h1>
+      <p class="mt-4 text-lg leading-8">The short version: we do not know who you are, and we would like to keep it that way.</p>
+      {
+        items.map((it) => (
+          <section class="mt-10">
+            <h2 class="cond text-heading uppercase">{it.h}</h2>
+            <p class="mt-2 leading-7">{it.p}</p>
+          </section>
+        ))
+      }
+      <section class="mt-10">
+        <h2 class="cond text-heading uppercase">Questions</h2>
+        <p class="mt-2 leading-7">
+          Email <a class="link" href={`mailto:${SITE.email}`}>{SITE.email}</a>. Last updated {week.season}.
+        </p>
+      </section>
+    </article>
+  </div>
+</BaseLayout>

@@ -1,0 +1,136 @@
+---
+/**
+ * Every page's shell: <head> SEO (unique title + description, canonical without a trailing slash,
+ * Open Graph + Twitter, JSON-LD), font preload, theme, site header and footer.
+ *
+ * Themes: content pages follow prefers-color-scheme; game pages (`game`) force dark with
+ * <html data-theme="dark">. No client JavaScript is emitted here (the ad loader stub only when
+ * PUBLIC_ADS=on and PUBLIC_AD_NETWORK is set).
+ */
+import '../styles/global.css';
+import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url';
+import type { WeekFile } from '@lib/types';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import JsonLd from '../components/JsonLd.astro';
+import { ADS_ON, DEFAULT_OG, SITE, absUrl, latestWeek, type NavKey } from '../components/site';
+
+interface Props {
+  /** Full <title>, unique per page. */
+  title: string;
+  /** Meta description, unique per page. */
+  description: string;
+  /** Site path of this page ("/teams/miami"); canonical = absolute, no trailing slash. */
+  path: string;
+  /** Site path of the OG image (1200x630 PNG). */
+  ogImage?: string;
+  ogImageAlt?: string;
+  ogType?: 'website' | 'article' | 'profile';
+  /** JSON-LD object(s). */
+  jsonLd?: unknown;
+  /** Game page (/ and /r): forced dark theme. */
+  game?: boolean;
+  noindex?: boolean;
+  /** Highlighted nav item. */
+  current?: NavKey;
+  /** Week the page shows (footer "as of"); defaults to the latest week. */
+  week?: WeekFile;
+}
+
+const {
+  title,
+  description,
+  path,
+  ogImage = DEFAULT_OG,
+  ogImageAlt = `${SITE.name}: ${SITE.tagline}`,
+  ogType = 'website',
+  jsonLd,
+  game = false,
+  noindex = false,
+  current,
+  week = latestWeek(),
+} = Astro.props;
+
+const canonical = absUrl(path);
+const image = absUrl(ogImage);
+const ldItems = jsonLd === undefined ? [] : Array.isArray(jsonLd) ? jsonLd : [jsonLd];
+const adNetwork = import.meta.env.PUBLIC_AD_NETWORK as string | undefined;
+---
+
+<!doctype html>
+<html lang="en" data-theme={game ? 'dark' : undefined}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    {
+      game ? (
+        <meta name="theme-color" content="#0e0f12" />
+      ) : (
+        <>
+          <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)" />
+          <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+        </>
+      )
+    }
+    <meta name="color-scheme" content={game ? 'dark' : 'light dark'} />
+
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={image} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
+
+    {ldItems.map((d) => <JsonLd data={d} />)}
+    <slot name="head" />
+    {
+      ADS_ON && adNetwork && (
+        <script is:inline define:vars={{ adNetwork }}>
+          (function () {
+            var done = false;
+            function load() {
+              if (done) return;
+              done = true;
+              window.__cfbAds = { network: adNetwork, ready: true };
+              document.dispatchEvent(new CustomEvent('cfb:ads-ready', { detail: { network: adNetwork } }));
+            }
+            ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function (e) {
+              addEventListener(e, load, { once: true, passive: true });
+            });
+            setTimeout(load, 3000);
+          })();
+        </script>
+      )
+    }
+  </head>
+  <body class="flex min-h-dvh flex-col">
+    <a
+      href="#main"
+      class="sr-only z-50 rounded-chip bg-accent-fill px-4 py-2 font-semibold text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+      >Skip to content</a
+    >
+    <SiteHeader current={current} />
+    <main id="main" class="flex-1">
+      <slot />
+    </main>
+    <SiteFooter week={week} />
+  </body>
+</html>

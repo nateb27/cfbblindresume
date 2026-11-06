@@ -1,0 +1,282 @@
+---
+/**
+ * /how-it-works: glossary (strength of record, schedule, offense, defense, FEI overall), opponent
+ * tiers (from TIERS), the ranking method, and every playoff format with its rules generated from
+ * the week file.
+ */
+import { TOP_N } from '@lib/data';
+import { TIERS } from '@lib/tiers';
+import { TRIO_RULES } from '@lib/trios';
+import type { AutoBidRule, PlayoffFormat } from '@lib/types';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AdSlot from '../components/AdSlot.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import JumpNav from '../components/JumpNav.astro';
+import Stars from '../components/Stars.astro';
+import TeamChip from '../components/TeamChip.astro';
+import { nextPow2 } from '@lib/playoff';
+import { tierKey } from '../styles/tokens';
+import { absUrl, fmtDate, formatShortLabel, formatStatus, latestWeek, playoffViews } from '../components/site';
+
+const week = latestWeek();
+const views = playoffViews(week);
+const n = week.fbsCount;
+const s = week.sources;
+const rounds = TRIO_RULES.baseRounds;
+
+const ruleText = (r: AutoBidRule, f: PlayoffFormat): string => {
+  const who =
+    r.from === 'all'
+      ? 'conference champions'
+      : r.from === 'power'
+        ? `champions of the ${f.powerConferences.join(', ')}`
+        : `champions of the other conferences`;
+  return r.count === 1 ? `The highest-ranked of the ${who}` : `The ${r.count} highest-ranked ${who}`;
+};
+
+const title = 'How It Works: Strength of Record, Schedule, Opponent Tiers and the Playoff Math | CFB Blind Resume';
+const description = `What every number on CFB Blind Resume means: FEI strength of record, schedule strength, offense and defense, the opponent tiers, how your picks become a top 25, and the rules of the ${views.formats.map((f) => (f.status === 'proposed' ? `proposed ${f.size}-team` : `${f.size}-team`)).join(' and ')} playoff formats.`;
+const ld = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'How CFB Blind Resume works',
+  url: absUrl('/how-it-works'),
+  description,
+};
+const terms = [
+  {
+    id: 'strength-of-record',
+    term: 'Strength of record',
+    src: 'FEI GWD',
+    body: `How many more (or fewer) games a team has won than a good team would be expected to win against the same schedule. It rewards beating good opponents and does not care how pretty the wins were. This is the ranking we put next to the committee's.`,
+  },
+  {
+    id: 'schedule',
+    term: 'Schedule',
+    src: 'FEI ELS',
+    body: `How many games an elite team would be expected to lose against this schedule. Higher is harder, so #1 is the toughest schedule in the country.`,
+  },
+  {
+    id: 'offense',
+    term: 'Offense',
+    src: 'OFEI',
+    body: `Offensive efficiency per possession, adjusted for the defenses faced. #1 is the most efficient offense.`,
+  },
+  {
+    id: 'defense',
+    term: 'Defense',
+    src: 'DFEI',
+    body: `Defensive efficiency per possession, adjusted for the offenses faced. #1 is the stingiest defense.`,
+  },
+  {
+    id: 'fei',
+    term: 'FEI overall',
+    src: 'FEI',
+    body: `The overall opponent-adjusted efficiency rating: how good a team is play to play, regardless of record. It decides each opponent's tier.`,
+  },
+  {
+    id: 'committee',
+    term: 'Committee rank',
+    src: 'CFP',
+    body: `The College Football Playoff selection committee's top ${week.committee?.length ?? TOP_N}, released weekly from early November. NR means unranked.`,
+  },
+];
+---
+
+<BaseLayout title={title} description={description} path="/how-it-works" jsonLd={ld} current="how" week={week}>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs items={[{ name: 'How it works', href: '/how-it-works' }]} />
+    <h1 class="cond mt-2 text-title uppercase lg:text-display">How it works</h1>
+    <p class="mt-4 max-w-read text-lg leading-7">
+      Every number here is either FEI, created by {s.ratings.author}, or computed from final scores. Here is what each one means, how the game
+      turns your picks into a top 25, and how the playoff fields are built.
+    </p>
+    <JumpNav
+      class="mt-6"
+      items={[
+        { href: '#numbers', label: 'The numbers' },
+        { href: '#tiers', label: 'Opponent tiers' },
+        { href: '#ranking', label: 'Your ranking' },
+        { href: '#playoff', label: 'Playoff formats' },
+        { href: '#sources', label: 'Sources' },
+      ]}
+    />
+
+    <div class="mt-12 flex max-w-read flex-col gap-14">
+      <section aria-labelledby="numbers" class="scroll-mt-4">
+        <h2 id="numbers" class="cond text-heading uppercase">The numbers</h2>
+        <p class="mt-2 text-fg-muted">Every rank is out of all {n} FBS teams, where #1 is best.</p>
+        <dl class="mt-5 flex flex-col gap-6">
+          {
+            terms.map((t) => (
+              <div id={t.id} class="scroll-mt-4 border-l-4 border-line-strong pl-4">
+                <dt class="flex flex-wrap items-baseline gap-x-2.5">
+                  <span class="cond text-[1.375rem] leading-6 font-bold uppercase">{t.term}</span>
+                  <span class="label-caps text-fg-muted">{t.src}</span>
+                </dt>
+                <dd class="mt-1.5 leading-7">{t.body}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </section>
+
+      <section aria-labelledby="tiers" class="scroll-mt-4">
+        <h2 id="tiers" class="cond text-heading uppercase">Opponent tiers</h2>
+        <p class="mt-2 leading-7">
+          Every opponent gets a tier from its overall FEI rank this week, so a win over a team that turns out to be good keeps getting better. Stars,
+          dot sizes and colors all follow the same scale.
+        </p>
+        <div class="table-wrap mt-4">
+          <table class="data-table">
+            <caption class="sr-only">Opponent tiers</caption>
+            <thead>
+              <tr>
+                <th scope="col">Stars</th>
+                <th scope="col">Tier</th>
+                <th scope="col" class="w-14">Dot</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                TIERS.map((t) => (
+                  <tr>
+                    <td>
+                      <Stars stars={t.stars} />
+                    </td>
+                    <td>{t.label}</td>
+                    <td>
+                      <span class="grid h-4 w-4 place-items-center">
+                        <span class="tier-dot" data-tier={tierKey(t.stars)} aria-hidden="true" />
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-3 text-sm text-fg-muted">
+          Quality wins count results against FEI's top 10, 11-25 and 26-50, again by this week's ranks.
+        </p>
+      </section>
+
+      <AdSlot kind="incontent" />
+
+      <section aria-labelledby="ranking" class="scroll-mt-4">
+        <h2 id="ranking" class="cond text-heading uppercase">Your ranking</h2>
+        <ol class="mt-4 flex list-decimal flex-col gap-3 pl-5 leading-7 marker:font-semibold marker:text-fg-muted">
+          <li>
+            The pool is the committee's top {week.committee?.length ?? TOP_N} plus any team in FEI's strength of record top {TOP_N} the committee left out.
+            Each round shows three of them as anonymous resumes: record, the four ratings, quality wins, the season in order and the game log.
+          </li>
+          <li>
+            You rank the three. That is three head-to-head calls per round (1st over 2nd, 1st over 3rd, 2nd over 3rd). Every pool team shows up at
+            least once in {rounds} rounds, and no exact trio repeats.
+          </li>
+          <li>
+            We start from the committee's ranking and move teams with your picks. If none of your calls disagree with the committee, your top 25 is
+            the committee's, exactly.
+          </li>
+          <li>
+            When your calls conflict (A over B, B over C, C over A), the calls you made most often win, and the weakest link in the loop is dropped.
+            Everything you said that still holds is kept, including what follows from it: if A beat B and B beat C, A finishes ahead of C.
+          </li>
+          <li>
+            Teams then settle as close to their committee spot as your calls allow. Teams you never saw (only possible if you skip ahead) stay near
+            where the committee had them and are marked unseen.
+          </li>
+          <li>
+            Your top 25 builds your own bracket under each playoff format, and the results compare every call you made with the committee and with
+            FEI.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="playoff" class="scroll-mt-4">
+        <h2 id="playoff" class="cond text-heading uppercase">Playoff formats</h2>
+        <p class="mt-2 leading-7">
+          Every field on this site comes from a ranking (the committee's, FEI's or yours) and the rules below. Seeding is straight by rank, and the
+          top seeds get first-round byes. Until title games are played, each conference's champion is its current leader: the best conference
+          record, with ties going to the higher-ranked team.
+        </p>
+        <div class="mt-6 flex flex-col gap-8">
+          {
+            views.formats.map((f) => (
+              <article aria-labelledby={`pf-${f.id}`} class="rounded-card border border-line p-5">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h3 id={`pf-${f.id}`} class="cond text-heading uppercase">
+                    {formatShortLabel(f, week.season)}
+                  </h3>
+                  {f.status === 'proposed' && (
+                    <span class="label-caps rounded-slab border border-control px-1.5 py-0.5">{formatStatus(f, week.season)}</span>
+                  )}
+                </div>
+                <p class="mt-2 leading-7">{f.note}</p>
+                <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_minmax(0,1fr)]">
+                  <dt class="label-caps pt-0.5 text-fg-muted">Field</dt>
+                  <dd>{f.size} teams</dd>
+                  <dt class="label-caps pt-0.5 text-fg-muted">Automatic bids</dt>
+                  <dd>
+                    <ul class="flex flex-col gap-1">
+                      {f.autoBids.rules.map((r) => (
+                        <li>{ruleText(r, f)}</li>
+                      ))}
+                      {f.autoBids.guaranteed.map((g) => (
+                        <li>
+                          <TeamChip week={week} slug={g.slug} /> if ranked {g.ifRankedAtOrAbove} or better
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                  <dt class="label-caps pt-0.5 text-fg-muted">At-large</dt>
+                  <dd>
+                    The rest of the field, in ranking order ({f.size - f.autoBids.rules.reduce((a, r) => a + r.count, 0)}
+                    {f.autoBids.guaranteed.length ? ' or fewer' : ''})
+                  </dd>
+                  <dt class="label-caps pt-0.5 text-fg-muted">Byes</dt>
+                  <dd>
+                    Seeds 1-{f.byes} ({nextPow2(f.size)}-slot bracket, first round {f.byes + 1} vs {f.size} and so on)
+                  </dd>
+                  <dt class="label-caps pt-0.5 text-fg-muted">Source</dt>
+                  <dd>
+                    <a class="link" href={f.sourceUrl}>
+                      {f.sourceName}
+                    </a>
+                    <span class="text-fg-muted"> · checked {fmtDate(f.checkedOn)}</span>
+                  </dd>
+                </dl>
+              </article>
+            ))
+          }
+        </div>
+      </section>
+
+      <section aria-labelledby="sources" class="scroll-mt-4">
+        <h2 id="sources" class="cond text-heading uppercase">Sources</h2>
+        <ul class="mt-4 flex flex-col gap-3 leading-7">
+          <li>
+            <b>Ratings:</b> <a class="link" href={s.ratings.url}>FEI by {s.ratings.author}</a>
+            {s.ratings.throughWeek !== null && <span class="text-fg-muted"> (through Week {s.ratings.throughWeek})</span>}. Strength of record,
+            schedule, offense, defense and overall FEI, plus every opponent tier.
+          </li>
+          <li>
+            <b>Games and scores:</b> <a class="link" href={s.games.url}>{s.games.name}</a>. Team colors come from the same source; we never use logos.
+          </li>
+          {
+            s.committee && (
+              <li>
+                <b>Committee ranking:</b> <a class="link" href={s.committee.url}>{s.committee.name}</a>
+                <span class="text-fg-muted">, released {fmtDate(s.committee.releaseDate)}</span>.
+              </li>
+            )
+          }
+          <li>
+            Data updates every week of the season. This version: {week.label}, {week.season}, pulled {fmtDate(week.asOf)}. More on the site on the{' '}
+            <a class="link" href="/about">about page</a>.
+          </li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</BaseLayout>

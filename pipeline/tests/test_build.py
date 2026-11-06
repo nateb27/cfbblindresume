@@ -1,10 +1,9 @@
 import copy
-import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from _util import MINI, PIPE, mini_json, read
+from _util import MINI, PIPE, mini_formats, mini_json, read
 
 from cfbpipe import PipelineError
 from cfbpipe.build import build_week, included_games
@@ -15,14 +14,13 @@ from cfbpipe.names import SlugBook, load_aliases
 def build(games=None, teams=None, fei_html=None, week=3, aliases=None, committee=None):
     with tempfile.TemporaryDirectory() as d:
         slugs = SlugBook(Path(d) / "slugs.json")
-        playoff = json.loads(read(PIPE / "playoff_format.json"))["2026"]
         return build_week(
             season=2026, week=week, as_of="2026-09-25",
             fei=parse_fei_html(fei_html or read(MINI / "2026" / "bcftoys-fei.html")),
             fei_url="https://bcftoys.com/2026-fei",
             cfbd_teams=teams if teams is not None else mini_json("cfbd-teams-fbs.json"),
             cfbd_games=games if games is not None else mini_json("cfbd-games-regular.json"),
-            committee=committee, committee_url=None, playoff=playoff,
+            committee=committee, committee_url=None, playoff_formats=mini_formats(),
             aliases=aliases or load_aliases(PIPE / "aliases.json"), slugs=slugs,
         )
 
@@ -87,6 +85,12 @@ class BuildMini(unittest.TestCase):
         self.assertIsNone(self.doc["sources"]["committee"])
         self.assertEqual(self.doc["champions"], {})
         self.assertEqual(self.doc["label"], "After Week 3")
+
+    def test_schema_v2_playoff_formats_copied_from_config(self):
+        self.assertEqual(self.doc["schemaVersion"], 2)
+        self.assertNotIn("playoff", self.doc)
+        self.assertEqual(self.doc["playoffFormats"], mini_formats())
+        self.assertEqual([f["id"] for f in self.doc["playoffFormats"]], ["12-team", "24-team"])
 
     def test_record_mismatch_with_fei_is_an_error(self):
         games = mini_json("cfbd-games-regular.json")

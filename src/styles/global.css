@@ -1,0 +1,722 @@
+/*
+ * cfbblindresume global stylesheet. Import once per page (layouts): `import '../styles/global.css'`.
+ * Tailwind 4 + design tokens + base styles + the few shared component classes that both the
+ * Astro content pages and the React game island use. DESIGN.md is the visual spec.
+ */
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Tier utilities are often built from data (`bg-tier-${key}`), so always generate them. */
+@source inline("{bg,text,fill,stroke,border,outline,ring,decoration}-tier-{50,45,40,30,20,15,10,05}");
+
+/* -------------------------------------------------------------------------- fonts
+ * Barlow Condensed 600 + 700, latin subset, woff2 only, self-hosted. The woff2 files are the
+ * @fontsource/barlow-condensed latin files, copied next to the TTFs used for PNG rendering.
+ * Vite fingerprints them (/_astro/BarlowCondensed-700.<hash>.woff2). To preload the 700 weight
+ * (above the fold on every page), import the same file with ?url in the layout:
+ *   import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url';
+ *   <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
+ * The ?url import and the url() below resolve to the same hashed file.
+ */
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/BarlowCondensed-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/BarlowCondensed-700.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* Metric-matched fallback: Barlow Condensed is 70.3% as wide as Arial (measured), so text set
+   in the fallback during the swap period occupies the same width and nothing reflows (CLS 0). */
+@font-face {
+  font-family: "Barlow Condensed Fallback";
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Helvetica");
+  size-adjust: 70.3%;
+  ascent-override: 142.2%;
+  descent-override: 28.4%;
+  line-gap-override: 0%;
+}
+
+/* -------------------------------------------------------------------------- themes */
+/* Dark theme values again, so data-theme="dark" can re-darken a subtree inside a light page.
+   Must equal the @theme block in tokens.css (tests/design-tokens.test.ts checks). */
+@utility theme-dark-values {
+  --color-page: #0e0f12;
+  --color-surface: #16181d;
+  --color-raised: #1e2128;
+  --color-raised-2: #272b33;
+  --color-line: #2a2e36;
+  --color-line-strong: #3a3f49;
+  --color-control: #7a808a;
+  --color-track: #2b2f37;
+  --color-fg: #ecedee;
+  --color-fg-muted: #9ba1ab;
+  --color-fg-faint: #878d97;
+  --color-accent: #c8f135;
+  --color-accent-fill: #c8f135;
+  --color-on-accent: #0e0f12;
+  --color-accent-tint: #333f22;
+  --color-accent-edge: #c8f135;
+  --color-focus: #c8f135;
+  --color-win: #3dd68c;
+  --color-loss: #ff6b6b;
+  --color-win-tint: #1b3a2f;
+  --color-loss-tint: #3e2329;
+  --color-tier-50: #ffcd34;
+  --color-tier-45: #f8b23d;
+  --color-tier-40: #d9a461;
+  --color-tier-30: #77abd7;
+  --color-tier-20: #7f96af;
+  --color-tier-15: #7c8999;
+  --color-tier-10: #777e87;
+  --color-tier-05: #717579;
+  --color-scrim: rgb(6 7 9 / 0.8);
+  --color-selection: #c8f135;
+  --color-on-selection: #0e0f12;
+  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.04), 0 18px 36px -18px rgb(0 0 0 / 0.75);
+  --shadow-panel: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 28px 72px -16px rgb(0 0 0 / 0.8);
+  --shadow-footer: 0 -14px 28px -14px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  /* Content pages: follow the OS. Game pages put data-theme="dark" on <html> to stay dark. */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      @apply theme-light-values;
+    }
+  }
+  [data-theme="light"] {
+    @apply theme-light-values;
+  }
+  [data-theme="dark"] {
+    @apply theme-dark-values;
+  }
+
+  html {
+    background-color: var(--color-page);
+    color: var(--color-fg);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-page);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    /* Every number on the site lines up in columns. Use `proportional-nums` to opt out. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+  ::selection {
+    background-color: var(--color-selection);
+    color: var(--color-on-selection);
+  }
+
+  /* No motion beyond instant state changes when the user asks for less. */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --duration-instant: 0ms;
+      --duration-fast: 0ms;
+      --duration-base: 0ms;
+      --duration-slow: 0ms;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- utilities */
+/* Condensed caps label: metric names, column heads, section kickers. */
+@utility label-caps {
+  font-family: var(--font-condensed);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+/* Condensed display numerals / names (pair with a text-<role> size). */
+@utility cond {
+  font-family: var(--font-condensed);
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------------------- components */
+@layer components {
+  /* --- Opponent tier: any element with data-tier="50|45|40|30|20|15|10|05" (stars x 10)
+     exposes --tier (ramp color), --stars (star count) and --tier-dot (resume-strip dot size). */
+  [data-tier="50"] { --tier: var(--color-tier-50); --stars: 5;   --tier-dot: 14px; }
+  [data-tier="45"] { --tier: var(--color-tier-45); --stars: 4.5; --tier-dot: 12px; }
+  [data-tier="40"] { --tier: var(--color-tier-40); --stars: 4;   --tier-dot: 11px; }
+  [data-tier="30"] { --tier: var(--color-tier-30); --stars: 3;   --tier-dot: 10px; }
+  [data-tier="20"] { --tier: var(--color-tier-20); --stars: 2;   --tier-dot: 9px; }
+  [data-tier="15"] { --tier: var(--color-tier-15); --stars: 1.5; --tier-dot: 8px; }
+  [data-tier="10"] { --tier: var(--color-tier-10); --stars: 1;   --tier-dot: 7px; }
+  [data-tier="05"] { --tier: var(--color-tier-05); --stars: 0.5; --tier-dot: 6px; }
+
+  /* Five stars, filled to --stars in the tier color (half stars work). One element, no SVG. */
+  .stars {
+    --star: 12px;
+    display: inline-block;
+    flex: none;
+    width: calc(var(--star) * 5);
+    height: var(--star);
+    background: linear-gradient(
+      90deg,
+      var(--tier, var(--color-fg-muted)) calc(var(--stars, 0) * 20%),
+      var(--color-line-strong) 0
+    );
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .6l1.44 3.92 4.17.16-3.28 2.58 1.14 4.01L6 8.95l-3.47 2.32 1.14-4.01L.39 4.68l4.17-.16z'/%3E%3C/svg%3E")
+      0 0 / var(--star) var(--star) repeat-x;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .6l1.44 3.92 4.17.16-3.28 2.58 1.14 4.01L6 8.95l-3.47 2.32 1.14-4.01L.39 4.68l4.17-.16z'/%3E%3C/svg%3E")
+      0 0 / var(--star) var(--star) repeat-x;
+  }
+
+  /* Resume-strip dot: size and color from data-tier. */
+  .tier-dot {
+    display: block;
+    flex: none;
+    width: var(--tier-dot, 8px);
+    height: var(--tier-dot, 8px);
+    border-radius: 999px;
+    background-color: var(--tier, var(--color-fg-muted));
+  }
+
+  /* Metric bar: <div class="meter" data-tier="50" style="--fill:.98"><span></span></div>
+     --fill = rankFill(rank, fbsCount) from @lib/tiers; color = tier of that rank band. */
+  .meter {
+    position: relative;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 1px;
+    background-color: var(--color-track);
+  }
+  .meter > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: max(3px, calc(var(--fill, 0) * 100%));
+    border-radius: inherit;
+    background-color: var(--tier, var(--color-fg-muted));
+    transform-origin: left center;
+  }
+  .meter[data-animate] > span {
+    animation: var(--animate-fill);
+  }
+
+  /* Game result chip: <span class="result-chip" data-result="W"><b>W</b><span>+16</span></span> */
+  .result-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.375rem;
+    min-width: 3.75rem;
+    height: 1.5rem;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-chip);
+    font-family: var(--font-condensed);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .result-chip[data-result="W"] {
+    background-color: var(--color-win-tint);
+    color: var(--color-win);
+  }
+  .result-chip[data-result="L"] {
+    background-color: var(--color-loss-tint);
+    color: var(--color-loss);
+  }
+
+  /* Rank delta: <span class="delta" data-dir="up|down|same">3</span> (drawn triangle; the
+     condensed font has no arrow glyphs). Screen-reader text goes in an sr-only span. */
+  .delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-family: var(--font-condensed);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-fg-muted);
+  }
+  .delta::before {
+    content: "";
+    flex: none;
+    width: 0.5rem;
+    height: 2px;
+    background-color: currentColor;
+  }
+  .delta[data-dir="up"] { color: var(--color-win); }
+  .delta[data-dir="down"] { color: var(--color-loss); }
+  .delta[data-dir="up"]::before,
+  .delta[data-dir="down"]::before {
+    height: 0.4375rem;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+  .delta[data-dir="down"]::before {
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  /* --- Team identity. Style vars come from teamVars(team.colors) in src/styles/tokens.ts:
+     --team-bg (primary), --team-ink (text by contrast), --team-rule (secondary, 4px),
+     --team-edge-dark / --team-edge-light (hairline when the primary vanishes into the page). */
+  .team-block {
+    --team-edge: var(--team-edge-dark, transparent);
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    background-color: var(--team-bg, var(--color-raised-2));
+    color: var(--team-ink, var(--color-fg));
+    border-bottom: 4px solid var(--team-rule, var(--color-line-strong));
+    border-radius: var(--radius-slab);
+    box-shadow: inset 0 0 0 1px var(--team-edge);
+    font-family: var(--font-condensed);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  a.team-block,
+  a .team-block {
+    transition: filter var(--duration-fast) var(--ease-out);
+  }
+  a.team-block:hover,
+  a:hover .team-block {
+    filter: brightness(1.1) saturate(1.05);
+  }
+  /* Inline team mark for tables and prose: 12x20 color block + 4px rule + condensed caps name. */
+  .team-chip {
+    --team-edge: var(--team-edge-dark, transparent);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    font-family: var(--font-condensed);
+    font-size: var(--text-label-lg);
+    line-height: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .team-chip::before {
+    content: "";
+    flex: none;
+    width: 0.75rem;
+    height: 1.25rem;
+    border-radius: 1px;
+    background-color: var(--team-bg, var(--color-raised-2));
+    border-bottom: 4px solid var(--team-rule, var(--color-line-strong));
+    box-shadow: inset 0 0 0 1px var(--team-edge);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) :is(.team-block, .team-chip) {
+      --team-edge: var(--team-edge-light, transparent);
+    }
+  }
+  [data-theme="light"] :is(.team-block, .team-chip) {
+    --team-edge: var(--team-edge-light, transparent);
+  }
+  [data-theme="dark"] :is(.team-block, .team-chip) {
+    --team-edge: var(--team-edge-dark, transparent);
+  }
+
+  /* Seed / rank plate that sits on the left of a team block (lower-third). */
+  .seed-plate {
+    display: grid;
+    flex: none;
+    place-items: center;
+    min-width: 2.25rem;
+    align-self: stretch;
+    padding: 0 0.375rem;
+    border-radius: var(--radius-slab) 0 0 var(--radius-slab);
+    background-color: var(--color-raised-2);
+    color: var(--color-fg);
+    font-family: var(--font-condensed);
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  /* "Highlight playoff field": the team block gets an accent outline and an accent seed plate. */
+  .team-block[data-in-field] {
+    outline: 2px solid var(--color-accent-edge);
+    outline-offset: 2px;
+  }
+  [data-in-field] > .seed-plate,
+  .seed-plate[data-in-field] {
+    background-color: var(--color-accent-fill);
+    color: var(--color-on-accent);
+  }
+
+  /* --- Buttons. 44px min touch target. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1.25rem;
+    border: 2px solid transparent;
+    border-radius: var(--radius-chip);
+    font-family: var(--font-condensed);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition-property: background-color, border-color, color, transform, box-shadow;
+    transition-duration: var(--duration-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .btn:active:not(:disabled, [aria-disabled="true"]) {
+    transform: scale(0.97);
+    transition-duration: var(--duration-instant);
+  }
+  .btn-primary {
+    background-color: var(--color-accent-fill);
+    border-color: var(--color-accent-edge);
+    color: var(--color-on-accent);
+  }
+  .btn-primary:hover {
+    background-color: color-mix(in oklab, var(--color-accent-fill) 86%, white);
+  }
+  .btn-secondary {
+    background-color: transparent;
+    border-color: var(--color-control);
+    color: var(--color-fg);
+  }
+  .btn-secondary:hover {
+    background-color: var(--color-raised);
+    border-color: var(--color-fg-muted);
+  }
+  .btn-ghost {
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+    background-color: transparent;
+    color: var(--color-fg-muted);
+  }
+  .btn-ghost:hover {
+    color: var(--color-fg);
+    background-color: var(--color-raised);
+  }
+  /* Rank button on a blind card. States: default, data-place="1" (picked 1st),
+     data-place="2" (picked 2nd), data-place="3" (implied 3rd), disabled. */
+  .btn-rank {
+    width: 100%;
+    min-height: 3rem;
+    background-color: transparent;
+    border-color: var(--color-accent-edge);
+    color: var(--color-accent);
+  }
+  .btn-rank:hover {
+    background-color: var(--color-accent-tint);
+  }
+  .btn-rank[data-place="1"] {
+    background-color: var(--color-accent-fill);
+    border-color: var(--color-accent-fill);
+    color: var(--color-on-accent);
+  }
+  .btn-rank[data-place="2"] {
+    background-color: var(--color-accent-tint);
+    border-color: var(--color-accent-edge);
+    color: var(--color-accent);
+  }
+  .btn-rank[data-place="3"] {
+    background-color: var(--color-raised);
+    border-color: var(--color-raised);
+    color: var(--color-fg-muted);
+  }
+  .btn:is(:disabled, [aria-disabled="true"]):not([data-place]) {
+    background-color: transparent;
+    color: var(--color-fg-faint);
+    cursor: not-allowed;
+  }
+  .btn:is(.btn-primary, .btn-secondary, .btn-rank):is(:disabled, [aria-disabled="true"]):not([data-place]) {
+    border-color: var(--color-line-strong);
+  }
+  .btn:disabled[data-place],
+  .btn[aria-disabled="true"][data-place] {
+    cursor: default;
+  }
+
+  /* --- Toggle switch: <button role="switch" aria-checked="false" class="switch">
+     <span class="switch-track" aria-hidden="true"></span>Compare with committee</button> */
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-height: 2.75rem;
+    font-size: 0.9375rem;
+    line-height: 1.25rem;
+    color: var(--color-fg);
+    cursor: pointer;
+  }
+  .switch-track {
+    position: relative;
+    flex: none;
+    width: 2.25rem;
+    height: 1.25rem;
+    border: 1.5px solid var(--color-control);
+    border-radius: 999px;
+    transition: background-color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
+  }
+  .switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 0.8125rem;
+    height: 0.8125rem;
+    border-radius: 999px;
+    background-color: var(--color-fg-muted);
+    transition: transform var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out);
+  }
+  .switch[aria-checked="true"] .switch-track {
+    background-color: var(--color-accent-fill);
+    border-color: var(--color-accent-edge);
+  }
+  .switch[aria-checked="true"] .switch-track::after {
+    transform: translateX(1rem);
+    background-color: var(--color-on-accent);
+  }
+
+  /* --- Segmented control (12 / 24 teams). Children: <button aria-pressed> or <a aria-current>. */
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--color-control);
+    border-radius: 6px;
+    background-color: var(--color-surface);
+  }
+  .segmented > * {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0 0.875rem;
+    border-radius: var(--radius-chip);
+    font-family: var(--font-condensed);
+    font-size: var(--text-label-lg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--color-fg-muted);
+    transition: background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+  .segmented > *:hover {
+    color: var(--color-fg);
+  }
+  .segmented > [aria-pressed="true"],
+  .segmented > [aria-current],
+  .segmented > [aria-selected="true"] {
+    background-color: var(--color-accent-tint);
+    color: var(--color-accent);
+    box-shadow: inset 0 0 0 1px var(--color-accent-edge);
+  }
+
+  /* --- Tabs (Your ranking / Committee / FEI / Fans). */
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--color-line);
+    scrollbar-width: none;
+  }
+  .tab {
+    flex: none;
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+    font-family: var(--font-condensed);
+    font-size: var(--text-label-lg);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-fg-muted);
+    box-shadow: inset 0 -3px 0 transparent;
+    transition: color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
+  }
+  .tab:hover {
+    color: var(--color-fg);
+  }
+  .tab[aria-selected="true"],
+  .tab[aria-current] {
+    color: var(--color-fg);
+    box-shadow: inset 0 -3px 0 var(--color-accent-fill);
+  }
+
+  /* --- Content pages. */
+  .link {
+    color: inherit;
+    text-decoration-line: underline;
+    text-decoration-color: var(--color-accent-edge);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+  .link:hover {
+    color: var(--color-accent);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-inline: calc(var(--spacing-gutter) * -1);
+    padding-inline: var(--spacing-gutter);
+  }
+  @media (width >= 40rem) {
+    .table-wrap {
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table th {
+    padding: 0.5rem 0.625rem;
+    border-bottom: 1px solid var(--color-line-strong);
+    text-align: left;
+    vertical-align: bottom;
+    white-space: nowrap;
+    font-family: var(--font-condensed);
+    font-size: var(--text-label);
+    line-height: var(--text-label--line-height);
+    letter-spacing: var(--text-label--letter-spacing);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-fg-muted);
+  }
+  .data-table td {
+    height: 2.75rem;
+    padding: 0.375rem 0.625rem;
+    border-bottom: 1px solid var(--color-line);
+    vertical-align: middle;
+  }
+  .data-table :is(th, td):first-child {
+    padding-left: 0;
+  }
+  .data-table :is(th, td):last-child {
+    padding-right: 0;
+  }
+  .data-table :is(th, td)[data-num] {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .data-table td[data-num] {
+    font-family: var(--font-condensed);
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+  .data-table tbody tr:hover {
+    background-color: var(--color-surface);
+  }
+  .data-table tr[data-cut] td {
+    border-bottom: 2px solid var(--color-accent-edge);
+  }
+
+  .callout {
+    padding: 1rem 1.25rem;
+    border-left: 4px solid var(--color-accent-edge);
+    border-radius: 0 var(--radius-card) var(--radius-card) 0;
+    background-color: var(--color-surface);
+  }
+
+  /* Ad slot (PUBLIC_ADS=on). Markup:
+     <aside class="ad-slot" data-kind="incontent" aria-label="Advertisement">
+       <span class="ad-label">Advertisement</span><div class="ad-box"><!-- creative --></div>
+     </aside>
+     The box reserves the creative's height so CLS stays 0. */
+  .ad-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    width: 100%;
+    padding: 0.5rem 0 0.75rem;
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+  }
+  .ad-label {
+    font-family: var(--font-condensed);
+    font-size: var(--text-label);
+    line-height: var(--text-label--line-height);
+    letter-spacing: var(--text-label--letter-spacing);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-fg-faint);
+  }
+  .ad-box {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .ad-slot[data-kind="leaderboard"] .ad-box { min-height: 100px; max-width: 728px; }
+  .ad-slot[data-kind="incontent"] .ad-box { min-height: 250px; max-width: 336px; }
+  .ad-slot[data-kind="sidebar"] .ad-box { min-height: 250px; max-width: 300px; }
+  @media (width >= 48rem) {
+    .ad-slot[data-kind="leaderboard"] .ad-box { min-height: 90px; }
+  }
+  @media (width >= 64rem) {
+    .ad-slot[data-kind="sidebar"] {
+      position: sticky;
+      top: 1.5rem;
+      border: 0;
+    }
+    .ad-slot[data-kind="sidebar"] .ad-box { min-height: 600px; }
+  }
+}

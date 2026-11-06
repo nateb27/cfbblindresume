@@ -1,0 +1,49 @@
+{
+ "2026": [
+  {
+   "id": "12-team",
+   "label": "12 teams",
+   "status": "current",
+   "default": true,
+   "note": "The five highest-ranked conference champions get automatic bids, Notre Dame is in if ranked in the top 12, the rest of the field is at-large, and the top four seeds get first-round byes.",
+   "sourceName": "College Football Playoff",
+   "sourceUrl": "https://collegefootballplayoff.com",
+   "checkedOn": "2026-11-05",
+   "size": 12,
+   "byes": 4,
+   "seeding": "straight",
+   "autoBids": {
+    "rules": [
+     {"from": "all", "count": 5}
+    ],
+    "guaranteed": [
+     {"slug": "notre-dame", "ifRankedAtOrAbove": 12}
+    ]
+   },
+   "powerConferences": ["ACC", "Big 12", "Big Ten", "SEC"],
+   "nonConferences": ["FBS Independents"]
+  },
+  {
+   "id": "24-team",
+   "label": "24 teams",
+   "status": "proposed",
+   "default": false,
+   "note": "The four Power 4 conference champions and the highest-ranked champion from the other conferences get automatic bids, 19 at-large teams complete the field, and the top eight seeds get first-round byes.",
+   "sourceName": "Deseret News",
+   "sourceUrl": "https://www.deseret.com/sports/2026/10/15/college-football-playoff-reportedly-expanding-24-teams/",
+   "checkedOn": "2026-11-05",
+   "size": 24,
+   "byes": 8,
+   "seeding": "straight",
+   "autoBids": {
+    "rules": [
+     {"from": "power", "count": 4},
+     {"from": "nonPower", "count": 1}
+    ],
+    "guaranteed": []
+   },
+   "powerConferences": ["ACC", "Big 12", "Big Ten", "SEC"],
+   "nonConferences": ["FBS Independents"]
+  }
+ ]
+}

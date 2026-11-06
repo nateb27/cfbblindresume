@@ -1,0 +1,79 @@
+---
+/**
+ * Game log (DESIGN §14): toughest opponent first (gameRows), with date, opponent (linked when
+ * FBS), opponent tier (stars + label, from the CURRENT week's FEI ranks), site, result + margin
+ * and score. Under 640px the date and site fold into a second line under the opponent and the
+ * tier label is dropped (stars keep their accessible name), so it fits 358px without scrolling.
+ */
+import { gameRows } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import Stars from './Stars.astro';
+import TeamChip from './TeamChip.astro';
+import { SITE_LABELS, fmtShortDate, signed } from './site';
+
+interface Props {
+  week: WeekFile;
+  slug: string;
+  caption: string;
+}
+const { week, slug, caption } = Astro.props;
+const rows = gameRows(week, slug);
+const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.teams[o.slug]?.ranks.committee ?? null) : null);
+---
+
+<div class="table-wrap">
+  <table class="data-table">
+    <caption class="sr-only">{caption}</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="max-sm:hidden">Date</th>
+        <th scope="col">Opponent</th>
+        <th scope="col">Opponent tier</th>
+        <th scope="col" class="max-sm:hidden">Site</th>
+        <th scope="col" data-num>Result</th>
+        <th scope="col" data-num>Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((g) => (
+          <tr>
+            <td class="whitespace-nowrap text-fg-muted max-sm:hidden">
+              <time datetime={g.date}>{fmtShortDate(g.date)}</time>
+            </td>
+            <td>
+              <span class="flex flex-col items-start">
+                <span class="flex items-center gap-2">
+                  <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} />
+                  {cfp(g.opp) !== null && <span class="label-caps whitespace-nowrap text-fg-muted max-sm:hidden">CFP {cfp(g.opp)}</span>}
+                </span>
+                <span class="pl-5 text-[0.8125rem] leading-4 text-fg-muted sm:hidden">
+                  {cfp(g.opp) !== null && `CFP ${cfp(g.opp)} · `}
+                  {SITE_LABELS[g.site]} · {fmtShortDate(g.date)}
+                </span>
+              </span>
+            </td>
+            <td>
+              <span class="flex items-center gap-2">
+                <Stars stars={g.tier.stars} label={g.tier.label} />
+                <span class="whitespace-nowrap text-fg-muted max-sm:hidden" aria-hidden="true">
+                  {g.tier.label}
+                </span>
+              </span>
+            </td>
+            <td class="text-fg-muted max-sm:hidden">{SITE_LABELS[g.site]}</td>
+            <td data-num>
+              <span class="result-chip" data-result={g.result}>
+                <span>{g.result}</span>
+                <span>{signed(g.margin)}</span>
+              </span>
+            </td>
+            <td data-num>
+              {g.pf}-{g.pa}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>

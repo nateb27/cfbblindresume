@@ -1,0 +1,72 @@
+---
+/**
+ * Resume strip (SPEC card + team page): one dot per game in date order, sized and colored by the
+ * opponent's current tier, with the result letter (win/loss color) and margin under it.
+ * Pure SVG, no JS. `full` adds the opponent (@ = away, vs = neutral) above each dot.
+ */
+import { gameRows } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import { TIER_DOT_PX, tierKey } from '../styles/tokens';
+import { SITE_LABELS, fmtShortDate, signed } from './site';
+
+interface Props {
+  week: WeekFile;
+  slug: string;
+  variant?: 'full' | 'compact';
+  class?: string;
+}
+const { week, slug, variant = 'full', class: cls } = Astro.props;
+const games = gameRows(week, slug).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.week - b.week));
+const full = variant === 'full';
+const col = full ? 40 : 20;
+const dotY = full ? 29 : 8;
+const height = full ? 74 : 32;
+const width = Math.max(col, games.length * col);
+const t = week.teams[slug]!;
+const oppLabel = (g: (typeof games)[number]): string => {
+  const abbr = g.opp.fbs ? (week.teams[g.opp.slug]?.short ?? g.opp.name) : 'FCS';
+  return g.site === 'away' ? `@${abbr}` : g.site === 'neutral' ? `vs ${abbr}` : abbr;
+};
+const summary = `${t.name} season in order: ${games
+  .map((g) => `${g.result === 'W' ? 'win' : 'loss'} ${g.site === 'away' ? 'at' : 'vs'} ${g.opp.name} (${g.tier.label}) ${g.pf}-${g.pa}`)
+  .join('; ')}.`;
+---
+
+<div class:list={['overflow-x-auto', cls]}>
+  <svg
+    class="cond block"
+    width={width}
+    height={height}
+    viewBox={`0 0 ${width} ${height}`}
+    role="img"
+    aria-label={summary}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {games.length > 1 && <line x1={col / 2} x2={width - col / 2} y1={dotY} y2={dotY} class="stroke-line-strong" stroke-width="1" />}
+    {
+      games.map((g, i) => {
+        const x = i * col + col / 2;
+        const key = tierKey(g.tier.stars);
+        return (
+          <g>
+            <title>{`${fmtShortDate(g.date)} · ${SITE_LABELS[g.site]} vs ${g.opp.name} (${g.tier.label}) · ${g.result} ${g.pf}-${g.pa}`}</title>
+            {full && (
+              <text x={x} y="12" text-anchor="middle" font-size="12" font-weight="600" letter-spacing="0.3" class="fill-fg-muted">
+                {oppLabel(g)}
+              </text>
+            )}
+            <circle cx={x} cy={dotY} r={TIER_DOT_PX[key] / 2 + (full ? 1 : 0)} class={`fill-tier-${key} stroke-page`} stroke-width="2" />
+            <text x={x} y={full ? 53 : 29} text-anchor="middle" font-size={full ? 15 : 12} font-weight="700" class={g.result === 'W' ? 'fill-win' : 'fill-loss'}>
+              {g.result}
+            </text>
+            {full && (
+              <text x={x} y="69" text-anchor="middle" font-size="12" font-weight="600" class="fill-fg-muted">
+                {signed(g.pf - g.pa)}
+              </text>
+            )}
+          </g>
+        );
+      })
+    }
+  </svg>
+</div>

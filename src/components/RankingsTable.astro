@@ -1,0 +1,131 @@
+---
+/**
+ * A ranked top 25 (committee or FEI strength of record) with the other side's rank, the FEI vs
+ * committee delta, and a cut line for every playoff format: everything above the line is in that
+ * projected field; field teams below it got there on an automatic bid (tagged).
+ */
+import { committeeOrder, gwdOrder, TOP_N } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import Delta from './Delta.astro';
+import TeamChip from './TeamChip.astro';
+import { contiguousCut, playoffViews, record } from './site';
+
+interface Props {
+  week: WeekFile;
+  kind: 'committee' | 'fei';
+  caption: string;
+  class?: string;
+}
+const { week, kind, caption, class: cls } = Astro.props;
+const views = playoffViews(week);
+const order = kind === 'committee' ? (committeeOrder(week) ?? []) : gwdOrder(week).slice(0, week.committee?.length ?? TOP_N);
+const results = kind === 'committee' ? views.committee : views.fei;
+
+const cuts = new Map<number, string[]>(); // row index (0-based) -> labels for a cut under it
+const autoTags = new Map<string, string[]>(); // slug -> format sizes it reaches on an auto bid below the cut
+for (const f of views.formats) {
+  const res = results?.[f.id];
+  if (!res) continue;
+  const k = contiguousCut(order, res);
+  if (k > 0 && k < order.length) {
+    cuts.set(k - 1, [...(cuts.get(k - 1) ?? []), f.status === 'proposed' ? `in the ${f.size} (proposed)` : `in the ${f.size}`]);
+  }
+  const inField = new Set(res.field.map((s) => s.slug));
+  order.forEach((slug, i) => {
+    if (i >= k && inField.has(slug)) autoTags.set(slug, [...(autoTags.get(slug) ?? []), String(f.size)]);
+  });
+}
+// Field teams that sit below the displayed rows (automatic bids from outside this top 25).
+const shown = new Set(order);
+const beyondBySlug = new Map<string, { conference?: string; formats: string[] }>();
+for (const f of views.formats) {
+  for (const sd of results?.[f.id]?.field ?? []) {
+    if (shown.has(sd.slug)) continue;
+    const e = beyondBySlug.get(sd.slug) ?? { conference: sd.conference, formats: [] };
+    e.formats.push(f.status === 'proposed' ? `the ${f.size} (proposed)` : `the ${f.size}`);
+    beyondBySlug.set(sd.slug, e);
+  }
+}
+// One line per distinct set of formats: "Also in the 12 and the 24 (proposed) on an automatic bid: ..."
+const beyond: { key: string; teams: { slug: string; conference?: string }[] }[] = [];
+for (const [slug, e] of beyondBySlug) {
+  const key = e.formats.join(' and ');
+  let line = beyond.find((l) => l.key === key);
+  if (!line) {
+    line = { key, teams: [] };
+    beyond.push(line);
+  }
+  line.teams.push({ slug, conference: e.conference });
+}
+const otherHead = kind === 'committee' ? 'FEI' : 'CFP';
+const otherTitle = kind === 'committee' ? "FEI strength of record rank" : 'Committee rank';
+---
+
+<div class:list={['table-wrap', cls]}>
+  <table class="data-table">
+    <caption class="sr-only">{caption}</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="w-10">Rank</th>
+        <th scope="col">Team</th>
+        <th scope="col" data-num>Record</th>
+        <th scope="col" data-num><abbr title={otherTitle} class="no-underline">{otherHead}</abbr></th>
+        <th scope="col" data-num>FEI vs CFP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        order.map((slug, i) => {
+          const t = week.teams[slug]!;
+          const c = t.ranks.committee;
+          const g = t.ranks.sor;
+          const other = kind === 'committee' ? g : c;
+          const cut = cuts.get(i);
+          const tags = autoTags.get(slug);
+          return (
+            <>
+              <tr data-cut={cut ? '' : undefined}>
+                <td class="cond text-[1.125rem] font-bold">{i + 1}</td>
+                <td>
+                  <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <TeamChip week={week} slug={slug} />
+                    {tags && (
+                      <span class="label-caps rounded-slab bg-raised-2 px-1.5 text-fg">
+                        Auto bid · {tags.join(' & ')}
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td data-num>{record(t)}</td>
+                <td data-num>{other === null ? <span class="text-fg-faint">NR</span> : other}</td>
+                <td data-num>
+                  <Delta value={c === null ? null : c - g} />
+                </td>
+              </tr>
+              {cut && (
+                <tr>
+                  <td colspan="5" class="!h-auto !border-b-0 !pt-1 !pb-2 text-right">
+                    <span class="label-caps text-accent">Above the line: {cut.join(' · ')}</span>
+                  </td>
+                </tr>
+              )}
+            </>
+          );
+        })
+      }
+    </tbody>
+  </table>
+  {
+    beyond.map(({ key, teams }) => (
+      <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] text-fg-muted">
+        <span>{`Also in ${key} on an automatic bid:`}</span>
+        {teams.map((sd) => (
+          <span class="inline-flex items-center gap-1.5">
+            <TeamChip week={week} slug={sd.slug} />
+            <span class="label-caps">{`${sd.conference ? `${sd.conference} · ` : ''}FEI ${week.teams[sd.slug]!.ranks.sor}`}</span>
+          </span>
+        ))}
+      </p>
+    ))
+  }
+</div>

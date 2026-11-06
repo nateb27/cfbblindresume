@@ -10,7 +10,7 @@ Modules:
 """
 
 USER_AGENT = "cfbblindresume-pipeline/1.0"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class PipelineError(Exception):

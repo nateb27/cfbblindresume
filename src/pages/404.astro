@@ -1,0 +1,39 @@
+---
+/** Not found (Cloudflare Pages serves 404.html for unknown paths). */
+import { committeeOrder, gwdOrder } from '@lib/data';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import TeamChip from '../components/TeamChip.astro';
+import { latestWeek } from '../components/site';
+
+const week = latestWeek();
+const top = (committeeOrder(week) ?? gwdOrder(week)).slice(0, 6);
+---
+
+<BaseLayout
+  title="Page Not Found | CFB Blind Resume"
+  description="This page does not exist. Try the blind resume game, this week's rankings or any FBS team's resume."
+  path="/404"
+  noindex
+  week={week}
+>
+  <div class="mx-auto max-w-page px-gutter py-16 lg:px-gutter-lg lg:py-24">
+    <p class="cond text-hero text-fg-faint" aria-hidden="true">404</p>
+    <h1 class="cond mt-2 text-title uppercase lg:text-display">Incomplete pass</h1>
+    <p class="mt-4 max-w-read text-lg leading-7">That page does not exist, or it moved. Team pages live at /teams/ followed by the school's name.</p>
+    <ul class="mt-8 flex flex-wrap gap-3">
+      <li><a class="btn btn-primary" href="/">Play the game</a></li>
+      <li><a class="btn btn-secondary" href="/rankings">This week's rankings</a></li>
+      <li><a class="btn btn-secondary" href="/teams">All teams</a></li>
+    </ul>
+    <h2 class="label-caps mt-12 text-fg-muted">At the top this week</h2>
+    <ul class="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+      {
+        top.map((s) => (
+          <li>
+            <TeamChip week={week} slug={s} />
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</BaseLayout>

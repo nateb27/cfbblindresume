@@ -1,0 +1,13 @@
+---
+/** A team name in running text, linked to its page (every team name on the site links). */
+import type { Team } from '@lib/types';
+import { teamHref } from './site';
+
+interface Props {
+  team: Pick<Team, 'slug' | 'name'>;
+  class?: string;
+}
+const { team, class: cls } = Astro.props;
+---
+
+<a href={teamHref(team.slug)} class:list={['link', cls]}>{team.name}</a>

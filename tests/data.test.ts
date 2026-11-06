@@ -359,8 +359,13 @@ describe('data-node loaders', () => {
 
   it('fails loudly on missing files and schema mismatches', () => {
     expect(() => loadWeek(2026, 3, { dataDir: root })).toThrow(/not found/);
-    writeFileSync(join(root, '2026', 'week-2.json'), JSON.stringify({ ...w8, schemaVersion: 2 }));
-    expect(() => loadWeek(2026, 2, { dataDir: root })).toThrow(/schemaVersion/);
+    // Only schemaVersion 2 loads: a v1 file (single `playoff`) and an unknown future version both fail.
+    expect(w8.schemaVersion).toBe(2);
+    const { playoffFormats, ...rest } = w8;
+    writeFileSync(join(root, '2026', 'week-2.json'), JSON.stringify({ ...rest, schemaVersion: 1, playoff: playoffFormats[0] }));
+    expect(() => loadWeek(2026, 2, { dataDir: root })).toThrow(/schemaVersion 1 \(expected 2\)/);
+    writeFileSync(join(root, '2026', 'week-2.json'), JSON.stringify({ ...w8, schemaVersion: 3 }));
+    expect(() => loadWeek(2026, 2, { dataDir: root })).toThrow(/schemaVersion 3 \(expected 2\)/);
     expect(() => loadSeasonIndex(1999, { dataDir: root })).toThrow();
     expect(() => loadLatest({ dataDir: join(root, 'empty') })).toThrow();
   });

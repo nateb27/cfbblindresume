@@ -1,0 +1,49 @@
+---
+/**
+ * Site footer: the FEI attribution (house rule 8; URL from the week file's sources), data credits,
+ * the data "as of" date + label, and links to How it works, About and Privacy.
+ */
+import type { WeekFile } from '@lib/types';
+import Wordmark from './Wordmark.astro';
+import { SITE, fmtDate } from './site';
+
+interface Props {
+  week: WeekFile;
+}
+const { week } = Astro.props;
+const s = week.sources;
+---
+
+<footer class="mt-16 border-t border-line">
+  <div class="mx-auto grid max-w-page gap-6 px-gutter py-8 text-sm text-fg-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-10 lg:px-gutter-lg">
+    <div class="flex flex-col gap-2.5">
+      <Wordmark class="text-fg" />
+      <p>
+        Ratings: <a class="link text-fg" href={s.ratings.url}>FEI by {s.ratings.author}</a>{' · '}Games:{' '}
+        <a class="link" href={s.games.url}>{s.games.name}</a>
+        {
+          s.committee && (
+            <>
+              {' · '}Rankings: <a class="link" href={s.committee.url}>College Football Playoff committee</a>
+            </>
+          )
+        }
+      </p>
+      <p>
+        Data as of <time datetime={week.asOf}>{fmtDate(week.asOf)}</time> · {week.label}, {week.season}
+        {s.committee && <> · committee release {fmtDate(s.committee.releaseDate)}</>}
+      </p>
+      <p class="text-fg-faint">
+        An independent site. Not affiliated with the College Football Playoff, any conference or any school. {SITE.tagline}
+      </p>
+    </div>
+    <nav aria-label="Footer">
+      <ul class="flex flex-wrap gap-x-5 gap-y-1 sm:flex-col sm:items-end">
+        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/how-it-works">How it works</a></li>
+        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/about">About</a></li>
+        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/privacy">Privacy</a></li>
+        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/teams">All teams</a></li>
+      </ul>
+    </nav>
+  </div>
+</footer>

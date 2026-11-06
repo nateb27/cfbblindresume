@@ -1,0 +1,70 @@
+---
+/**
+ * /about: who and why, the independence statement (the ONLY page whose built HTML may name the
+ * metrics the site does not use, in one plain sentence), attribution and contact.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AdSlot from '../components/AdSlot.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { SITE, absUrl, latestWeek } from '../components/site';
+
+const week = latestWeek();
+const s = week.sources;
+const title = 'About CFB Blind Resume: An Independent College Football Playoff Resume Site';
+const description = `Who runs CFB Blind Resume, why the resumes are blind, where every number comes from (FEI by ${s.ratings.author} and final scores), and how to get in touch.`;
+const ld = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  name: `About ${SITE.name}`,
+  url: absUrl('/about'),
+  description,
+  publisher: { '@type': 'Organization', name: SITE.name, url: absUrl('/'), email: SITE.email },
+};
+---
+
+<BaseLayout title={title} description={description} path="/about" jsonLd={ld} week={week}>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs items={[{ name: 'About', href: '/about' }]} />
+    <article class="max-w-read">
+      <h1 class="cond mt-2 text-title uppercase lg:text-display">About</h1>
+      <p class="mt-2 text-sm text-fg-muted">By {SITE.name}</p>
+
+      <p class="mt-6 text-lg leading-8">
+        {SITE.name} is an independent college football site with one idea: a playoff resume should be judged on what is in it. Hide the names,
+        the helmets and the preseason hype, and you find out what you actually believe about a team.
+      </p>
+      <p class="mt-4 leading-7">
+        The game shows you three resumes at a time and asks you to rank them. Your picks move teams up and down from the committee's ranking, and
+        at the end you get your own top 25 and playoff bracket, side by side with the committee's and with an independent model. The rest of the
+        site is the reference shelf: a resume page for every FBS team, the weekly rankings both ways, head-to-head comparisons and the bubble.
+      </p>
+
+      <h2 class="cond mt-12 text-heading uppercase">Independent numbers</h2>
+      <p class="mt-3 leading-7">
+        Every rating comes from <a class="link" href={s.ratings.url}>FEI by {s.ratings.author}</a>, a possession-based efficiency system that has
+        been published at bcftoys.com for years, or is computed directly from final scores. Strength of record, schedule strength, offense,
+        defense and every opponent tier on this site are FEI.
+      </p>
+      <p class="mt-4 leading-7">We do not use any ESPN-produced numbers: no FPI, no ESPN strength of record, no SP+ and no Game Control.</p>
+      <p class="mt-4 leading-7">
+        We do not use logos either. Teams are shown by name and colors, and scores come from <a class="link" href={s.games.url}>{s.games.name}</a>.
+        The committee ranking is published by the <a class="link" href="https://collegefootballplayoff.com">College Football Playoff</a>. We are not
+        affiliated with the College Football Playoff, any conference, any school or {s.ratings.author}.
+      </p>
+
+      <AdSlot kind="incontent" class="my-10" />
+
+      <h2 class="cond mt-12 text-heading uppercase">How it is built</h2>
+      <p class="mt-3 leading-7">
+        A small pipeline pulls the ratings, scores and committee ranking each week, checks that every team and game lines up, and publishes a
+        snapshot. Every page is built from that snapshot, so the numbers on a team page, in the game and in the rankings always agree. The method
+        behind your ranking and the playoff fields is written up on <a class="link" href="/how-it-works">how it works</a>.
+      </p>
+
+      <h2 class="cond mt-12 text-heading uppercase">Contact</h2>
+      <p class="mt-3 leading-7">
+        Found a wrong score, a missing game or a bug? Have an idea? Email <a class="link" href={`mailto:${SITE.email}`}>{SITE.email}</a>.
+      </p>
+    </article>
+  </div>
+</BaseLayout>

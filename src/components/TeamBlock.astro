@@ -1,0 +1,54 @@
+---
+/**
+ * Team identity lower-third (DESIGN §8): primary color block, condensed caps name in the
+ * contrast-picked ink, 4px secondary rule. Links to the team page unless `href` is false.
+ * Only the name and the optional meta (record) sit on the team color.
+ */
+import type { Team } from '@lib/types';
+import { teamVars } from '../styles/tokens';
+import { teamHref } from './site';
+
+type Size = 'slot' | 'row' | 'tile' | 'reveal' | 'hero';
+interface Props {
+  team: Pick<Team, 'slug' | 'name' | 'colors'>;
+  size?: Size;
+  /** Seed / rank numeral in the left plate. */
+  seed?: number | string;
+  /** Right-aligned meta on the block (e.g. record). */
+  meta?: string;
+  inField?: boolean;
+  /** false = not a link (e.g. the page's own hero). */
+  href?: string | false;
+  /** Heading element for the name (hero uses h1). */
+  nameAs?: 'span' | 'h1' | 'h2' | 'h3';
+  class?: string;
+}
+const { team, size = 'row', seed, meta, inField = false, href = teamHref(team.slug), nameAs = 'span', class: cls } = Astro.props;
+
+const height = { slot: 'h-9 pr-2.5', row: 'h-12 pr-3', tile: 'min-h-16 pr-3', reveal: 'h-14 pr-4', hero: 'h-[4.5rem] pr-4 sm:h-24 sm:pr-6' }[size];
+const nameCls = {
+  slot: 'truncate text-[0.9375rem] leading-4',
+  row: 'truncate text-[1.125rem] leading-5',
+  tile: 'text-team line-clamp-2',
+  reveal: 'truncate text-heading',
+  hero: 'cond truncate text-title uppercase sm:text-display',
+}[size];
+const plate = { slot: 'min-w-8 text-[1.125rem]', row: 'min-w-10 text-[1.375rem]', tile: 'min-w-9 text-[1.375rem]', reveal: 'min-w-12 text-[1.75rem]', hero: '' }[size];
+const metaCls = {
+  slot: 'text-[0.9375rem]',
+  row: 'text-[1.0625rem]',
+  tile: 'text-[1.0625rem]',
+  reveal: 'text-[1.25rem]',
+  hero: 'text-[1.25rem] leading-6 sm:text-[1.75rem] sm:leading-8',
+}[size];
+const pad = seed !== undefined ? 'pl-2.5' : size === 'hero' ? 'pl-4 sm:pl-6' : 'pl-3';
+const Tag = href ? 'a' : 'div';
+const Name = nameAs;
+---
+
+<Tag href={href || undefined} class:list={['team-block', height, cls]} style={teamVars(team.colors)} data-in-field={inField ? '' : undefined}>
+  {seed !== undefined && <span class:list={['seed-plate', plate]}>{seed}</span>}
+  <Name class:list={['min-w-0 flex-1', pad, nameCls]}>{team.name}</Name>
+  {meta && <span class:list={['ml-3 flex-none text-right', metaCls]}><slot name="meta">{meta}</slot></span>}
+  <slot />
+</Tag>

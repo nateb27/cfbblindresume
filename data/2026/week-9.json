@@ -522,25 +522,80 @@
    "slug": "youngstown-state"
   }
  },
- "playoff": {
-  "autoBids": {
-   "conferenceChampions": 5,
-   "guaranteed": [
-    {
-     "ifRankedAtOrAbove": 12,
-     "slug": "notre-dame"
-    }
-   ]
+ "playoffFormats": [
+  {
+   "autoBids": {
+    "guaranteed": [
+     {
+      "ifRankedAtOrAbove": 12,
+      "slug": "notre-dame"
+     }
+    ],
+    "rules": [
+     {
+      "count": 5,
+      "from": "all"
+     }
+    ]
+   },
+   "byes": 4,
+   "checkedOn": "2026-11-05",
+   "default": true,
+   "id": "12-team",
+   "label": "12 teams",
+   "nonConferences": [
+    "FBS Independents"
+   ],
+   "note": "The five highest-ranked conference champions get automatic bids, Notre Dame is in if ranked in the top 12, the rest of the field is at-large, and the top four seeds get first-round byes.",
+   "powerConferences": [
+    "ACC",
+    "Big 12",
+    "Big Ten",
+    "SEC"
+   ],
+   "seeding": "straight",
+   "size": 12,
+   "sourceName": "College Football Playoff",
+   "sourceUrl": "https://collegefootballplayoff.com",
+   "status": "current"
   },
-  "byes": 4,
-  "nonConferences": [
-   "FBS Independents"
-  ],
-  "seeding": "straight",
-  "size": 12,
-  "sourceUrl": "https://collegefootballplayoff.com"
- },
- "schemaVersion": 1,
+  {
+   "autoBids": {
+    "guaranteed": [],
+    "rules": [
+     {
+      "count": 4,
+      "from": "power"
+     },
+     {
+      "count": 1,
+      "from": "nonPower"
+     }
+    ]
+   },
+   "byes": 8,
+   "checkedOn": "2026-11-05",
+   "default": false,
+   "id": "24-team",
+   "label": "24 teams",
+   "nonConferences": [
+    "FBS Independents"
+   ],
+   "note": "The four Power 4 conference champions and the highest-ranked champion from the other conferences get automatic bids, 19 at-large teams complete the field, and the top eight seeds get first-round byes.",
+   "powerConferences": [
+    "ACC",
+    "Big 12",
+    "Big Ten",
+    "SEC"
+   ],
+   "seeding": "straight",
+   "size": 24,
+   "sourceName": "Deseret News",
+   "sourceUrl": "https://www.deseret.com/sports/2026/10/15/college-football-playoff-reportedly-expanding-24-teams/",
+   "status": "proposed"
+  }
+ ],
+ "schemaVersion": 2,
  "season": 2026,
  "sources": {
   "committee": {

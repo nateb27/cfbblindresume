@@ -1,0 +1,125 @@
+---
+/** /teams: every FBS team in the latest week file, grouped by conference in standings order. */
+import { conferenceStandings, teamList } from '@lib/data';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import JumpNav from '../../components/JumpNav.astro';
+import TeamChip from '../../components/TeamChip.astro';
+import TeamLink from '../../components/TeamLink.astro';
+import { absUrl, confAnchor, itemListLd, latestWeek, teamHref } from '../../components/site';
+
+const week = latestWeek();
+const n = Object.keys(week.teams).length;
+const confs = conferenceStandings(week);
+const title = `All ${n} FBS Teams by Conference: Playoff Resumes and Rankings — ${week.label}, ${week.season}`;
+const description = `Every FBS team's playoff resume, grouped by conference in standings order ${week.label.replace(/^After/, 'after')}: record, committee rank and FEI strength of record for all ${n} teams in ${confs.length} conferences.`;
+const ld = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: `All ${n} FBS teams`,
+    url: absUrl('/teams'),
+    description,
+  },
+  itemListLd(
+    `FBS teams, ${week.season}`,
+    teamList(week).map((t) => ({ name: t.name, path: teamHref(t.slug) })),
+  ),
+];
+---
+
+<BaseLayout title={title} description={description} path="/teams" jsonLd={ld} current="teams" week={week}>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs items={[{ name: 'Teams', href: '/teams' }]} />
+    <h1 class="cond mt-2 text-title uppercase lg:text-display">All {n} FBS teams</h1>
+    <p class="mt-4 max-w-read text-lg leading-7">
+      Every team's full resume, from the committee contenders to the rebuilds. Grouped by conference in standings order, with the committee rank
+      and FEI's strength of record ({week.label.replace(/^After/, 'after')}).
+    </p>
+
+    <JumpNav label="Conferences" class="mt-6" items={confs.map((c) => ({ href: `#${confAnchor(c.conference)}`, label: c.conference }))} />
+
+    <div class="mt-10 grid gap-x-12 gap-y-12 lg:grid-cols-2">
+      {
+        confs.map((c) => (
+          <section aria-labelledby={confAnchor(c.conference)} class="min-w-0 scroll-mt-4">
+            <h2 id={confAnchor(c.conference)} class="cond text-heading uppercase">
+              {c.conference}
+            </h2>
+            <p class="mt-0.5 text-sm text-fg-muted">
+              {c.crownsChampion ? (
+                c.champion ? (
+                  <>
+                    Champion: <TeamLink team={week.teams[c.champion]!} class="text-fg-muted" />
+                  </>
+                ) : (
+                  <>
+                    {`${c.teams.length} teams · leader${c.leaders.length > 1 ? 's' : ''}: `}
+                    {c.leaders.map((s, i) => (
+                      <>
+                        {i > 0 && ', '}
+                        <TeamLink team={week.teams[s]!} class="text-fg-muted" />
+                      </>
+                    ))}
+                  </>
+                )
+              ) : (
+                `${c.teams.length} teams · no conference title`
+              )}
+            </p>
+            <div class="table-wrap mt-2">
+              <table class="data-table [&_td]:h-10">
+                <caption class="sr-only">{c.conference} teams</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Team</th>
+                    {c.crownsChampion && (
+                      <th scope="col" data-num>
+                        Conf
+                      </th>
+                    )}
+                    <th scope="col" data-num>
+                      Record
+                    </th>
+                    {week.committee && (
+                      <th scope="col" data-num>
+                        CFP
+                      </th>
+                    )}
+                    <th scope="col" data-num>
+                      <abbr title="FEI strength of record rank" class="no-underline">
+                        FEI SoR
+                      </abbr>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.teams.map((r) => {
+                    const t = week.teams[r.slug]!;
+                    return (
+                      <tr>
+                        <td class="w-full">
+                          <TeamChip week={week} slug={r.slug} />
+                        </td>
+                        {c.crownsChampion && (
+                          <td data-num>
+                            {r.confRecord.w}-{r.confRecord.l}
+                          </td>
+                        )}
+                        <td data-num>
+                          {r.record.w}-{r.record.l}
+                        </td>
+                        {week.committee && <td data-num>{t.ranks.committee ?? <span class="text-fg-faint">—</span>}</td>}
+                        <td data-num>{r.gwd}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ))
+      }
+    </div>
+  </div>
+</BaseLayout>

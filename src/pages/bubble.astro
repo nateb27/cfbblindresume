@@ -1,0 +1,309 @@
+---
+/**
+ * /bubble: the committee's 8-20 re-sorted by FEI strength of record with the gap drawn, then who is
+ * in or out of every playoff format by the committee vs by FEI, and who changes sides.
+ */
+import { bubble, committeeOrder, gwdOrder } from '@lib/data';
+import type { PlayoffFormat } from '@lib/types';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AdSlot from '../components/AdSlot.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Delta from '../components/Delta.astro';
+import TeamChip from '../components/TeamChip.astro';
+import {
+  ADS_ON,
+  formatShortLabel,
+  formatSizeLabel,
+  formatStatus,
+  itemListLd,
+  latestWeek,
+  ordinal,
+  playoffViews,
+  record,
+  standingIn,
+  teamHref,
+  type FieldStanding,
+} from '../components/site';
+
+const week = latestWeek();
+const views = playoffViews(week);
+const FROM = 8;
+const TO = 20;
+const rows = bubble(week, { from: FROM, to: TO });
+const committee = committeeOrder(week);
+const labelLower = week.label.replace(/^After/, 'after');
+
+// Dumbbell scale: rank 1 .. the largest rank shown (at least the committee's length).
+const maxRank = Math.max(committee?.length ?? 25, ...rows.flatMap((r) => [r.gwd, r.committee ?? 0]));
+const W = ADS_ON ? 240 : 320;
+const PAD = 8;
+const xOf = (rank: number) => PAD + ((rank - 1) / (maxRank - 1)) * (W - 2 * PAD);
+const ticks = [1, 5, 10, 15, 20, 25, 30].filter((t) => t <= maxRank);
+const biggest = rows.reduce((m, r) => Math.max(m, Math.abs(r.delta ?? 0)), 0);
+
+// In/out matrix: bubble teams + every team whose status differs between the two orders + first five out.
+const orders = views.committee ? (['committee', 'fei'] as const) : (['fei'] as const);
+const res = (o: 'committee' | 'fei', f: PlayoffFormat) => (o === 'committee' ? views.committee![f.id]! : views.fei[f.id]!);
+const status = (o: 'committee' | 'fei', f: PlayoffFormat, slug: string): FieldStanding => standingIn(res(o, f), slug);
+const inField = (o: 'committee' | 'fei', f: PlayoffFormat, slug: string) => status(o, f, slug).kind === 'in';
+const matrixSet = new Set<string>(rows.map((r) => r.slug));
+const changes = views.formats.map((f) => {
+  const a = new Set(views.committee ? res('committee', f).field.map((s) => s.slug) : []);
+  const b = new Set(res('fei', f).field.map((s) => s.slug));
+  const cmteOnly = views.committee ? [...a].filter((s) => !b.has(s)) : [];
+  const feiOnly = views.committee ? [...b].filter((s) => !a.has(s)) : [];
+  for (const s of [...cmteOnly, ...feiOnly]) matrixSet.add(s);
+  for (const o of orders) for (const s of res(o, f).firstFiveOut) matrixSet.add(s);
+  return { f, cmteOnly, feiOnly };
+});
+const gwd = gwdOrder(week);
+const matrix = [...matrixSet].sort((x, y) => gwd.indexOf(x) - gwd.indexOf(y));
+const cell = (st: FieldStanding): { short: string; long: string; inField: boolean } =>
+  st.kind === 'in'
+    ? { short: `In · ${st.seed!.seed}`, long: `In, ${ordinal(st.seed!.seed)} seed`, inField: true }
+    : st.kind === 'first-out'
+      ? { short: `Out ${st.outPos}`, long: `${ordinal(st.outPos!)} team out`, inField: false }
+      : { short: 'Out', long: 'Out', inField: false };
+
+const title = committee
+  ? `CFP Bubble Watch: Committee ${FROM}-${TO} vs FEI Strength of Record — ${week.label}, ${week.season}`
+  : `CFP Bubble Watch: FEI Strength of Record — ${week.label}, ${week.season}`;
+const first = changes[0];
+const description = committee
+  ? `Who is in and out of the playoff ${labelLower}? The committee's ${FROM} through ${TO} re-sorted by FEI strength of record, with the 12-team and proposed 24-team fields by each ranking${first && first.cmteOnly.length + first.feiOnly.length > 0 ? ` (${[...first.cmteOnly, ...first.feiOnly].map((s) => week.teams[s]!.name).join(', ')} change sides in the ${formatSizeLabel(first.f)})` : ''}.`
+  : `The playoff bubble by FEI strength of record ${labelLower}, before the committee's first ranking.`;
+const ld = itemListLd(
+  `Committee ${FROM}-${TO} sorted by FEI strength of record, ${week.label} ${week.season}`,
+  rows.map((r) => ({ name: week.teams[r.slug]!.name, path: teamHref(r.slug) })),
+);
+---
+
+<BaseLayout title={title} description={description} path="/bubble" jsonLd={ld} current="bubble" week={week}>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs items={[{ name: 'Bubble', href: '/bubble' }]} />
+    <h1 class="cond mt-2 text-title uppercase lg:text-display">
+      Bubble watch
+      <span class="block text-fg-muted">{committee ? `Committee ${FROM}-${TO}, by FEI` : week.label}</span>
+    </h1>
+    <p class="mt-4 max-w-read text-lg leading-7">
+      {
+        committee
+          ? `The committee's ${FROM} through ${TO} is where playoff spots are won and lost. Here those teams are re-sorted by FEI's strength of record, with the gap between the two drawn out, and the field each ranking would produce.`
+          : `The committee has not released its first ranking yet. Until it does, this page shows the field FEI's strength of record would produce.`
+      }
+    </p>
+
+    {
+      committee && (
+        <div class:list={['mt-10', ADS_ON && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12']}>
+          <section aria-labelledby="sorted" class="min-w-0">
+            <h2 id="sorted" class="cond text-heading uppercase">
+              Committee {FROM}-{TO}, sorted by FEI
+            </h2>
+            <p class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-fg-muted">
+              <span>Gap = committee rank vs FEI strength-of-record rank.</span>
+              <span class="flex items-center gap-1.5 max-sm:hidden">
+                <svg width="12" height="12" aria-hidden="true">
+                  <circle cx="6" cy="6" r="4.5" class="fill-page stroke-fg-muted" stroke-width="1.5" />
+                </svg>
+                Committee
+              </span>
+              <span class="flex items-center gap-1.5 max-sm:hidden">
+                <svg width="12" height="12" aria-hidden="true">
+                  <circle cx="6" cy="6" r="5" class="fill-fg" />
+                </svg>
+                FEI
+              </span>
+            </p>
+            <div class="table-wrap mt-3">
+              <table class="data-table">
+                <caption class="sr-only">
+                  Committee {FROM} to {TO} sorted by FEI strength of record, with the gap between the two ranks
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="w-10">
+                      FEI
+                    </th>
+                    <th scope="col">Team</th>
+                    <th scope="col" data-num class="max-sm:hidden">
+                      Record
+                    </th>
+                    <th scope="col" data-num>
+                      CFP
+                    </th>
+                    <th scope="col" data-num>
+                      Gap
+                    </th>
+                    <th scope="col" class="max-md:hidden">
+                      <span class="sr-only">Gap chart</span>
+                      <span aria-hidden="true" class="relative block h-4" style={`width:${W}px`}>
+                        {ticks.map((t) => (
+                          <span class="absolute top-0 -translate-x-1/2 text-[0.75rem] leading-4" style={`left:${xOf(t)}px`}>
+                            {t}
+                          </span>
+                        ))}
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const big = biggest > 0 && Math.abs(r.delta ?? 0) >= Math.max(4, biggest - 2);
+                    const x1 = xOf(r.committee!);
+                    const x2 = xOf(r.gwd);
+                    return (
+                      <tr class:list={[big && 'bg-surface']}>
+                        <td class="cond text-[1.125rem] font-bold">{r.gwd}</td>
+                        <td>
+                          <span class="flex flex-col items-start">
+                            <TeamChip week={week} slug={r.slug} />
+                            {big && <span class="label-caps pl-5 text-fg-muted">Big gap</span>}
+                          </span>
+                        </td>
+                        <td data-num class="max-sm:hidden">
+                          {record(week.teams[r.slug]!)}
+                        </td>
+                        <td data-num>{r.committee}</td>
+                        <td data-num>
+                          <Delta value={r.delta} />
+                        </td>
+                        <td class="max-md:hidden">
+                          <svg width={W} height="20" aria-hidden="true" class="block">
+                            <line x1={PAD} x2={W - PAD} y1="10" y2="10" class="stroke-line" stroke-width="1" />
+                            <line
+                              x1={x1}
+                              x2={x2}
+                              y1="10"
+                              y2="10"
+                              class={r.delta! > 0 ? 'stroke-win' : r.delta! < 0 ? 'stroke-loss' : 'stroke-fg-muted'}
+                              stroke-width="3"
+                            />
+                            <circle cx={x1} cy="10" r="5" class="fill-page stroke-fg-muted" stroke-width="2" />
+                            <circle cx={x2} cy="10" r="5.5" class="fill-fg" />
+                          </svg>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-2 text-[0.8125rem] text-fg-muted">
+              Gap up: FEI ranks the team higher than the committee does. Down: lower. Highlighted rows are the biggest gaps in this range.
+            </p>
+          </section>
+          {ADS_ON && (
+            <div class="mt-10 lg:mt-0">
+              <AdSlot kind="sidebar" />
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    <AdSlot kind="incontent" class="mt-10" />
+
+    <section aria-labelledby="inout" class="mt-12">
+      <h2 id="inout" class="cond text-heading uppercase">In or out</h2>
+      <p class="mt-1 max-w-read text-sm text-fg-muted">
+        Every bubble team, plus anyone who changes sides between the two rankings or sits among the first five out. Sorted by FEI strength of
+        record. "Out 2" = second team out.
+      </p>
+      <div class="table-wrap mt-3">
+        <table class="data-table">
+          <caption class="sr-only">Projected playoff status by format, by the committee and by FEI</caption>
+          <thead>
+            <tr>
+              <th scope="col" rowspan="2" class="!align-bottom">Team</th>
+              {
+                views.formats.map((f) => (
+                  <th scope="colgroup" colspan={orders.length} class="!border-b-0 !pb-0 text-center !text-fg">
+                    {formatSizeLabel(f)}
+                    {f.status === 'proposed' && <span class="block !normal-case !tracking-normal font-sans text-[0.6875rem] font-normal text-fg-muted max-sm:hidden">proposed</span>}
+                  </th>
+                ))
+              }
+            </tr>
+            <tr>
+              {views.formats.map(() => orders.map((o) => <th scope="col" class="text-center">{o === 'committee' ? 'CFP' : 'FEI'}</th>))}
+            </tr>
+          </thead>
+          <tbody>
+            {
+              matrix.map((slug) => (
+                <tr>
+                  <td>
+                    <TeamChip week={week} slug={slug} />
+                  </td>
+                  {views.formats.map((f) => {
+                    const differs = orders.length === 2 && inField('committee', f, slug) !== inField('fei', f, slug);
+                    return orders.map((o) => {
+                      const cl = cell(status(o, f, slug));
+                      return (
+                        <td class:list={['text-center whitespace-nowrap', differs && 'bg-surface']}>
+                          <span class:list={['cond text-[1rem] font-bold', !cl.inField && 'text-fg-muted', differs && cl.inField && 'text-fg']} aria-hidden="true">
+                            {cl.short}
+                          </span>
+                          <span class="sr-only">{cl.long}</span>
+                        </td>
+                      );
+                    });
+                  })}
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2 text-[0.8125rem] text-fg-muted">Shaded cells: the committee and FEI disagree on whether the team is in.</p>
+    </section>
+
+    {
+      views.committee && (
+        <section aria-labelledby="sides" class="mt-12">
+          <h2 id="sides" class="cond text-heading uppercase">
+            Who changes sides
+          </h2>
+          <div class="mt-4 grid gap-8 md:grid-cols-2">
+            {changes.map(({ f, cmteOnly, feiOnly }) => (
+              <div class="callout">
+                <h3 class="label-caps flex flex-wrap items-center gap-x-2 text-fg">
+                  {formatShortLabel(f, week.season)}
+                  {f.status === 'proposed' && <span class="text-fg-muted">· {formatStatus(f, week.season)}</span>}
+                </h3>
+                {cmteOnly.length + feiOnly.length === 0 ? (
+                  <p class="mt-2">Both rankings produce the same {f.size} teams.</p>
+                ) : (
+                  <dl class="mt-2 flex flex-col gap-3">
+                    <div>
+                      <dt class="text-sm text-fg-muted">In by the committee, out by FEI</dt>
+                      <dd class="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
+                        {cmteOnly.length ? cmteOnly.map((s) => <TeamChip week={week} slug={s} />) : <span class="text-fg-muted">Nobody</span>}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-sm text-fg-muted">In by FEI, out by the committee</dt>
+                      <dd class="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
+                        {feiOnly.length ? feiOnly.map((s) => <TeamChip week={week} slug={s} />) : <span class="text-fg-muted">Nobody</span>}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
+                <p class="mt-3 text-[0.8125rem] text-fg-muted">
+                  {f.note}{' '}
+                  <a class="link" href={f.sourceUrl}>
+                    Source: {f.sourceName}
+                  </a>
+                </p>
+              </div>
+            ))}
+          </div>
+          <p class="mt-4 text-sm text-fg-muted">
+            Seeds, byes and first-round games for every field are on the <a class="link text-fg" href="/rankings">rankings page</a>.
+          </p>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>

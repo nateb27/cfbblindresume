@@ -31,18 +31,53 @@ export interface MakeWeekOptions {
   champions?: Record<string, string>;
   /** Make the three strongest teams all play each other (default true). */
   triangle?: boolean;
+  /** Playoff formats (default: FORMATS = 12-team default + 24-team proposed). */
+  playoffFormats?: PlayoffFormat[];
 }
 
 export const INDEPENDENTS = 'FBS Independents';
 
+/** Synthetic power conferences (the first four of makeWeek's ten). */
+export const FIXTURE_POWER = ['Conf A', 'Conf B', 'Conf C', 'Conf D'];
+
+/** Fixture of the 12-team (2026) format: five highest-ranked champions + Notre Dame if top 12. */
 export const PLAYOFF_2026: PlayoffFormat = {
+  id: '12-team',
+  label: '12 teams',
+  status: 'current',
+  default: true,
+  note: 'The five highest-ranked conference champions get automatic bids, Notre Dame is in if ranked in the top 12, and the top four seeds get first-round byes.',
+  sourceName: 'College Football Playoff',
+  sourceUrl: 'https://collegefootballplayoff.com',
+  checkedOn: '2026-11-05',
   size: 12,
   byes: 4,
   seeding: 'straight',
-  autoBids: { conferenceChampions: 5, guaranteed: [{ slug: 'notre-dame', ifRankedAtOrAbove: 12 }] },
+  autoBids: { rules: [{ from: 'all', count: 5 }], guaranteed: [{ slug: 'notre-dame', ifRankedAtOrAbove: 12 }] },
+  powerConferences: FIXTURE_POWER,
   nonConferences: [INDEPENDENTS],
-  sourceUrl: 'https://collegefootballplayoff.com/format',
 };
+
+/** Fixture of the proposed 24-team format: four power champions + the best other champion. */
+export const PLAYOFF_24: PlayoffFormat = {
+  id: '24-team',
+  label: '24 teams',
+  status: 'proposed',
+  default: false,
+  note: 'The four power-conference champions and the highest-ranked champion of the other conferences get automatic bids, 19 at-large teams join them, and the top eight seeds get first-round byes.',
+  sourceName: 'Fixture News',
+  sourceUrl: 'https://example.com/24-team',
+  checkedOn: '2026-11-05',
+  size: 24,
+  byes: 8,
+  seeding: 'straight',
+  autoBids: { rules: [{ from: 'power', count: 4 }, { from: 'nonPower', count: 1 }], guaranteed: [] },
+  powerConferences: FIXTURE_POWER,
+  nonConferences: [INDEPENDENTS],
+};
+
+/** Both formats, default first. */
+export const FORMATS = [PLAYOFF_2026, PLAYOFF_24];
 
 const pad = (n: number, w = 3): string => String(n).padStart(w, '0');
 const hex = (rng: Rng): string =>
@@ -238,7 +273,7 @@ export function makeWeek(opts: MakeWeekOptions = {}): WeekFile {
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     season,
     week: nWeeks,
     asOf: '2026-11-05',
@@ -250,7 +285,7 @@ export function makeWeek(opts: MakeWeekOptions = {}): WeekFile {
         ? { name: 'College Football Playoff Selection Committee', url: 'https://collegefootballplayoff.com/rankings', releaseDate: '2026-11-03' }
         : null,
     },
-    playoff: PLAYOFF_2026,
+    playoffFormats: opts.playoffFormats ?? FORMATS,
     fbsCount: n,
     teams,
     opponents,

@@ -86,7 +86,7 @@ def read_json(path: Path, what: str):
         raise PipelineError(f"{what} {path} is not valid JSON: {exc}") from exc
 
 
-def load_season_config(path: Path, season: int, what: str) -> dict:
+def load_season_config(path: Path, season: int, what: str) -> dict | list:
     data = read_json(path, what)
     if not isinstance(data, dict) or str(season) not in data:
         raise PipelineError(f"{path} has no entry for season {season}; add the {what} for {season} first")
@@ -262,7 +262,9 @@ def run(args) -> int:
     cfg = args.config_dir
     aliases = load_aliases(cfg / "aliases.json")
     slugs = SlugBook(cfg / "slugs.json")
-    playoff = load_season_config(cfg / "playoff_format.json", args.season, "playoff format")
+    playoff_formats = load_season_config(cfg / "playoff_formats.json", args.season, "playoff formats")
+    if not isinstance(playoff_formats, list) or not playoff_formats:
+        raise PipelineError(f"{cfg / 'playoff_formats.json'}: {args.season} must be a non-empty list of formats")
     as_of = date.fromisoformat(args.as_of) if args.as_of else datetime.now(EASTERN).date()
 
     season_dir = args.data_dir / str(args.season)
@@ -321,7 +323,8 @@ def run(args) -> int:
     result = build_week(
         season=args.season, week=week, as_of=as_of.isoformat(), fei=table, fei_url=fei_url(args.season),
         cfbd_teams=fbs, cfbd_games=games, committee=chosen,
-        committee_url=committee.CFP_URL if chosen else None, playoff=playoff, aliases=aliases, slugs=slugs,
+        committee_url=committee.CFP_URL if chosen else None, playoff_formats=playoff_formats, aliases=aliases,
+        slugs=slugs,
     )
     for n in result.notes:
         log(f"  note: {n}")

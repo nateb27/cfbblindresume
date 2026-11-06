@@ -112,7 +112,7 @@ export interface StandingRow {
 /** One conference's standings. */
 export interface ConferenceStanding {
   conference: string;
-  /** False for entries in playoff.nonConferences (e.g. "FBS Independents"). */
+  /** False for conferences listed in any playoff format's nonConferences (e.g. "FBS Independents"). */
   crownsChampion: boolean;
   /** Actual champion from week.champions, or null. */
   champion: string | null;
@@ -305,7 +305,7 @@ export function conferenceStandings(week: WeekFile): ConferenceStanding[] {
     list.push(t);
     byConf.set(t.conference, list);
   }
-  const non = new Set(week.playoff.nonConferences);
+  const non = new Set(week.playoffFormats.flatMap((f) => f.nonConferences));
   return [...byConf.keys()].sort(cmpStr).map((conference) => {
     const rows: StandingRow[] = byConf.get(conference)!.map((t) => ({
       slug: t.slug,

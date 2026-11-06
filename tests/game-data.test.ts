@@ -7,17 +7,19 @@ import {
   gameAgreementRefs,
   gameDataPath,
   gamePlayoffContext,
+  gamePlayoffs,
   gameRunViolations,
+  GWD_DEPTH,
   gameTrioState,
   h2hKey,
   headToHeadFlags,
   type GameData,
 } from '../src/lib/game-data';
-import { computePlayoff, playoffContext } from '../src/lib/playoff';
+import { computePlayoff, computePlayoffs, playoffContext } from '../src/lib/playoff';
 import { mulberry32, rngForRound, shuffled } from '../src/lib/rng';
 import { decodeRun, encodeRun } from '../src/lib/sharecode';
 import { nextTrio } from '../src/lib/trios';
-import { makeWeek } from './fixtures/make-week';
+import { FORMATS, makeWeek, PLAYOFF_24 } from './fixtures/make-week';
 
 const FORBIDDEN = /ESPN|FPI|SP\+|Game Control/i;
 
@@ -37,7 +39,7 @@ describe('buildGameData', () => {
     const gd = buildGameData(week);
 
     it(`committee ${committee ? 'present' : 'absent'}: shape, pool and cards`, () => {
-      expect(gd.v).toBe(1);
+      expect(gd.v).toBe(2);
       expect(gd.hasCommittee).toBe(committee);
       expect(gd.prior).toEqual(prior(week));
       expect(Object.keys(gd.cards).sort()).toEqual([...gd.prior].sort());
@@ -58,6 +60,19 @@ describe('buildGameData', () => {
       if (!committee) expect(gd.committee).toBeNull();
     });
 
+    it(`committee ${committee ? 'present' : 'absent'}: every playoff format (default first) and the GWD order of every listed team`, () => {
+      expect(gd.playoffFormats.map((f) => f.id)).toEqual(['12-team', '24-team']);
+      expect(gd.playoffFormats[0]!.default).toBe(true);
+      expect(gd.playoffFormats).toEqual(FORMATS);
+      // gwdOrder = the week's GWD order restricted to the payload's teams, starting with the GWD top 40
+      const full = gwdOrder(week);
+      expect(gd.gwdOrder).toEqual(full.filter((s) => s in gd.teams));
+      expect(gd.gwdOrder.slice(0, GWD_DEPTH)).toEqual(full.slice(0, GWD_DEPTH));
+      expect(new Set(gd.gwdOrder)).toEqual(new Set(Object.keys(gd.teams)));
+      expect(gd.feiOrder).toEqual(gd.gwdOrder.slice(0, 30));
+      for (const s of gd.prior) expect(gd.gwdOrder).toContain(s);
+    });
+
     it(`committee ${committee ? 'present' : 'absent'}: no forbidden strings, compact`, () => {
       const json = JSON.stringify(gd);
       expect(json).not.toMatch(FORBIDDEN);
@@ -75,23 +90,32 @@ describe('buildGameData', () => {
       }
     });
 
-    it(`committee ${committee ? 'present' : 'absent'}: playoff from game data equals playoff from the week file`, () => {
-      const order = gd.prior;
-      const fromGd = computePlayoff(order, gamePlayoffContext(gd));
-      const fromWeek = computePlayoff(order, playoffContext(week));
-      expect(fromGd.field).toEqual(fromWeek.field);
-      expect(fromGd.champions).toEqual(fromWeek.champions);
-      expect(fromGd.firstFiveOut).toEqual(fromWeek.firstFiveOut);
-      for (const s of fromGd.order) expect(gd.teams[s]).toBeDefined();
-      // Orders that do not contain the whole pool (FEI tab, committee tab) and shuffled pools agree too.
-      const orders = [gd.feiOrder, gd.committee ?? gd.feiOrder.slice(0, 25), [...gd.prior].reverse(), shuffled(gd.prior, mulberry32(3))];
+    it(`committee ${committee ? 'present' : 'absent'}: playoff from game data equals playoff from the week file, for every format`, () => {
+      const rng = mulberry32(3);
+      // Your ranking (pool orders), the FEI tab, the committee tab, short and empty orders: every one
+      // extends to a full field + five out from the payload alone, identical to the week-file result.
+      const orders = [
+        gd.prior,
+        gd.feiOrder,
+        gd.committee ?? gd.feiOrder.slice(0, 25),
+        [...gd.prior].reverse(),
+        shuffled(gd.prior, rng),
+        shuffled(gd.prior, rng).slice(0, 10),
+        shuffled(gd.gwdOrder, rng),
+        [],
+      ];
       for (const o of orders) {
-        const a = computePlayoff(o, gamePlayoffContext(gd));
-        const b = computePlayoff(o, playoffContext(week));
-        expect(a.field).toEqual(b.field);
-        expect(a.champions).toEqual(b.champions);
-        for (const s of a.order) expect(gd.teams[s]).toBeDefined();
+        const fromGd = gamePlayoffs(gd, o);
+        const fromWeek = computePlayoffs(o, playoffContext(week));
+        expect(Object.keys(fromGd)).toEqual(['12-team', '24-team']);
+        expect(fromGd).toEqual(fromWeek);
+        for (const r of Object.values(fromGd)) {
+          expect(r.field).toHaveLength(r.format.size);
+          expect(r.firstFiveOut).toHaveLength(5);
+          for (const s of r.order) expect(gd.teams[s]).toBeDefined();
+        }
       }
+      expect(computePlayoff(gd.prior, gamePlayoffContext(gd))).toEqual(computePlayoff(gd.prior, playoffContext(week)));
       expect(gd.feiOrder).toHaveLength(30);
       expect(gd.feiOrder.slice(0, 5)).toEqual(gwdOrder(week).slice(0, 5));
     });
@@ -152,6 +176,32 @@ describe('run results from game data', () => {
     expect(res.ranking.order.slice(0, 25)).toEqual(gd.committee);
     expect(res.agreement.pairwise.committee.share).toBe(1);
     expect(res.playoff.field).toHaveLength(12);
+  });
+
+  it('computeRunResults returns every format keyed by id (default first); `playoff` is the default', () => {
+    const rounds = playPriorRun(gd, 8);
+    const res = computeRunResults(gd, rounds);
+    expect(Object.keys(res.playoffs)).toEqual(['12-team', '24-team']);
+    expect(res.playoff).toBe(res.playoffs['12-team']);
+    expect(res.playoffs['12-team']!.format.default).toBe(true);
+    const p24 = res.playoffs['24-team']!;
+    expect(p24.format).toEqual(PLAYOFF_24);
+    expect(p24.field).toHaveLength(24);
+    expect(p24.byes).toHaveLength(8);
+    expect(p24.firstFiveOut).toHaveLength(5);
+    expect(res.playoffs).toEqual(gamePlayoffs(gd, res.ranking.order));
+    // the 12 is contained in the 24 apart from champion bids: every 12-team at-large team is in the 24
+    const in24 = new Set(p24.field.map((s) => s.slug));
+    for (const s of res.playoff.atLarge) expect(in24.has(s.slug)).toBe(true);
+  });
+
+  it('default first even when the week file lists the default format second', () => {
+    const g2 = buildGameData(makeWeek({ seed: 22, playoffFormats: [PLAYOFF_24, FORMATS[0]!] }));
+    expect(g2.playoffFormats.map((f) => f.id)).toEqual(['12-team', '24-team']);
+    const res = computeRunResults(g2, playPriorRun(g2, 9, 6));
+    expect(Object.keys(res.playoffs)).toEqual(['12-team', '24-team']);
+    expect(res.playoff.format.id).toBe('12-team');
+    expect(res.partial).toBe(true);
   });
 
   it('share code round trip feeds the same results', () => {

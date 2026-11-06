@@ -1,0 +1,21 @@
+# Cloudflare Pages project: static site (Astro build in dist/) + Pages Functions (functions/) + D1.
+# Setup and deploy notes: functions/README.md.
+name = "cfbblindresume"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+
+# PUBLIC_ADS is read at build time by Astro (import.meta.env); listed here so Pages previews and
+# `wrangler pages dev` match production. Ads default off.
+[vars]
+PUBLIC_ADS = "off"
+
+# IP_SALT is a secret, not a var: `npx wrangler pages secret put IP_SALT` (production), and a
+# `.dev.vars` file (gitignored) with IP_SALT=... for local dev.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cfbblindresume"
+# Placeholder: replace with the id printed by `npx wrangler d1 create cfbblindresume` before the
+# first deploy (local dev and tests work with the placeholder).
+database_id = "00000000-0000-4000-8000-000000000000"
+migrations_dir = "migrations"

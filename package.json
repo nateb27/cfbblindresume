@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "pipeline": "python3 pipeline/run.py",
-    "validate": "python3 pipeline/validate.py"
+    "validate": "python3 pipeline/validate.py",
+    "fn:atlas": "node scripts/fn-build-atlas.mjs",
+    "fn:integration": "node scripts/fn-integration.mjs",
+    "fn:bench": "node scripts/fn-bench-og.mjs"
   },
   "repository": {
     "type": "git",
@@ -36,6 +39,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "lighthouse": "^13.6.0",
+    "opentype.js": "^2.0.0",
     "satori": "^0.63.2",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0",
