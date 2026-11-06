@@ -1,0 +1,13 @@
+{
+ "_readme": "Source spelling -> CFBD school name (as in CFBD /teams/fbs). 'fei' covers bcftoys.com pages; 'cfp' covers collegefootballplayoff.com (fei entries also apply there). Add an entry only after seeing the mismatch in a pipeline failure; never guess.",
+ "fei": {
+  "Appalachian State": "App State",
+  "Connecticut": "UConn",
+  "Hawaii": "Hawai'i",
+  "San Jose State": "San José State",
+  "Southern Mississippi": "Southern Miss"
+ },
+ "cfp": {
+  "Southern California": "USC"
+ }
+}

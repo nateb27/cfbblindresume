@@ -1,0 +1,7 @@
+{
+ "_readme": "Published CFP committee ranking release dates (US Eastern). Used only to date CFBD committee polls (CFBD gives no date): the n-th committee poll of the season is the n-th release. Release dates read from collegefootballplayoff.com take precedence.",
+ "2026": {
+  "releases": ["2026-11-03", "2026-11-10", "2026-11-17", "2026-11-24", "2026-12-01", "2026-12-06"],
+  "sourceUrl": "https://fbschedules.com/college-football-playoff-sets-2026-rankings-release-schedule/"
+ }
+}

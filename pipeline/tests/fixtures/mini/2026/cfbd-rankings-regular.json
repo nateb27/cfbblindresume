@@ -1,0 +1,22 @@
+[
+ {
+  "season": 2026,
+  "seasonType": "regular",
+  "week": 3,
+  "polls": [
+   {
+    "poll": "AP Top 25",
+    "ranks": [
+     {
+      "rank": 1,
+      "teamId": 245,
+      "school": "Texas A&M",
+      "conference": "SEC",
+      "firstPlaceVotes": 30,
+      "points": 1500
+     }
+    ]
+   }
+  ]
+ }
+]

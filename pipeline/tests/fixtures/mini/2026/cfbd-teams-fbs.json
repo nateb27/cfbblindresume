@@ -1,0 +1,62 @@
+[
+ {
+  "id": 87,
+  "school": "Notre Dame",
+  "mascot": "Fighting Irish",
+  "abbreviation": "ND",
+  "conference": "FBS Independents",
+  "classification": "fbs",
+  "color": "#0c2340",
+  "alternateColor": "#c99700"
+ },
+ {
+  "id": 2026,
+  "school": "App State",
+  "mascot": "Mountaineers",
+  "abbreviation": "APP",
+  "conference": "Sun Belt",
+  "classification": "fbs",
+  "color": "#000000",
+  "alternateColor": "#ffcd00"
+ },
+ {
+  "id": 62,
+  "school": "Hawai'i",
+  "mascot": "Rainbow Warriors",
+  "abbreviation": "HAW",
+  "conference": "Mountain West",
+  "classification": "fbs",
+  "color": "#024731",
+  "alternateColor": "#000000"
+ },
+ {
+  "id": 23,
+  "school": "San José State",
+  "mascot": "Spartans",
+  "abbreviation": "SJSU",
+  "conference": "Mountain West",
+  "classification": "fbs",
+  "color": "#0055a2",
+  "alternateColor": "#e5a823"
+ },
+ {
+  "id": 245,
+  "school": "Texas A&M",
+  "mascot": "Aggies",
+  "abbreviation": "TA&M",
+  "conference": "SEC",
+  "classification": "fbs",
+  "color": "#500000",
+  "alternateColor": "#ffffff"
+ },
+ {
+  "id": 193,
+  "school": "Miami (OH)",
+  "mascot": "RedHawks",
+  "abbreviation": "M-OH",
+  "conference": "Mid-American",
+  "classification": "fbs",
+  "color": "#c41230",
+  "alternateColor": "#ffffff"
+ }
+]

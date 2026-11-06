@@ -1,0 +1,15 @@
+{
+ "2026": {
+  "size": 12,
+  "byes": 4,
+  "seeding": "straight",
+  "autoBids": {
+   "conferenceChampions": 5,
+   "guaranteed": [
+    {"slug": "notre-dame", "ifRankedAtOrAbove": 12}
+   ]
+  },
+  "nonConferences": ["FBS Independents"],
+  "sourceUrl": "https://collegefootballplayoff.com"
+ }
+}

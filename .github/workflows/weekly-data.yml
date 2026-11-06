@@ -1,0 +1,90 @@
+name: Weekly data
+
+# Builds data/{season}/week-{N}.json from FEI (bcftoys.com), CollegeFootballData.com and the
+# CFP committee ranking, validates every week file, and commits to main only when data changed.
+# The push to main triggers the Cloudflare Pages deploy.
+
+on:
+  schedule:
+    # Aug-Dec only: the last committee release is the Sunday after championship weekend, the last
+    # regular-season week is mid-December, and Fremeau's final (post-bowl) page carries no
+    # "through Week N". run.py also exits 0 with "season complete" in those cases.
+    - cron: "0 14 * 8-12 1"   # Monday 14:00 UTC: FEI is normally updated by Monday morning
+    - cron: "0 6 * 8-12 3"    # Wednesday 06:00 UTC: after the Tuesday-night committee release
+  workflow_dispatch:
+    inputs:
+      season:
+        description: "Season (default: current season)"
+        required: false
+      week:
+        description: "Snapshot week (default: FEI 'through Week N'; must equal it; needed only for a CSV without that line)"
+        required: false
+      committee_source:
+        description: "Committee source"
+        type: choice
+        options: [auto, cfp, cfbd, none]
+        default: auto
+      fei_csv:
+        description: "Repo path of a pasted FEI CSV to use instead of fetching bcftoys.com (see pipeline/README.md)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r pipeline/requirements.txt
+
+      - name: Pipeline tests
+        run: python -m unittest discover -s pipeline/tests -p "test_*.py"
+
+      - name: Build week file
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+          IN_SEASON: ${{ inputs.season }}
+          IN_WEEK: ${{ inputs.week }}
+          IN_COMMITTEE: ${{ inputs.committee_source }}
+          IN_FEI_CSV: ${{ inputs.fei_csv }}
+        run: |
+          season="$IN_SEASON"
+          if [ -z "$season" ]; then
+            season=$(date -u +%Y)
+            if [ "$(date -u +%-m)" -le 2 ]; then season=$((season - 1)); fi
+          fi
+          echo "SEASON=$season" >> "$GITHUB_ENV"
+          args=(--season "$season" --committee-source "${IN_COMMITTEE:-auto}")
+          if [ -n "$IN_WEEK" ]; then args+=(--week "$IN_WEEK"); fi
+          if [ -n "$IN_FEI_CSV" ]; then args+=(--fei-csv "$IN_FEI_CSV"); fi
+          python pipeline/run.py "${args[@]}"
+
+      - name: Validate all week files
+        run: python pipeline/validate.py --all
+
+      - name: Commit data changes
+        run: |
+          git add data pipeline/slugs.json
+          if git diff --cached --quiet; then
+            echo "No data changes."
+            exit 0
+          fi
+          week=$(python -c "import json,os; print(json.load(open(f'data/{os.environ[\"SEASON\"]}/index.json'))['weeks'][-1]['week'])")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: ${SEASON} week ${week} snapshot"
+          git push origin HEAD:main
