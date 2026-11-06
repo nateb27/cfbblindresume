@@ -1,14 +1,15 @@
 ---
 /**
- * A ranked top 25 (committee or FEI strength of record) with the other side's rank, the FEI vs
+ * A ranked top 25 (committee or FEI strength of record) with the other side's rank, the SoR vs
  * committee delta, and a cut line for every playoff format: everything above the line is in that
- * projected field; field teams below it got there on an automatic bid (tagged).
+ * projected field; field teams below it got there on an automatic bid (tagged). The strength-of-
+ * record rank is labeled "SoR", never bare "FEI" (that is FEI overall, a different ranking).
  */
 import { committeeOrder, gwdOrder, TOP_N } from '@lib/data';
 import type { WeekFile } from '@lib/types';
 import Delta from './Delta.astro';
 import TeamChip from './TeamChip.astro';
-import { contiguousCut, playoffViews, record } from './site';
+import { SOR, contiguousCut, playoffViews, record } from './site';
 
 interface Props {
   week: WeekFile;
@@ -57,20 +58,21 @@ for (const [slug, e] of beyondBySlug) {
   }
   line.teams.push({ slug, conference: e.conference });
 }
-const otherHead = kind === 'committee' ? 'FEI' : 'CFP';
-const otherTitle = kind === 'committee' ? "FEI strength of record rank" : 'Committee rank';
+const otherHead = kind === 'committee' ? SOR : 'CFP';
+const otherTitle = kind === 'committee' ? 'FEI strength of record rank' : 'Committee rank';
 ---
 
 <div class:list={['table-wrap', cls]}>
+  {/* Fixed widths on the numeric columns: the team column takes the rest, so a late font swap in the team names cannot move the numbers. */}
   <table class="data-table">
     <caption class="sr-only">{caption}</caption>
     <thead>
       <tr>
         <th scope="col" class="w-10">Rank</th>
         <th scope="col">Team</th>
-        <th scope="col" data-num>Record</th>
-        <th scope="col" data-num><abbr title={otherTitle} class="no-underline">{otherHead}</abbr></th>
-        <th scope="col" data-num>FEI vs CFP</th>
+        <th scope="col" data-num class="w-16">Record</th>
+        <th scope="col" data-num class="w-12"><abbr title={otherTitle} class="no-underline">{otherHead}</abbr></th>
+        <th scope="col" data-num class="w-20">{SOR} vs CFP</th>
       </tr>
     </thead>
     <tbody>
@@ -88,7 +90,7 @@ const otherTitle = kind === 'committee' ? "FEI strength of record rank" : 'Commi
                 <td class="cond text-[1.125rem] font-bold">{i + 1}</td>
                 <td>
                   <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <TeamChip week={week} slug={slug} />
+                    <TeamChip week={week} slug={slug} tap />
                     {tags && (
                       <span class="label-caps rounded-slab bg-raised-2 px-1.5 text-fg">
                         Auto bid · {tags.join(' & ')}
@@ -99,7 +101,7 @@ const otherTitle = kind === 'committee' ? "FEI strength of record rank" : 'Commi
                 <td data-num>{record(t)}</td>
                 <td data-num>{other === null ? <span class="text-fg-faint">NR</span> : other}</td>
                 <td data-num>
-                  <Delta value={c === null ? null : c - g} />
+                  <Delta value={c === null ? null : c - g} same="equals" />
                 </td>
               </tr>
               {cut && (
@@ -122,7 +124,7 @@ const otherTitle = kind === 'committee' ? "FEI strength of record rank" : 'Commi
         {teams.map((sd) => (
           <span class="inline-flex items-center gap-1.5">
             <TeamChip week={week} slug={sd.slug} />
-            <span class="label-caps">{`${sd.conference ? `${sd.conference} · ` : ''}FEI ${week.teams[sd.slug]!.ranks.sor}`}</span>
+            <span class="label-caps">{`${sd.conference ? `${sd.conference} · ` : ''}${SOR} ${week.teams[sd.slug]!.ranks.sor}`}</span>
           </span>
         ))}
       </p>

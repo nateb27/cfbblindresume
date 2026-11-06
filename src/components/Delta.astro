@@ -1,14 +1,19 @@
 ---
 /**
- * FEI vs committee delta (`.delta`, drawn triangle). `value` = committee rank − FEI strength-of-
- * record rank: positive means FEI ranks the team higher (up), negative lower (down).
+ * Rank delta (`.delta`, drawn triangle). `value` > 0 means `subject` ranks the team higher than
+ * `ref` (up), < 0 lower (down). Default perspective: FEI's strength of record vs the committee
+ * (value = committee rank − SoR rank). Equal ranks: nothing visible (DESIGN: omit when equal),
+ * or a muted "=" with `same="equals"` where an empty table cell would read as missing data.
  */
 import { deltaSr } from './site';
 
 interface Props {
   value: number | null;
+  subject?: string;
+  ref?: string;
+  same?: 'omit' | 'equals';
 }
-const { value } = Astro.props;
+const { value, subject, ref, same = 'omit' } = Astro.props;
 ---
 
 {
@@ -18,13 +23,18 @@ const { value } = Astro.props;
       <span class="sr-only">No committee rank</span>
     </span>
   ) : value === 0 ? (
-    <span class="delta" data-dir="same">
-      0<span class="sr-only"> FEI and the committee agree</span>
-    </span>
+    same === 'equals' ? (
+      <span class="cond text-[0.9375rem] font-bold text-fg-muted">
+        <span aria-hidden="true">=</span>
+        <span class="sr-only">{deltaSr(0, subject, ref)}</span>
+      </span>
+    ) : (
+      <span class="sr-only">{deltaSr(0, subject, ref)}</span>
+    )
   ) : (
     <span class="delta" data-dir={value > 0 ? 'up' : 'down'}>
       {Math.abs(value)}
-      <span class="sr-only">{deltaSr(value)}</span>
+      <span class="sr-only">{deltaSr(value, subject, ref)}</span>
     </span>
   )
 }

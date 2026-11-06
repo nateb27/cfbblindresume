@@ -2,8 +2,9 @@
 /**
  * Game log (DESIGN §14): toughest opponent first (gameRows), with date, opponent (linked when
  * FBS), opponent tier (stars + label, from the CURRENT week's FEI ranks), site, result + margin
- * and score. Under 640px the date and site fold into a second line under the opponent and the
- * tier label is dropped (stars keep their accessible name), so it fits 358px without scrolling.
+ * and score. Under 640px the site (and committee rank) folds into a second line under the
+ * opponent, the date moves under the score, and the tier label is dropped (stars keep their
+ * accessible name), so the table fits 328px (a 360px phone) without scrolling.
  */
 import { gameRows } from '@lib/data';
 import type { WeekFile } from '@lib/types';
@@ -22,13 +23,13 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
 ---
 
 <div class="table-wrap">
-  <table class="data-table">
+  <table class="data-table max-sm:[&_:is(td,th)]:px-1.5 max-sm:[&_:is(td,th):first-child]:pl-0 max-sm:[&_:is(td,th):last-child]:pr-0">
     <caption class="sr-only">{caption}</caption>
     <thead>
       <tr>
         <th scope="col" class="max-sm:hidden">Date</th>
         <th scope="col">Opponent</th>
-        <th scope="col">Opponent tier</th>
+        <th scope="col"><span class="max-sm:hidden">Opponent tier</span><span class="sm:hidden">Tier</span></th>
         <th scope="col" class="max-sm:hidden">Site</th>
         <th scope="col" data-num>Result</th>
         <th scope="col" data-num>Score</th>
@@ -44,12 +45,12 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
             <td>
               <span class="flex flex-col items-start">
                 <span class="flex items-center gap-2">
-                  <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} />
+                  <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} tap />
                   {cfp(g.opp) !== null && <span class="label-caps whitespace-nowrap text-fg-muted max-sm:hidden">CFP {cfp(g.opp)}</span>}
                 </span>
-                <span class="pl-5 text-[0.8125rem] leading-4 text-fg-muted sm:hidden">
+                <span class="pl-5 text-[0.8125rem] leading-4 whitespace-nowrap text-fg-muted sm:hidden">
                   {cfp(g.opp) !== null && `CFP ${cfp(g.opp)} · `}
-                  {SITE_LABELS[g.site]} · {fmtShortDate(g.date)}
+                  {SITE_LABELS[g.site]}
                 </span>
               </span>
             </td>
@@ -69,7 +70,12 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
               </span>
             </td>
             <td data-num>
-              {g.pf}-{g.pa}
+              <span class="block">
+                {g.pf}-{g.pa}
+              </span>
+              <time datetime={g.date} class="block font-sans text-[0.75rem] leading-4 font-normal text-fg-muted sm:hidden">
+                {fmtShortDate(g.date)}
+              </time>
             </td>
           </tr>
         ))

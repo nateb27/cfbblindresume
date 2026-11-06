@@ -3,32 +3,42 @@
  * /compare/{a}-vs-{b}: every pair in the committee top 25 (better committee rank first). Two
  * un-blinded resume cards side by side (stacked on phones), the head-to-head note, who the
  * committee and FEI prefer, shared opponents and where each stands in every playoff format.
+ * Old or reversed pair URLs are 301-redirected here by /_redirects (src/pages/[redirects].ts).
  */
 import { comparePairs, gameRows, headToHead, nearestCompares, type GameRow } from '@lib/data';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AdSlot from '../../components/AdSlot.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import PlayCta from '../../components/PlayCta.astro';
 import ResumeCard from '../../components/ResumeCard.astro';
 import Stars from '../../components/Stars.astro';
 import TeamChip from '../../components/TeamChip.astro';
 import TeamLink from '../../components/TeamLink.astro';
+import UpcomingTable from '../../components/UpcomingTable.astro';
 import { teamVars } from '../../styles/tokens';
 import {
   ADS_ON,
   SITE_LABELS,
   absUrl,
+  clampText,
   compareHref,
+  compareHubHref,
   compareOgPath,
+  firstFit,
   fmtShortDate,
   formatShortLabel,
   formatStatus,
   latestWeek,
   ordinal,
+  outText,
   playoffViews,
   record,
   signed,
   sportsTeamLd,
   standingIn,
+  siteVs,
+  upcomingLine,
+  upcomingSummary,
 } from '../../components/site';
 
 export function getStaticPaths() {
@@ -68,16 +78,27 @@ const shared = [...aByOpp.keys()]
   .filter((k) => bByOpp.has(k) && k !== `f:${a}` && k !== `f:${b}`)
   .map((k) => ({ opp: aByOpp.get(k)![0]!.opp, tier: aByOpp.get(k)![0]!.tier, a: aByOpp.get(k)!, b: bByOpp.get(k)! }));
 
+// Remaining schedules side by side (hidden when the week file carries none)
+const upA = upcomingSummary(week, a);
+const upB = upcomingSummary(week, b);
+const upcoming = upA && upB ? [{ t: A, u: upA }, { t: B, u: upB }] : null;
+
 // More compares around each team
 const more = [...nearestCompares(week, a, 4), ...nearestCompares(week, b, 4)]
   .filter((p, i, arr) => p.slug !== `${a}-vs-${b}` && arr.findIndex((x) => x.slug === p.slug) === i)
   .slice(0, 6);
 
-const title = `${A.name} vs ${B.name} Playoff Resume: #${A.ranks.committee} vs #${B.ranks.committee} Committee, FEI Prefers ${fPref[0]!.name} — ${week.label}`;
-const description =
-  `${A.name} (${record(A)}) vs ${B.name} (${record(B)}) side by side ${labelLower}: the committee has ${cPref[0]!.name} ahead (#${cPref[0]!.ranks.committee} vs #${cPref[1]!.ranks.committee}), ` +
-  `FEI's strength of record ${agree ? 'agrees' : `prefers ${fPref[0]!.name}`} (#${fPref[0]!.ranks.sor} vs #${fPref[1]!.ranks.sor})` +
-  (h2h.length ? `, and ${week.teams[h2h[h2h.length - 1]!.winner]!.name} won the head-to-head.` : '. Ratings, quality wins and game logs compared.');
+const title = firstFit([
+  `${A.name} vs ${B.name}: Playoff Resumes Compared (${week.season})`,
+  `${A.name} vs ${B.name}: Resumes Compared (${week.season})`,
+  `${A.name} vs ${B.name} Playoff Resumes (${week.season})`,
+]);
+const verdicts = `committee #${A.ranks.committee} vs #${B.ranks.committee}; FEI strength of record ${agree ? 'agrees' : `prefers ${fPref[0]!.name}`} (#${fPref[0]!.ranks.sor} vs #${fPref[1]!.ranks.sor}).`;
+const description = clampText([
+  [`${A.name} (${record(A)}) vs ${B.name} (${record(B)}) ${labelLower}: ${verdicts}`, `${A.name} vs ${B.name} ${labelLower}: ${verdicts}`, `${A.name} vs ${B.name}: ${verdicts}`],
+  h2h.length ? ` ${week.teams[h2h[h2h.length - 1]!.winner]!.name} won the head-to-head.` : '',
+  [' Ratings, quality wins and game logs side by side.', ' Resumes side by side.'],
+]);
 const ld = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
@@ -88,18 +109,22 @@ const ld = {
 };
 const orders = [
   ...(views.committee ? [{ key: 'committee' as const, title: 'By the committee', res: views.committee }] : []),
-  { key: 'fei' as const, title: 'By FEI', res: views.fei },
+  { key: 'fei' as const, title: 'By strength of record', res: views.fei },
 ];
 const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) => {
   const st = standingIn(p, slug);
-  return st.kind === 'in' ? `In · ${ordinal(st.seed!.seed)} seed${st.bye ? ', bye' : ''}` : st.kind === 'first-out' ? `${ordinal(st.outPos!)} out` : 'Out';
+  return st.kind === 'in' ? `In · ${ordinal(st.seed!.seed)} seed${st.bye ? ', bye' : ''}` : st.kind === 'first-out' ? outText(st.outPos!) : 'Out';
 };
+// The pitch: the lower committee team's case (or the strength-of-record pick when they disagree).
+const underdog = agree ? cPref[1]! : fPref[0]!;
+const overdog = underdog.slug === A.slug ? B : A;
 ---
 
 <BaseLayout
   title={title}
   description={description}
   path={path}
+  ads
   ogImage={compareOgPath(`${a}-vs-${b}`)}
   ogImageAlt={`${A.name} vs ${B.name}: committee #${A.ranks.committee} vs #${B.ranks.committee}, FEI strength of record #${A.ranks.sor} vs #${B.ranks.sor}`}
   jsonLd={ld}
@@ -168,7 +193,7 @@ const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) 
           </>
         ) : (
           <>
-            The committee and FEI's strength of record disagree: the committee has <TeamLink team={cPref[0]!} /> ahead, FEI has{' '}
+            The committee and FEI's strength of record disagree: the committee has <TeamLink team={cPref[0]!} /> ahead, strength of record has{' '}
             <TeamLink team={fPref[0]!} />.
           </>
         )
@@ -183,6 +208,12 @@ const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) 
       #N = rank among all {week.fbsCount} FBS teams. Opponent tiers use this week's FEI ranks. Ratings:{' '}
       <a class="link" href={week.sources.ratings.url}>FEI by {week.sources.ratings.author}</a>
     </p>
+
+    <PlayCta
+      class="mt-8"
+      heading={`Think ${underdog.name} belongs above ${overdog.name}?`}
+      body="Rank resumes like these with the names hidden. Your picks build your own top 25 and bracket, next to the committee's."
+    />
 
     <AdSlot kind="incontent" class="mt-10" />
 
@@ -220,7 +251,7 @@ const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) 
                     {shared.map((s) => (
                       <tr>
                         <td>
-                          <TeamChip week={week} slug={s.opp.slug} nonFbs={!s.opp.fbs} />
+                          <TeamChip week={week} slug={s.opp.slug} nonFbs={!s.opp.fbs} tap />
                         </td>
                         <td class="max-sm:hidden">
                           <span class="flex items-center gap-2">
@@ -306,6 +337,37 @@ const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) 
         </div>
 
         {
+          upcoming && (
+            <section aria-labelledby="remaining">
+              <h2 id="remaining" class="cond text-heading uppercase">
+                Remaining schedule
+              </h2>
+              <p class="mt-1 text-sm text-fg-muted">Regular season, in date order. Tiers and CFP ranks are this week's.</p>
+              <div class="mt-4 grid gap-8 md:grid-cols-2">
+                {upcoming.map(({ t, u }) => (
+                  <div class="min-w-0">
+                    <h3 class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <TeamChip week={week} slug={t.slug} />
+                    </h3>
+                    <p class="mt-1 text-[0.8125rem] leading-5 text-fg-muted">
+                      {upcomingLine(week, u)}
+                      {u.toughest && (
+                        <>
+                          {' · toughest: '}
+                          <span class="text-fg">{siteVs(u.toughest.site, u.toughest.opp.name)}</span>
+                        </>
+                      )}
+                    </p>
+                    <UpcomingTable week={week} slug={t.slug} caption={`${t.name} remaining schedule, in date order`} compact class="mt-2" />
+                  </div>
+                ))}
+              </div>
+              <p class="mt-2 text-[0.8125rem] text-fg-muted">Conf = conference game.</p>
+            </section>
+          )
+        }
+
+        {
           more.length > 0 && (
             <section aria-labelledby="more">
               <h2 id="more" class="cond text-heading uppercase">
@@ -325,14 +387,20 @@ const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) 
                         <span class="team-chip" style={teamVars(y.colors)}>
                           {y.name}
                         </span>
-                        <span class="label-caps ml-auto text-fg-muted">
-                          {p.aRank} v {p.bRank}
+                        <span class="cond ml-auto text-[0.9375rem] font-semibold text-fg-muted">
+                          #{p.aRank} vs #{p.bRank}
                         </span>
                       </a>
                     </li>
                   );
                 })}
               </ul>
+              <p class="mt-3 text-sm text-fg-muted">
+                <a class="link text-fg" href={compareHubHref}>
+                  Every committee matchup
+                </a>{' '}
+                · all {comparePairs(week).length} pairs in the committee's top {week.committee?.length}.
+              </p>
             </section>
           )
         }

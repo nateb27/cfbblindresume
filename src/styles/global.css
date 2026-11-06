@@ -348,6 +348,13 @@
     border-bottom: 4px solid var(--team-rule, var(--color-line-strong));
     box-shadow: inset 0 0 0 1px var(--team-edge);
   }
+  /* Team link in a table row: a 44px-tall hit area (the whole row height) that takes no more
+     layout height than the 28px content box of a 40-44px row. */
+  .team-chip-tap {
+    min-height: 2.75rem;
+    margin-block: -0.5rem;
+    padding-right: 0.5rem;
+  }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) :is(.team-block, .team-chip) {
       --team-edge: var(--team-edge-light, transparent);
@@ -358,6 +365,47 @@
   }
   [data-theme="dark"] :is(.team-block, .team-chip) {
     --team-edge: var(--team-edge-dark, transparent);
+  }
+
+  /* Team-page hero name (TeamBlock size "hero" + heroNameFit): the block is a size container and
+     the name's size is min(max, (100cqi - meta) / width-per-px), computed at build time from the
+     real glyph widths, so it shrinks only as much as needed and never truncates. Long names on
+     phones are two .hero-line spans that stack (two 32px lines fit the 72px block). Browsers
+     without container units keep the fixed sizes and truncate, as before. */
+  .hero-name {
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @media (width >= 40rem) {
+    .hero-name {
+      font-size: var(--text-display);
+      line-height: var(--text-display--line-height);
+    }
+  }
+  @supports (width: 1cqi) {
+    /* nowrap: the size already fits, and a fallback face must not re-break the line (CLS). */
+    .hero-name {
+      font-size: var(--hero-fs);
+      line-height: var(--hero-lh);
+      overflow: visible;
+      white-space: nowrap;
+      padding-block: 0.25rem;
+    }
+    .hero-line {
+      display: block;
+    }
+    @media (width >= 40rem) {
+      .hero-name {
+        font-size: var(--hero-fs-sm);
+        line-height: 1;
+      }
+      .hero-line {
+        display: inline;
+      }
+    }
   }
 
   /* Seed / rank plate that sits on the left of a team block (lower-third). */
@@ -377,10 +425,21 @@
     line-height: 1;
     font-variant-numeric: tabular-nums;
   }
-  /* "Highlight playoff field": the team block gets an accent outline and an accent seed plate. */
+  /*
+   * "Highlight playoff field": the team block gets an accent ring (a page-colored 2px gap, then a
+   * 2px accent edge) and an accent seed plate. The ring is a box-shadow, not an outline, so the
+   * keyboard focus ring stays distinct: a focused in-field block gets a 3px fg ring outside it
+   * (WCAG 2.4.7). game.css draws the same thing inside the island.
+   */
   .team-block[data-in-field] {
-    outline: 2px solid var(--color-accent-edge);
-    outline-offset: 2px;
+    box-shadow:
+      inset 0 0 0 1px var(--team-edge),
+      0 0 0 2px var(--color-page),
+      0 0 0 4px var(--color-accent-edge);
+  }
+  .team-block[data-in-field]:focus-visible {
+    outline: 3px solid var(--color-fg);
+    outline-offset: 4px;
   }
   [data-in-field] > .seed-plate,
   .seed-plate[data-in-field] {
@@ -606,7 +665,11 @@
     color: var(--color-accent);
   }
 
+  /* position: relative makes the wrapper the containing block of absolutely positioned
+     descendants (the .sr-only text in cells), so they are clipped and scrolled with the table
+     instead of widening the page at 320px. */
   .table-wrap {
+    position: relative;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin-inline: calc(var(--spacing-gutter) * -1);
@@ -674,10 +737,11 @@
     background-color: var(--color-surface);
   }
 
-  /* Ad slot (PUBLIC_ADS=on). Markup:
-     <aside class="ad-slot" data-kind="incontent" aria-label="Advertisement">
+  /* Ad slot (PUBLIC_ADS=on). Markup (a plain div with a visible label, not a landmark, so two
+     slots on a page never form two identically named landmarks):
+     <div class="ad-slot" data-kind="incontent">
        <span class="ad-label">Advertisement</span><div class="ad-box"><!-- creative --></div>
-     </aside>
+     </div>
      The box reserves the creative's height so CLS stays 0. */
   .ad-slot {
     display: flex;
@@ -705,9 +769,11 @@
     max-width: 100%;
     overflow: hidden;
   }
+  /* min-height = the tallest creative the slot's width accepts (336x280 for in-content, and for
+     the phone sidebar so a 280-tall unit can never grow it), so a late fill never shifts. */
   .ad-slot[data-kind="leaderboard"] .ad-box { min-height: 100px; max-width: 728px; }
-  .ad-slot[data-kind="incontent"] .ad-box { min-height: 250px; max-width: 336px; }
-  .ad-slot[data-kind="sidebar"] .ad-box { min-height: 250px; max-width: 300px; }
+  .ad-slot[data-kind="incontent"] .ad-box { min-height: 280px; max-width: 336px; }
+  .ad-slot[data-kind="sidebar"] .ad-box { min-height: 280px; max-width: 336px; }
   @media (width >= 48rem) {
     .ad-slot[data-kind="leaderboard"] .ad-box { min-height: 90px; }
   }
@@ -717,6 +783,6 @@
       top: 1.5rem;
       border: 0;
     }
-    .ad-slot[data-kind="sidebar"] .ad-box { min-height: 600px; }
+    .ad-slot[data-kind="sidebar"] .ad-box { min-height: 600px; max-width: 300px; }
   }
 }

@@ -135,9 +135,36 @@ describe('share code corruption and errors', () => {
     expect(parseShareCode(undefined as unknown as string).ok).toBe(false);
   });
 
-  it('wrong version', () => {
+  it('a future version with an intact checksum reads as another version', () => {
     expect(decodeRun(withCrc([2, 26, 9, 1, 0, 1, 2]), lookup)).toMatchObject({ ok: false, error: { kind: 'version', version: 2 } });
-    expect(decodeRun(withCrc([0, 26, 9, 1, 0, 1, 2]), lookup)).toMatchObject({ ok: false, error: { kind: 'version' } });
+    expect(decodeRun(withCrc([15, 26, 9]), lookup)).toMatchObject({ ok: false, error: { kind: 'version', version: 15 } });
+    // Not a plausible version, or a damaged one: never "another version".
+    expect(decodeRun(withCrc([0, 26, 9, 1, 0, 1, 2]), lookup)).toMatchObject({ ok: false, error: { kind: 'checksum' } });
+    expect(decodeRun(withCrc([16, 26, 9, 1, 0, 1, 2]), lookup)).toMatchObject({ ok: false, error: { kind: 'checksum' } });
+    const v2 = withCrc([2, 26, 9, 1, 0, 1, 2]);
+    expect(decodeRun(v2.slice(0, -1) + (v2.endsWith('A') ? 'B' : 'A'), lookup)).toMatchObject({ ok: false, error: { kind: 'checksum' } });
+  });
+
+  it('garbled, truncated or lowercased links are damaged, not "another version"', () => {
+    const code = encodeRun(randomRun(mulberry32(11), 15), SLUGS);
+    const variants = [code.toLowerCase(), code.toUpperCase(), 'A'.repeat(400), 'results', code.slice(0, 20), code.slice(1), `x${code}`, `${code}xyz`];
+    for (const v of variants) {
+      const res = decodeRun(v, lookup);
+      expect(res.ok, v.slice(0, 24)).toBe(false);
+      if (!res.ok) expect(['bad-base64', 'length', 'checksum', 'round-count'], `${v.slice(0, 24)} -> ${res.error.kind}`).toContain(res.error.kind);
+    }
+    // Random garbage of every length never reports a version (CRC-16 false positives aside: 1 in 65,536).
+    const rng = mulberry32(12);
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let versions = 0;
+    for (let i = 0; i < 2000; i++) {
+      let s = '';
+      const len = 4 + Math.floor(rng() * 120);
+      for (let k = 0; k < len; k++) s += alphabet[Math.floor(rng() * 64)];
+      const res = parseShareCode(s);
+      if (!res.ok && res.error.kind === 'version') versions++;
+    }
+    expect(versions).toBe(0);
   });
 
   it('index out of range', () => {

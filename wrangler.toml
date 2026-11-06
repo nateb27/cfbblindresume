@@ -1,5 +1,6 @@
 # Cloudflare Pages project: static site (Astro build in dist/) + Pages Functions (functions/) + D1.
-# Setup and deploy notes: functions/README.md.
+# Setup and deploy notes: README.md (Deploy) and functions/README.md.
+# Cloudflare Pages Git integration reads this file as the source of truth for bindings.
 name = "cfbblindresume"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-10-01"
@@ -9,7 +10,8 @@ compatibility_date = "2026-10-01"
 [vars]
 PUBLIC_ADS = "off"
 
-# IP_SALT is a secret, not a var: `npx wrangler pages secret put IP_SALT` (production), and a
+# IP_SALT is a secret, not a var: `npx wrangler pages secret put IP_SALT --project-name cfbblindresume`
+# (production), the dashboard for previews (Settings > Variables and Secrets > Preview), and a
 # `.dev.vars` file (gitignored) with IP_SALT=... for local dev.
 
 [[d1_databases]]

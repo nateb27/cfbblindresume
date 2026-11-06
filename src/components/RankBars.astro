@@ -2,7 +2,9 @@
 /**
  * The team stat row (DESIGN §14): committee rank and FEI's strength of record first (the two
  * verdicts), then FEI overall, offense, defense and schedule. Each: label, "#N", a 6px bar
- * (tier color of that rank band, filled by rankFill), and the raw FEI value.
+ * (tier color of that rank band, filled by rankFill; the committee rank too, so a #20 committee
+ * bar never looks longer than a #14 strength of record), and the FEI value. Strength of record and
+ * schedule also say what the value means, in the words of /how-it-works.
  */
 import type { Team, WeekFile } from '@lib/types';
 import { METRICS, bandKey, feiValue, fill, fmtShortDate } from './site';
@@ -14,12 +16,18 @@ interface Props {
 }
 const { team: t, week, class: cls } = Astro.props;
 const n = week.fbsCount;
+const num = (v: number) => Math.abs(v).toFixed(2);
+const gwdWords =
+  Math.abs(t.values.gwd) < 0.005
+    ? 'As many wins as a good team would expect on this schedule'
+    : `${num(t.values.gwd)} ${t.values.gwd > 0 ? 'more' : 'fewer'} wins than a good team would expect on this schedule`;
+const elsWords = `An elite team would expect ${num(t.values.els)} losses on this schedule`;
 const cells = [
-  { ...METRICS.sor, rank: t.ranks.sor, value: `GWD ${feiValue(t.values.gwd)}` },
-  { ...METRICS.fei, rank: t.ranks.fei, value: `FEI ${feiValue(t.values.fei)}` },
-  { ...METRICS.off, rank: t.ranks.off, value: `OFEI ${feiValue(t.values.ofei)}` },
-  { ...METRICS.def, rank: t.ranks.def, value: `DFEI ${feiValue(t.values.dfei)}` },
-  { ...METRICS.sos, rank: t.ranks.sos, value: `ELS ${feiValue(t.values.els)}` },
+  { ...METRICS.sor, rank: t.ranks.sor, words: gwdWords, value: `GWD ${feiValue(t.values.gwd)}` },
+  { ...METRICS.fei, rank: t.ranks.fei, words: null, value: `FEI ${feiValue(t.values.fei)}` },
+  { ...METRICS.off, rank: t.ranks.off, words: null, value: `OFEI ${feiValue(t.values.ofei)}` },
+  { ...METRICS.def, rank: t.ranks.def, words: null, value: `DFEI ${feiValue(t.values.dfei)}` },
+  { ...METRICS.sos, rank: t.ranks.sos, words: elsWords, value: `ELS ${feiValue(t.values.els)}` },
 ];
 const c = t.ranks.committee;
 const release = week.sources.committee?.releaseDate;
@@ -31,7 +39,13 @@ const release = week.sources.committee?.releaseDate;
       <div>
         <dt class="label-caps text-fg-muted">Committee</dt>
         <dd class="cond text-stat-lg">{c === null ? 'NR' : `#${c}`}</dd>
-        <dd class:list={['mt-1.5 h-1.5 rounded-slab', c === null ? 'bg-track' : 'bg-accent-fill']} />
+        {c === null ? (
+          <dd class="mt-1.5 h-1.5 rounded-slab bg-track" />
+        ) : (
+          <dd class="meter mt-1.5" data-tier={bandKey(c)} style={`--fill:${fill(c, n)}`}>
+            <span />
+          </dd>
+        )}
         <dd class="mt-1.5 text-[0.8125rem] leading-4 text-fg-muted">
           {c === null ? `Outside the top ${week.committee.length}` : release ? `Released ${fmtShortDate(release)}` : 'Top 25'}
         </dd>
@@ -50,7 +64,8 @@ const release = week.sources.committee?.releaseDate;
         <dd class="meter mt-1.5" data-tier={bandKey(m.rank)} style={`--fill:${fill(m.rank, n)}`}>
           <span />
         </dd>
-        <dd class="mt-1.5 text-[0.8125rem] leading-4 text-fg-muted">{m.value}</dd>
+        {m.words && <dd class="mt-1.5 text-[0.8125rem] leading-4 text-fg">{m.words}</dd>}
+        <dd class:list={['text-[0.8125rem] leading-4 text-fg-muted', m.words ? 'mt-0.5' : 'mt-1.5']}>{m.value}</dd>
       </div>
     ))
   }

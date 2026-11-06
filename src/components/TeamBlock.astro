@@ -7,6 +7,7 @@
 import type { Team } from '@lib/types';
 import { teamVars } from '../styles/tokens';
 import { teamHref } from './site';
+import type { HeroNameFit } from './text-metrics';
 
 type Size = 'slot' | 'row' | 'tile' | 'reveal' | 'hero';
 interface Props {
@@ -21,17 +22,25 @@ interface Props {
   href?: string | false;
   /** Heading element for the name (hero uses h1). */
   nameAs?: 'span' | 'h1' | 'h2' | 'h3';
+  /** Hero only: build-time name fit (heroNameFit) so the name shrinks or splits, never truncates. */
+  nameFit?: HeroNameFit;
   class?: string;
 }
-const { team, size = 'row', seed, meta, inField = false, href = teamHref(team.slug), nameAs = 'span', class: cls } = Astro.props;
+const { team, size = 'row', seed, meta, inField = false, href = teamHref(team.slug), nameAs = 'span', nameFit, class: cls } = Astro.props;
 
-const height = { slot: 'h-9 pr-2.5', row: 'h-12 pr-3', tile: 'min-h-16 pr-3', reveal: 'h-14 pr-4', hero: 'h-[4.5rem] pr-4 sm:h-24 sm:pr-6' }[size];
+const height = {
+  slot: 'h-9 pr-2.5',
+  row: 'h-12 pr-3',
+  tile: 'min-h-16 pr-3',
+  reveal: 'h-14 pr-4',
+  hero: 'min-h-[4.5rem] pr-4 sm:min-h-24 sm:pr-6 [container-type:inline-size]',
+}[size];
 const nameCls = {
   slot: 'truncate text-[0.9375rem] leading-4',
   row: 'truncate text-[1.125rem] leading-5',
   tile: 'text-team line-clamp-2',
   reveal: 'truncate text-heading',
-  hero: 'cond truncate text-title uppercase sm:text-display',
+  hero: nameFit ? 'cond hero-name uppercase' : 'cond truncate text-title uppercase sm:text-display',
 }[size];
 const plate = { slot: 'min-w-8 text-[1.125rem]', row: 'min-w-10 text-[1.375rem]', tile: 'min-w-9 text-[1.375rem]', reveal: 'min-w-12 text-[1.75rem]', hero: '' }[size];
 const metaCls = {
@@ -48,7 +57,17 @@ const Name = nameAs;
 
 <Tag href={href || undefined} class:list={['team-block', height, cls]} style={teamVars(team.colors)} data-in-field={inField ? '' : undefined}>
   {seed !== undefined && <span class:list={['seed-plate', plate]}>{seed}</span>}
-  <Name class:list={['min-w-0 flex-1', pad, nameCls]}>{team.name}</Name>
+  <Name class:list={['min-w-0 flex-1', pad, nameCls]} style={nameFit?.style}>
+    {
+      nameFit && nameFit.parts.length === 2 ? (
+        <>
+          <span class="hero-line">{nameFit.parts[0]}</span> <span class="hero-line">{nameFit.parts[1]}</span>
+        </>
+      ) : (
+        team.name
+      )
+    }
+  </Name>
   {meta && <span class:list={['ml-3 flex-none text-right', metaCls]}><slot name="meta">{meta}</slot></span>}
   <slot />
 </Tag>

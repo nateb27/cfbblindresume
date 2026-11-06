@@ -147,7 +147,7 @@ export function fbsSlugsSorted(week: WeekFile): string[] {
 }
 
 /** Resolve a game's opponent. @throws Error on a dangling reference. */
-export function opponentOf(week: WeekFile, g: Game): OpponentRef {
+export function opponentOf(week: WeekFile, g: Pick<Game, 'opp' | 'oppFbs'>): OpponentRef {
   if (g.oppFbs) {
     const t = week.teams[g.opp];
     if (!t) throw new Error(`game references unknown FBS team "${g.opp}"`);
@@ -186,6 +186,34 @@ export function resumeStrip(week: WeekFile, slug: string): StripEntry[] {
   const rows = team(week, slug).games.map((g) => rowFor(week, g));
   rows.sort((a, b) => cmpStr(a.date, b.date) || a.week - b.week);
   return rows.map((r) => ({ week: r.week, date: r.date, result: r.result, tier: r.tier, margin: r.margin, site: r.site }));
+}
+
+/** One scheduled game from a team's point of view, with the opponent's current tier and committee rank. */
+export interface UpcomingRow {
+  week: number;
+  date: string;
+  opp: OpponentRef;
+  tier: Tier;
+  site: Site;
+  conf: boolean;
+  /** The opponent's committee rank this week (null if unranked, non-FBS or no release). */
+  oppCommittee: number | null;
+}
+
+/**
+ * A team's remaining schedule ("Still to play"), chronological. Null when the week file does not
+ * carry schedules (built before `upcoming` existed), so callers can tell "unknown" from "none left".
+ */
+export function upcomingRows(week: WeekFile, slug: string): UpcomingRow[] | null {
+  const list = team(week, slug).upcoming;
+  if (!list) return null;
+  return list
+    .map((g): UpcomingRow => {
+      const opp = opponentOf(week, g);
+      const tier = tierFor({ fbs: opp.fbs, feiRank: opp.feiRank ?? undefined, classification: opp.classification ?? undefined });
+      return { week: g.week, date: g.date, opp, tier, site: g.site, conf: g.conf, oppCommittee: opp.fbs ? (week.teams[opp.slug]?.ranks.committee ?? null) : null };
+    })
+    .sort((a, b) => cmpStr(a.date, b.date) || a.week - b.week || cmpStr(a.opp.slug, b.opp.slug));
 }
 
 /** Records vs FEI 1-10, 11-25 and 26-50 (current ranks). */

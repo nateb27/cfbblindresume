@@ -1,5 +1,10 @@
 ---
-/** Quality-win chips (DESIGN §9): records vs FEI top 10 / 11-25 / 26-50 (current ranks). */
+/**
+ * Quality-win chips (DESIGN §9): records vs FEI top 10 / 11-25 / 26-50 (current FEI overall
+ * ranks). Labels match the game card ("Top 10", "11-25", "26-50"); the heading above the chips
+ * names the scale ("by FEI rank"), so the labels stay short enough never to truncate (below 360px
+ * the tier dot is dropped to keep three chips in a row inside a card).
+ */
 import { qualityWins } from '@lib/data';
 import type { WeekFile } from '@lib/types';
 
@@ -12,17 +17,17 @@ const { week, slug, class: cls } = Astro.props;
 const q = qualityWins(week, slug);
 const chips = [
   { label: 'Top 10', tier: '50', wl: q.top10, sr: 'against FEI top 10 teams' },
-  { label: 'FEI 11-25', tier: '40', wl: q.r11to25, sr: 'against FEI 11-25 teams' },
-  { label: 'FEI 26-50', tier: '30', wl: q.r26to50, sr: 'against FEI 26-50 teams' },
+  { label: '11-25', tier: '40', wl: q.r11to25, sr: 'against FEI 11-25 teams' },
+  { label: '26-50', tier: '30', wl: q.r26to50, sr: 'against FEI 26-50 teams' },
 ];
 ---
 
 <ul class:list={['grid grid-cols-3 gap-1.5', cls]}>
   {
     chips.map((c) => (
-      <li class="flex h-8 min-w-0 items-center gap-1.5 rounded-chip bg-raised px-2">
-        <span class="tier-dot" data-tier={c.tier} style="--tier-dot:8px" aria-hidden="true" />
-        <span class="label-caps flex-1 truncate tracking-[0.04em] text-fg-muted" aria-hidden="true">
+      <li class="flex h-8 min-w-0 items-center gap-1.5 rounded-chip bg-raised px-2 max-[359px]:gap-1 max-[359px]:px-1.5">
+        <span class="tier-dot max-[359px]:hidden" data-tier={c.tier} style="--tier-dot:8px" aria-hidden="true" />
+        <span class="label-caps flex-1 whitespace-nowrap tracking-[0.04em] text-fg-muted" aria-hidden="true">
           {c.label}
         </span>
         <span class="sr-only">Record {c.sr}:</span>

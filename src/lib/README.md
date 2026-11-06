@@ -117,9 +117,10 @@ void openShared(code);
 - `teamList(week): Team[]` — FBS teams sorted by name.
 - `team(week, slug): Team` — lookup (throws if unknown).
 - `fbsSlugsSorted(week): string[]` — sorted slugs (share-code index space).
-- `opponentOf(week, game): OpponentRef` — resolves FBS / non-FBS opponents (throws on dangling refs).
+- `opponentOf(week, game): OpponentRef` — resolves FBS / non-FBS opponents of a game or scheduled game (throws on dangling refs).
 - `gameRows(week, slug): GameRow[]` — opponent, tier, site, result, margin (pf - pa); toughest first: tier, then opponent FEI rank, then date.
 - `resumeStrip(week, slug): StripEntry[]` — chronological dots (result, tier, margin, site).
+- `upcomingRows(week, slug): UpcomingRow[] | null` — the remaining schedule ("Still to play", additive `Team.upcoming`), chronological: week, date, opponent ref, opponent tier (current FEI rank), site, conf, `oppCommittee` (opponent's committee rank or null). `null` when the file carries no schedules (unknown, not "none left").
 - `qualityWins(week, slug): QualityWins` — `{ top10, r11to25, r26to50 }` as `{ w, l }` vs current FEI rank buckets.
 - `headToHead(week, a, b): H2HGame[]` — meetings with winner, loser, points, margin, winner's site.
 - `trioHeadToHead(week, slugs): H2HGame[]` — every meeting among a trio (3+ when all played each other).
@@ -165,6 +166,7 @@ void openShared(code);
 - `encodeRun({ season, week, rounds }: RunToEncode, slugs): string` — base64url, no padding; `rounds` is any `readonly (readonly string[])[]` (e.g. `Trio[]`); throws on invalid input (not 3 distinct known slugs, 0 or > 30 rounds).
 - `decodeRun(code, slugsFor): ShareCodeResult<SharedRun>` — synchronous `slugsFor`; never throws; `{ ok: false, error: { kind, message, ... } }` with kind `bad-base64 | version | length | checksum | round-count | duplicate-team | index-out-of-range | week-not-found`.
 - `parseShareCode(code)` / `resolveShareCode(raw, slugs)` — the two decode stages; use them when the week's slugs come from an async fetch (see the flow above).
+- Kind `version` means a newer format (version byte 2..15, `FUTURE_SHARE_CODE_VERSIONS`) with an intact checksum; future versions keep byte 0 and the trailing CRC-16. Garbled, truncated or lowercased codes report `checksum` / `length` / `bad-base64`, never `version`.
 - `crc16ccitt(bytes)`, `base64urlEncode(bytes)`, `base64urlDecode(str)` — primitives.
 
 ## playoff.ts (generalized to any PlayoffFormat)

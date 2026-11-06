@@ -10,8 +10,8 @@ import { SITE, absUrl, latestWeek } from '../components/site';
 
 const week = latestWeek();
 const s = week.sources;
-const title = 'About CFB Blind Resume: An Independent College Football Playoff Resume Site';
-const description = `Who runs CFB Blind Resume, why the resumes are blind, where every number comes from (FEI by ${s.ratings.author} and final scores), and how to get in touch.`;
+const title = 'About CFB Blind Resume: An Independent Playoff Resume Site';
+const description = `What CFB Blind Resume is, why the resumes are blind, where every number comes from (FEI by ${s.ratings.author} and final scores), and how to reach us.`;
 const ld = {
   '@context': 'https://schema.org',
   '@type': 'AboutPage',
@@ -22,12 +22,11 @@ const ld = {
 };
 ---
 
-<BaseLayout title={title} description={description} path="/about" jsonLd={ld} week={week}>
+<BaseLayout title={title} description={description} path="/about" jsonLd={ld} ads week={week}>
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <Breadcrumbs items={[{ name: 'About', href: '/about' }]} />
     <article class="max-w-read">
       <h1 class="cond mt-2 text-title uppercase lg:text-display">About</h1>
-      <p class="mt-2 text-sm text-fg-muted">By {SITE.name}</p>
 
       <p class="mt-6 text-lg leading-8">
         {SITE.name} is an independent college football site with one idea: a playoff resume should be judged on what is in it. Hide the names,
@@ -45,7 +44,10 @@ const ld = {
         been published at bcftoys.com for years, or is computed directly from final scores. Strength of record, schedule strength, offense,
         defense and every opponent tier on this site are FEI.
       </p>
-      <p class="mt-4 leading-7">We do not use any ESPN-produced numbers: no FPI, no ESPN strength of record, no SP+ and no Game Control.</p>
+      <p class="mt-4 leading-7">
+        {SITE.name} is not affiliated with, endorsed by or connected to ESPN, and we do not use any ESPN-produced numbers: no FPI, no ESPN
+        strength of record, no SP+ and no Game Control.
+      </p>
       <p class="mt-4 leading-7">
         We do not use logos either. Teams are shown by name and colors, and scores come from <a class="link" href={s.games.url}>{s.games.name}</a>.
         The committee ranking is published by the <a class="link" href="https://collegefootballplayoff.com">College Football Playoff</a>. We are not

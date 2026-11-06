@@ -16,7 +16,7 @@ import Stars from '../components/Stars.astro';
 import TeamChip from '../components/TeamChip.astro';
 import { nextPow2 } from '@lib/playoff';
 import { tierKey } from '../styles/tokens';
-import { absUrl, fmtDate, formatShortLabel, formatStatus, latestWeek, playoffViews } from '../components/site';
+import { SOR, absUrl, clampText, fmtDate, formatShortLabel, formatStatus, formatsPhrase, joinAnd, latestWeek, playoffViews } from '../components/site';
 
 const week = latestWeek();
 const views = playoffViews(week);
@@ -25,17 +25,18 @@ const s = week.sources;
 const rounds = TRIO_RULES.baseRounds;
 
 const ruleText = (r: AutoBidRule, f: PlayoffFormat): string => {
+  // A rule that takes every power champion is not a selection: say "the champions of A, B and C".
+  if (r.from === 'power' && r.count >= f.powerConferences.length) return `The champions of the ${joinAnd(f.powerConferences)}`;
   const who =
-    r.from === 'all'
-      ? 'conference champions'
-      : r.from === 'power'
-        ? `champions of the ${f.powerConferences.join(', ')}`
-        : `champions of the other conferences`;
+    r.from === 'all' ? 'conference champions' : r.from === 'power' ? `champions of the ${joinAnd(f.powerConferences)}` : `champions of the other conferences`;
   return r.count === 1 ? `The highest-ranked of the ${who}` : `The ${r.count} highest-ranked ${who}`;
 };
 
-const title = 'How It Works: Strength of Record, Schedule, Opponent Tiers and the Playoff Math | CFB Blind Resume';
-const description = `What every number on CFB Blind Resume means: FEI strength of record, schedule strength, offense and defense, the opponent tiers, how your picks become a top 25, and the rules of the ${views.formats.map((f) => (f.status === 'proposed' ? `proposed ${f.size}-team` : `${f.size}-team`)).join(' and ')} playoff formats.`;
+const title = 'How It Works: Strength of Record, Tiers and Playoff Rules';
+const description = clampText([
+  'What every number means: FEI strength of record, schedule, offense, defense and opponent tiers, and how your picks become a top 25.',
+  [` Plus the ${formatsPhrase(views.formats)} playoff rules.`, ' Plus the playoff rules.'],
+]);
 const ld = {
   '@context': 'https://schema.org',
   '@type': 'WebPage',
@@ -47,7 +48,7 @@ const terms = [
   {
     id: 'strength-of-record',
     term: 'Strength of record',
-    src: 'FEI GWD',
+    src: `FEI GWD · shown as ${SOR}`,
     body: `How many more (or fewer) games a team has won than a good team would be expected to win against the same schedule. It rewards beating good opponents and does not care how pretty the wins were. This is the ranking we put next to the committee's.`,
   },
   {
@@ -83,7 +84,7 @@ const terms = [
 ];
 ---
 
-<BaseLayout title={title} description={description} path="/how-it-works" jsonLd={ld} current="how" week={week}>
+<BaseLayout title={title} description={description} path="/how-it-works" jsonLd={ld} ads current="how" week={week}>
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <Breadcrumbs items={[{ name: 'How it works', href: '/how-it-works' }]} />
     <h1 class="cond mt-2 text-title uppercase lg:text-display">How it works</h1>
@@ -206,7 +207,7 @@ const terms = [
               <article aria-labelledby={`pf-${f.id}`} class="rounded-card border border-line p-5">
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <h3 id={`pf-${f.id}`} class="cond text-heading uppercase">
-                    {formatShortLabel(f, week.season)}
+                    {f.status === 'proposed' ? f.label : formatShortLabel(f, week.season)}
                   </h3>
                   {f.status === 'proposed' && (
                     <span class="label-caps rounded-slab border border-control px-1.5 py-0.5">{formatStatus(f, week.season)}</span>

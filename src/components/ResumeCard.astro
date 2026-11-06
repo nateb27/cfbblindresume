@@ -10,7 +10,8 @@ import ResumeStrip from './ResumeStrip.astro';
 import Stars from './Stars.astro';
 import TeamBlock from './TeamBlock.astro';
 import TeamChip from './TeamChip.astro';
-import { METRICS, SITE_LABELS, bandKey, confRecord, fill, record, signed } from './site';
+import TeamLink from './TeamLink.astro';
+import { METRICS, SITE_LABELS, bandKey, confRecord, fill, oppWithRank, record, resumeHighlights, signed } from './site';
 
 interface Props {
   week: WeekFile;
@@ -28,6 +29,11 @@ const metrics = [
   { ...METRICS.sos, rank: t.ranks.sos, span: true },
 ];
 const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.conference));
+const hl = resumeHighlights(week, slug);
+const lines = [
+  { k: 'Best win', g: hl.bestWin, none: 'No wins yet' },
+  { k: 'Worst loss', g: hl.worstLoss, none: 'Unbeaten' },
+];
 ---
 
 <article class="flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card" aria-label={`${t.name} resume`}>
@@ -50,8 +56,44 @@ const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.
       ))
     }
   </dl>
+  <dl class="flex flex-col gap-1.5 border-t border-line px-4 py-3 text-sm">
+    {
+      hl.vsCommittee && (
+        <div class="flex items-baseline gap-2">
+          <dt class="label-caps w-24 flex-none text-fg-muted">vs CFP top {hl.vsCommittee.n}</dt>
+          <dd class="cond text-[1.0625rem] font-bold">
+            {hl.vsCommittee.w + hl.vsCommittee.l === 0 ? <span class="text-fg-muted">No games</span> : `${hl.vsCommittee.w}-${hl.vsCommittee.l}`}
+          </dd>
+        </div>
+      )
+    }
+    {
+      lines.map(({ k, g, none }) => {
+        const o = g ? oppWithRank(week, g) : null;
+        return (
+          <div class="flex items-baseline gap-2">
+            <dt class="label-caps w-24 flex-none text-fg-muted">{k}</dt>
+            <dd class="min-w-0">
+              {g && o ? (
+                <>
+                  <b class:list={['cond text-[1.0625rem]', g.result === 'W' ? 'text-win' : 'text-loss']}>
+                    {g.result} {signed(g.margin)}
+                  </b>{' '}
+                  {g.site === 'away' ? 'at ' : 'vs '}
+                  {o.slug ? <TeamLink team={{ slug: o.slug, name: o.name }} /> : o.name}
+                  {g.site === 'neutral' && ' (neutral)'} <span class="text-fg-muted">· {o.rank}</span>
+                </>
+              ) : (
+                <span class="text-fg-muted">{none}</span>
+              )}
+            </dd>
+          </div>
+        );
+      })
+    }
+  </dl>
   <section class="border-t border-line px-4 py-3">
-    <h3 class="label-caps text-fg-muted">Quality wins</h3>
+    <h3 class="label-caps text-fg-muted">Quality wins (by FEI rank)</h3>
     <QualityWins week={week} slug={slug} class="mt-1.5" />
     <h3 class="label-caps mt-3 text-fg-muted">Season in order</h3>
     <ResumeStrip week={week} slug={slug} variant="full" class="mt-2" />
@@ -63,7 +105,7 @@ const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.
         rows.map((g) => (
           <li class="grid min-h-9 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 border-t border-line py-1 first:border-t-0">
             <Stars stars={g.tier.stars} label={g.tier.label} />
-            <span class="min-w-0 truncate">
+            <span class="min-w-0">
               <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} />
             </span>
             <span class="text-[0.8125rem] text-fg-muted">{SITE_LABELS[g.site]}</span>

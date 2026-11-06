@@ -8,10 +8,17 @@
  * A team index is its position in the ascending-sorted list of ALL FBS slugs in that week's file
  * (GameData.slugs). 15 rounds = 51 bytes = 68 chars; the byte count is always a multiple of 3, so
  * codes never carry padding bits. Decoding never throws: it returns a typed error.
+ *
+ * Compatibility contract for future versions: byte 0 stays the version and the code still ends
+ * with this CRC-16 over every preceding byte. That lets this decoder tell a newer-version link
+ * (version 2..15 with an intact CRC: kind 'version') from a damaged or mistyped one (kind
+ * 'checksum', 'length' or 'bad-base64'), so garbage never reads as "from another version".
  */
 
 /** Current share-code format version (first byte). */
 export const SHARE_CODE_VERSION = 1;
+/** Version bytes a future format may use (see the compatibility contract above). */
+export const FUTURE_SHARE_CODE_VERSIONS = Object.freeze({ min: SHARE_CODE_VERSION + 1, max: 15 });
 /** Rounds a code may carry. */
 export const SHARE_MIN_ROUNDS = 1;
 export const SHARE_MAX_ROUNDS = 30;
@@ -170,18 +177,25 @@ export function encodeRun(run: RunToEncode, slugs: readonly string[]): string {
 
 const fail = <T>(error: ShareCodeError): ShareCodeResult<T> => ({ ok: false, error });
 
-/** Decode the structure of a code (no slug lookup). Checks in order: base64, version, length, checksum, round count, length, duplicates. */
+/**
+ * Decode the structure of a code (no slug lookup). Checks in order: base64, version (only a
+ * plausible future version with an intact checksum reports 'version'), length, checksum, round
+ * count, length, duplicates.
+ */
 export function parseShareCode(code: string): ShareCodeResult<RawSharedRun> {
   const bytes = typeof code === 'string' ? base64urlDecode(code.trim()) : null;
   if (!bytes || bytes.length === 0) return fail({ kind: 'bad-base64', message: 'This share code is not valid.' });
-  // Version first, so a code from a future format reports "unsupported" rather than "damaged".
+  const crcOk = (): boolean => {
+    if (bytes.length < 3) return false;
+    const crc = crc16ccitt(bytes, bytes.length - 2);
+    return bytes[bytes.length - 2] === crc >> 8 && bytes[bytes.length - 1] === (crc & 255);
+  };
   const version = bytes[0]!;
-  if (version !== SHARE_CODE_VERSION) {
+  if (version !== SHARE_CODE_VERSION && version >= FUTURE_SHARE_CODE_VERSIONS.min && version <= FUTURE_SHARE_CODE_VERSIONS.max && crcOk()) {
     return fail({ kind: 'version', version, message: `Unsupported share code version ${version}.` });
   }
   if (bytes.length < 4 + 3 + 2) return fail({ kind: 'length', message: 'This share code is too short.' });
-  const crc = crc16ccitt(bytes, bytes.length - 2);
-  if (bytes[bytes.length - 2] !== crc >> 8 || bytes[bytes.length - 1] !== (crc & 255)) {
+  if (version !== SHARE_CODE_VERSION || !crcOk()) {
     return fail({ kind: 'checksum', message: 'This share code is damaged (checksum mismatch).' });
   }
   const n = bytes[3]!;

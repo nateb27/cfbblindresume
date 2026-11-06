@@ -4,7 +4,7 @@
  */
 import type { APIRoute } from 'astro';
 import { comparePairs } from '@lib/data';
-import { absUrl, allWeekRefs, archiveHref, compareHref, latestWeek, teamHref } from '../components/site';
+import { absUrl, allWeekRefs, archiveHref, compareHref, compareHubHref, latestWeek, teamHref } from '../components/site';
 
 export const GET: APIRoute = () => {
   const week = latestWeek();
@@ -17,6 +17,7 @@ export const GET: APIRoute = () => {
     ...Object.keys(week.teams)
       .sort()
       .map((slug) => ({ path: teamHref(slug), lastmod: latest, priority: '0.7' })),
+    { path: compareHubHref, lastmod: latest, priority: '0.6' },
     ...comparePairs(week).map((p) => ({ path: compareHref(p.slug), lastmod: latest, priority: '0.5' })),
     ...allWeekRefs()
       .slice()

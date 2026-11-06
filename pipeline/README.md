@@ -53,7 +53,11 @@ N", as on Fremeau's final post-bowl page, after the season's last scheduled comm
   FEI, OFEI, DFEI, GWD, ELS as published. Records are computed from the included games and must
   equal FEI's Rec and FBS columns (always; for an FEI input without "through Week N" this is the
   check that it really is week N's table).
-- **Opponents**: non-FBS teams that appear in a game log (classification from CFBD).
+- **Opponents**: non-FBS teams that appear in a game log or a remaining schedule (classification
+  from CFBD).
+- **Remaining schedules** (`upcoming`, optional per team): CFBD regular-season games after week N
+  that are not completed yet: week, date (US Eastern), opponent, site, conference flag, no score.
+  Games of week N+1 already played midweek are in neither list until the next week's file.
 - **Committee**: the latest release dated on/before both the build date and the first release
   that follows week N's last game (the last CFBD game date labelled week N, or the end of the
   CFBD calendar week if none are listed). That is the Tuesday release after a normal week and the
@@ -71,7 +75,8 @@ N", as on Fremeau's final post-bowl page, after the season's last scheduled comm
   `asOf` is kept, so scheduled runs do not create empty commits. Same inputs give byte-identical
   output.
 
-`run.py` calls `validate.validate_week()` before writing and refuses to write an invalid file.
+`run.py` calls `validate.validate_week()` (with the season's previous week file, if any) before
+writing and refuses to write an invalid file.
 
 ## validate.py checks
 
@@ -87,6 +92,33 @@ known slugs, each with a game log, matching `ranks.committee`; colors are `#rrgg
 games; games chronological; label "After Week N"; week/asOf/hasCommittee match `index.json`; the
 house-rule strings (see SPEC.md rule 1) never appear. `--all` also checks that `index.json` and
 the week files on disk list the same weeks.
+
+Rankings: each FEI rank column (`fei`, `off`, `def`, `sor`, `sos`) is a standard competition
+ranking of all FBS teams (the best is 1, ties share a rank and the next rank skips: 1, 2, 2, 4;
+ELS really has a nine-way tie at #129), and ordered by rank its value (`fei`, `ofei`, `dfei`,
+`gwd`, `els`) never increases, with tied teams sharing a value. The FEI parser checks the same
+order on the table it reads (also for a pasted CSV), so a one-cell typo stops the run with the
+two rows named.
+
+Conferences: every team's conference is in the season's list in `pipeline/conferences.json` (a
+CFBD rename or a typo would otherwise create a one-team "conference", crown it and change the
+bracket); a game marked `conf` is between two FBS teams of the same conference, and
+`FBS Independents` (any format's `nonConferences`) have no conference games.
+
+Dates: no game is after `asOf`; no team has two games against the same opponent in one week or
+fewer than 6 days apart (a rescheduled game listed twice; a Saturday finale and a Friday title-game
+rematch are 6 days apart); the committee release is on or after the season's first scheduled
+release (`committee_schedule.json`) and at most 7 days older than the newest game in the file (a
+Monday build keeps the previous Tuesday's release; anything older is stale).
+
+Previous week (same season, when a file exists): the same FBS teams, each in the same conference,
+and the same classification for non-FBS opponents, because none of these change mid-season. If
+this fires, one of the two files is wrong; fix that one (by hand for an old week if needed).
+
+Remaining schedules: optional; when present, each entry has exactly week/date/opp/oppFbs/site/conf,
+a week after the file's week, a resolvable opponent, chronological order, no repeat opponent in a
+week, conference games only within a conference, and every FBS-vs-FBS game mirrored in the
+opponent's list.
 
 Playoff formats (schemaVersion 2): a non-empty list; every field present (id, label, status,
 default, note, sourceName, sourceUrl, checkedOn, size, byes, seeding, autoBids, powerConferences,
@@ -149,6 +181,10 @@ only from a table through week N.)
   pipeline re-run (`python3 pipeline/run.py --season 2026 --use-cache --as-of <the week's asOf>` keeps
   a week's data and date). Tests use `pipeline/tests/fixtures/playoff_formats_mini.json` because the
   six-team fixture has only one power conference.
+- `pipeline/conferences.json`: the season's FBS conference names exactly as CFBD spells them.
+  Add the new season's list each August after checking realignment; the validator refuses any
+  other conference name, and the first week of a season has no previous week to compare with, so
+  check that file's conferences by hand.
 - `pipeline/committee_schedule.json`: the season's published committee release dates. CFBD does
   not give a release date, so when the CFP page cannot be read the n-th CFBD committee poll is
   dated with the n-th scheduled release, after checking it falls inside that CFBD week. Dates
@@ -160,8 +196,10 @@ only from a table through week N.)
 Tuesday-night committee release), August to December, and on demand. There is no January
 schedule: the last committee release is the Sunday after championship weekend and Fremeau's final
 page has no "through Week N" (a run then exits 0, "season complete"). It runs the pipeline tests,
-`run.py`, then `validate.py --all`, and commits `data/` (and `pipeline/slugs.json`) to `main`
-as `github-actions[bot]` only when something changed. Set the repository secret `CFBD_API_KEY`.
+`run.py`, `validate.py --all`, then the site's unit tests and build against the new data
+(`npm ci && npm test && npm run build`), and commits `data/` (and `pipeline/slugs.json`) to
+`main` as `github-actions[bot]` only when something changed and all of that passed. The push
+triggers the Cloudflare Pages build. Set the repository secret `CFBD_API_KEY`.
 
 If bcftoys.com blocks GitHub's runners, run the pipeline locally and commit the result, or use
 the CSV fallback above. collegefootballplayoff.com has answered automated requests with HTTP

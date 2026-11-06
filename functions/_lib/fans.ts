@@ -22,6 +22,13 @@ export type PairCounts = Record<string, number>;
 
 export const pairKey = (winner: string, loser: string): string => `${winner}>${loser}`;
 
+/** Votes behind a set of pairwise counts: every vote adds exactly three (1st>2nd, 1st>3rd, 2nd>3rd). */
+export function votesFromPairs(rows: readonly PairCount[]): number {
+  let sum = 0;
+  for (const r of rows) sum += Number(r.n) || 0;
+  return Math.floor(sum / 3);
+}
+
 export interface TrioConsensus {
   /** The trio in consensus order, or null under the threshold. */
   consensus: string[] | null;
@@ -67,12 +74,19 @@ export function trioConsensus(trio: readonly string[], rows: readonly PairCount[
 }
 
 /**
- * The fans' top 25: a Bradley-Terry fit (src/lib/bradley-terry, Gaussian prior, so teams that won
- * or lost every comparison stay finite) over every pairwise count of the week. Ties keep slug order.
+ * The fans' full order: a Bradley-Terry fit (src/lib/bradley-terry, Gaussian prior, so teams that
+ * won or lost every comparison stay finite) over every pairwise count of the week, every voted team
+ * included (the pool, about 30-35 teams), so the results page can show the fans' next five. Ties
+ * keep slug order.
  */
-export function fansTop25(rows: readonly PairCount[], topN = FANS_TOP_N): string[] {
+export function fansOrder(rows: readonly PairCount[]): string[] {
   const ids = [...new Set(rows.flatMap((r) => [r.winner, r.loser]))].sort();
   if (ids.length < 2) return [];
   const comparisons: BTComparison[] = rows.filter((r) => r.n > 0).map((r) => ({ winner: r.winner, loser: r.loser, weight: Number(r.n) }));
-  return bradleyTerry(ids, comparisons).order().slice(0, topN);
+  return bradleyTerry(ids, comparisons).order();
+}
+
+/** The fans' top 25: the first `topN` of `fansOrder`. */
+export function fansTop25(rows: readonly PairCount[], topN = FANS_TOP_N): string[] {
+  return fansOrder(rows).slice(0, topN);
 }

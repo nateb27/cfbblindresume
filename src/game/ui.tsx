@@ -5,11 +5,14 @@ import { teamVars } from '../styles/tokens';
 
 export type BlockSize = 'tile' | 'row' | 'reveal' | 'slot';
 
-const HEIGHT: Record<BlockSize, string> = { tile: 'min-h-16', row: 'h-12', reveal: 'h-14', slot: 'h-9' };
+// Names never truncate where space is tight (320-390px phones): rows and reveal slabs wrap to a
+// second line instead (rows grow; the reveal slab fits two 20px lines). Bracket slots are full width
+// on phones and wide columns on desktop, so they always fit one line.
+const HEIGHT: Record<BlockSize, string> = { tile: 'min-h-16', row: 'min-h-12', reveal: 'h-14', slot: 'h-9' };
 const NAME: Record<BlockSize, string> = {
   tile: 'text-team line-clamp-2 hyphens-auto [overflow-wrap:anywhere]',
-  row: 'text-[1.125rem] leading-5 truncate',
-  reveal: 'text-heading truncate',
+  row: 'py-1 text-[1.125rem] leading-[1.125rem] [overflow-wrap:anywhere]',
+  reveal: 'text-heading line-clamp-2 max-sm:text-[1.25rem] max-sm:leading-5 [overflow-wrap:anywhere]',
   slot: 'text-[0.9375rem] leading-4 truncate',
 };
 const PLATE: Record<BlockSize, string> = {
@@ -75,7 +78,7 @@ export function FeiCredit({ url }: { url: string }) {
   return (
     <>
       Ratings:{' '}
-      <a className="link" href={url} target="_blank" rel="noopener">
+      <a className="link whitespace-nowrap" href={url} target="_blank" rel="noopener">
         FEI by Brian Fremeau
       </a>
     </>
@@ -83,13 +86,14 @@ export function FeiCredit({ url }: { url: string }) {
 }
 
 /** Toggle switch (`.switch`): a button with role="switch". */
-export function Switch(props: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode; className?: string }) {
+export function Switch(props: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode; className?: string; testid?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={props.checked}
       className={`switch text-left ${props.className ?? ''}`}
+      data-testid={props.testid}
       onClick={(e) => {
         e.stopPropagation();
         props.onChange(!props.checked);

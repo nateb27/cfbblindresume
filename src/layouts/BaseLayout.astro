@@ -5,15 +5,20 @@
  *
  * Themes: content pages follow prefers-color-scheme; game pages (`game`) force dark with
  * <html data-theme="dark">. No client JavaScript is emitted here (the ad loader stub only when
- * PUBLIC_ADS=on and PUBLIC_AD_NETWORK is set).
+ * PUBLIC_ADS=on, PUBLIC_AD_NETWORK is set and the page renders an ad slot: `ads`).
+ *
+ * Both Barlow Condensed weights are preloaded: 700 for headlines and numbers, 600 for labels,
+ * table heads and team chips, whose late swap otherwise nudges auto-width table columns.
+ * Share-image URLs carry the snapshot (`?v=2026-9`) so social caches refresh every week.
  */
 import '../styles/global.css';
+import barlow600 from '../assets/fonts/BarlowCondensed-600.woff2?url';
 import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url';
 import type { WeekFile } from '@lib/types';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import JsonLd from '../components/JsonLd.astro';
-import { ADS_ON, DEFAULT_OG, SITE, absUrl, latestWeek, type NavKey } from '../components/site';
+import { ADS_ON, AD_NETWORK, DEFAULT_OG, SITE, absUrl, latestWeek, ogVersion, type NavKey } from '../components/site';
 
 interface Props {
   /** Full <title>, unique per page. */
@@ -31,6 +36,8 @@ interface Props {
   /** Game page (/ and /r): forced dark theme. */
   game?: boolean;
   noindex?: boolean;
+  /** The page renders at least one AdSlot (the ad loader is injected only then). */
+  ads?: boolean;
   /** Highlighted nav item. */
   current?: NavKey;
   /** Week the page shows (footer "as of"); defaults to the latest week. */
@@ -47,14 +54,18 @@ const {
   jsonLd,
   game = false,
   noindex = false,
+  ads = false,
   current,
   week = latestWeek(),
 } = Astro.props;
 
 const canonical = absUrl(path);
-const image = absUrl(ogImage);
+// A noindex content page (the 404) names no canonical; the /r shell keeps one because the /r
+// Function rewrites it per share code.
+const withCanonical = !noindex || game;
+const image = `${absUrl(ogImage)}?${ogVersion(week)}`;
 const ldItems = jsonLd === undefined ? [] : Array.isArray(jsonLd) ? jsonLd : [jsonLd];
-const adNetwork = import.meta.env.PUBLIC_AD_NETWORK as string | undefined;
+const adNetwork = ads ? AD_NETWORK : undefined;
 ---
 
 <!doctype html>
@@ -64,9 +75,10 @@ const adNetwork = import.meta.env.PUBLIC_AD_NETWORK as string | undefined;
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
+    {withCanonical && <link rel="canonical" href={canonical} />}
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={barlow600} as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -86,7 +98,7 @@ const adNetwork = import.meta.env.PUBLIC_AD_NETWORK as string | undefined;
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonical} />
+    {withCanonical && <meta property="og:url" content={canonical} />}
     <meta property="og:image" content={image} />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />

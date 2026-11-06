@@ -35,7 +35,7 @@ def make_workspace() -> Path:
     tmp = Path(tempfile.mkdtemp(prefix="cfbpipe-test-"))
     cfg = tmp / "config"
     cfg.mkdir()
-    for name in ("aliases.json", "committee_schedule.json"):
+    for name in ("aliases.json", "committee_schedule.json", "conferences.json"):
         shutil.copy(PIPE / name, cfg / name)
     shutil.copy(MINI_FORMATS, cfg / "playoff_formats.json")
     (cfg / "slugs.json").write_text("{}\n", encoding="utf-8")

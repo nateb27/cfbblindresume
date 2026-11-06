@@ -54,6 +54,26 @@ def included_games(games: list[dict], fbs_ids: set[int], week: int) -> list[dict
     return sorted(seen.values(), key=lambda g: (g["startDate"], int(g["id"])))
 
 
+def upcoming_games(games: list[dict], fbs_ids: set[int], week: int) -> list[dict]:
+    """Scheduled regular-season games after the snapshot week, not yet played, involving an FBS team.
+
+    Already-played games of later weeks (e.g. Tuesday games of week N+1) are neither in the
+    snapshot nor "still to play", so they are left out until the next week's file.
+    """
+    seen: dict[int, dict] = {}
+    for g in games:
+        if g.get("seasonType", "regular") != "regular" or g.get("completed"):
+            continue
+        if g.get("week") is None or int(g["week"]) <= week or not g.get("startDate"):
+            continue
+        if g.get("homeId") is None or g.get("awayId") is None:
+            continue
+        if g.get("homeId") not in fbs_ids and g.get("awayId") not in fbs_ids:
+            continue
+        seen[int(g["id"])] = g
+    return sorted(seen.values(), key=lambda g: (g["startDate"], int(g["id"])))
+
+
 def build_week(
     *,
     season: int,
@@ -109,8 +129,9 @@ def build_week(
     slug_of: dict[int, str] = {tid: slugs.slug_for(tid, by_id[tid]["school"]) for tid in sorted(by_id)}
 
     games = included_games(cfbd_games, set(by_id), week)
+    scheduled = upcoming_games(cfbd_games, set(by_id), week)
     opp_ids: dict[int, tuple[str, str | None]] = {}
-    for g in games:
+    for g in games + scheduled:
         for side in ("home", "away"):
             tid = int(g[f"{side}Id"])
             if tid not in by_id and tid not in opp_ids:
@@ -149,6 +170,24 @@ def build_week(
                 "pf": pf,
                 "pa": pa,
                 "result": "W" if pf > pa else "L",
+                "conf": bool(g.get("conferenceGame")),
+            })
+
+    # ---- remaining schedules (no scores yet)
+    upcoming: dict[int, list[dict]] = {tid: [] for tid in by_id}
+    for g in scheduled:
+        date = to_eastern_date(g["startDate"]).isoformat()
+        for side, other in (("home", "away"), ("away", "home")):
+            tid = int(g[f"{side}Id"])
+            if tid not in by_id:
+                continue
+            oid = int(g[f"{other}Id"])
+            upcoming[tid].append({
+                "week": int(g["week"]),
+                "date": date,
+                "opp": slug_of[oid],
+                "oppFbs": oid in by_id,
+                "site": "neutral" if g.get("neutralSite") else side,
                 "conf": bool(g.get("conferenceGame")),
             })
 
@@ -217,6 +256,7 @@ def build_week(
                 "els": row.values["ELS"],
             },
             "games": gl,
+            "upcoming": upcoming[tid],
         }
 
     # ---- conference champions (championship games within the included weeks)

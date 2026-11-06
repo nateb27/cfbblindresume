@@ -30,10 +30,12 @@ quality. Everything is orthogonal: rectangles, 2-8px radii, no skews, no glows, 
 // layouts: import once
 import '../styles/global.css';
 import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url'; // same hashed file as the CSS url()
+import barlow600 from '../assets/fonts/BarlowCondensed-600.woff2?url';
 ---
 <html lang="en" data-theme="dark">          <!-- game pages (/ and /r/*) only; content pages omit it -->
 <head>
   <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href={barlow600} as="font" type="font/woff2" crossorigin />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
@@ -42,8 +44,9 @@ import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url'; // same h
 </head>
 ```
 
-- Built output: `/_astro/BarlowCondensed-700.<hash>.woff2` (+ 600). Preload only 700 (headline,
-  records, ranks above the fold). 600 swaps in; the metric-matched fallback face keeps CLS at 0.
+- Built output: `/_astro/BarlowCondensed-700.<hash>.woff2` (+ 600). Preload both: 700 (headline,
+  records, ranks) and 600 (labels, table heads, team chips). A late 600 swap re-measured auto-width
+  table columns (small CLS on /teams and /rankings); the metric-matched fallback face covers the rest.
 - Themes: `@theme` = dark (default, game). Content pages follow `prefers-color-scheme`.
   `data-theme="light|dark"` on any element forces that theme for the subtree.
 - `tokens.ts` exports `colors.dark/light`, `tierKey(stars)`, `tierColor(stars, theme)`,
@@ -103,9 +106,9 @@ Utilities: `bg-*`, `text-*`, `border-*`, `ring-*`, `outline-*`, `fill-*` with th
 | `control` on `page` / `surface` / `raised` | 3:1 | 4.82 / 4.47 / 4.05 | 4.64 / 4.29 / 3.96 |
 | `focus` on `page` / `surface` / `raised` | 3:1 | 14.68 / 13.61 / 12.34 | 6.19 / 5.72 / 5.27 |
 | `accent-edge` on `page` / `surface` / `raised` | 3:1 | 14.68 / 13.61 / 12.34 | 4.24 / 3.92 / 3.62 |
-| `tier-50` on `page` / `surface` / `raised` | 3:1 | 12.81 / 11.87 / 10.77 | 4.24 / 3.93 / 3.62 |
-| `tier-45` | 3:1 | 10.43 / 9.66 / 8.77 | 4.54 / 4.20 / 3.87 |
-| `tier-40` | 3:1 | 8.61 / 7.98 / 7.24 | 4.28 / 3.96 / 3.65 |
+| `tier-50` on `page` / `surface` / `raised` | 3:1 | 12.81 / 11.87 / 10.77 | 4.22 / 3.90 / 3.60 |
+| `tier-45` | 3:1 | 10.43 / 9.66 / 8.77 | 4.72 / 4.36 / 4.02 |
+| `tier-40` | 3:1 | 8.61 / 7.98 / 7.24 | 4.82 / 4.46 / 4.11 |
 | `tier-30` | 3:1 | 7.84 / 7.26 / 6.59 | 4.61 / 4.26 / 3.93 |
 | `tier-20` | 3:1 | 6.28 / 5.82 / 5.28 | 4.08 / 3.78 / 3.48 |
 | `tier-15` | 3:1 | 5.38 / 4.99 / 4.52 | 3.87 / 3.58 / 3.30 |
@@ -123,9 +126,9 @@ Key = stars x 10 (`tierKey(stars)`): `data-tier="50|45|40|30|20|15|10|05"` on an
 
 | Key | Stars | Tier (FEI rank) | Dark | Light | Dot |
 | --- | --- | --- | --- | --- | --- |
-| `50` | 5 | 1-5 | `#ffcd34` gold | `#a07300` | 14px |
-| `45` | 4.5 | 6-10 | `#f8b23d` amber | `#ae6408` | 12px |
-| `40` | 4 | 11-25 | `#d9a461` bronze | `#9b724b` | 11px |
+| `50` | 5 | 1-5 | `#ffcd34` gold | `#937900` | 14px |
+| `45` | 4.5 | 6-10 | `#f8b23d` amber | `#b65a00` | 12px |
+| `40` | 4 | 11-25 | `#d9a461` bronze | `#8c6b56` | 11px |
 | `30` | 3 | 26-50 | `#77abd7` steel | `#4479a9` | 10px |
 | `20` | 2 | 51-75 | `#7f96af` slate | `#698098` | 9px |
 | `15` | 1.5 | 76-100 | `#7c8999` | `#768392` | 8px |
@@ -138,7 +141,11 @@ Key = stars x 10 (`tierKey(stars)`): `data-tier="50|45|40|30|20|15|10|05"` on an
   slate). `<div class="meter" data-tier="50" style="--fill:.985"><span></span></div>`, 6px tall.
 - **Resume-strip dots:** `<span class="tier-dot" data-tier="30"></span>`, sized by tier, with the
   W/L letter under it (section 7).
-- **Quality-win chips:** Top 10 = `50`, 11-25 = `40`, 26-50 = `30` dot (8px).
+- **Quality-win chips:** Top 10 = `50`, 11-25 = `40`, 26-50 = `30` dot (8px). Labels "Top 10" /
+  "11-25" / "26-50" everywhere (game card, team page, compare card); the heading names the scale
+  ("Quality wins (by FEI rank)"), so labels never truncate.
+- Light theme: gold `50` leans yellow, amber `45` leans orange and bronze `40` is muted, so the
+  three top tiers stay distinguishable after darkening for contrast on white.
 
 ## 5. Type
 
@@ -167,7 +174,8 @@ Key = stars x 10 (`tierKey(stars)`): `data-tier="50|45|40|30|20|15|10|05"` on an
 ## 6. Space, radius, shadow, motion
 
 - Base unit 4px (`p-1` = 4px). Gutter `px-gutter` (16px) on phones, `lg:px-gutter-lg` (32px).
-  Containers: `max-w-read` 672px prose, `max-w-page` 1216px content, `max-w-game` 1248px game.
+  Containers: `max-w-read` 672px prose, `max-w-page` 1216px content, `max-w-game` 1216px game (the
+  same as page, so the home hero, game panel, "This week" and header share one left edge).
 - Radius: `rounded-slab` 2px (team blocks, plates, bars), `rounded-chip` 4px (chips, buttons,
   tiles, inputs), `rounded-card` 8px (cards, table frames), `rounded-panel` 12px (modals).
 - Shadow: `shadow-card` (cards), `shadow-panel` (modals), `shadow-footer` (sticky bars). Flat
@@ -185,19 +193,21 @@ Key = stars x 10 (`tierKey(stars)`): `data-tier="50|45|40|30|20|15|10|05"` on an
 
 | Class | Markup / states |
 | --- | --- |
-| `.team-block` | flex row; `style={teamVars(c)}`; children `.seed-plate` + name + meta; `data-in-field` = accent outline + accent plate |
+| `.team-block` | flex row; `style={teamVars(c)}`; children `.seed-plate` + name + meta; `data-in-field` = accent ring (box-shadow: 2px `page` gap + 2px `accent-edge`) + accent plate; a focused in-field block adds a 3px `fg` outline outside the ring |
 | `.team-chip` | inline name with a 12x20 color block + 4px rule; tables, lists, prose |
 | `.seed-plate` | left plate in a team block: `raised-2`, condensed 700 numeral |
 | `.meter` | rank bar, `data-tier`, `--fill`; `data-animate` to grow on mount |
 | `.stars`, `.tier-dot` | see section 4 |
 | `.result-chip` | `data-result="W|L"`: `<span class="result-chip" data-result="W"><span>W</span><span>+16</span></span>`, min 60x24 |
-| `.delta` | `data-dir="up|down"` + number; add sr-only text ("up 3 from the committee"); omit when equal |
+| `.delta` | `data-dir="up|down"` + number; add sr-only text ("up 3 from the committee"); omit when equal (sr-only "agree" text stays; tables show a muted `=` so the cell does not read as missing). Direction is always from the side of the label beside it (`Delta` `subject`/`ref`) |
 | `.btn` + `.btn-primary` / `.btn-secondary` / `.btn-ghost` / `.btn-rank` | 44px min, condensed 700 17px caps |
 | `.switch` + `.switch-track` | `<button role="switch" aria-checked>`; on = accent track |
 | `.segmented` | children `[aria-pressed]` / `[aria-selected]` / `[aria-current]`; selected = `accent-tint` + accent text + 1px `accent-edge` |
 | `.tabs` + `.tab` | `[aria-selected=true]` = `fg` + 3px `accent-fill` underline |
 | `.link` | `fg` text, 2px `accent-edge` underline, hover `accent` text |
-| `.table-wrap` + `.data-table` | `th[data-num]`, `td[data-num]` right-aligned condensed; `tr[data-cut]` = 2px accent cut line |
+| `.table-wrap` + `.data-table` | `th[data-num]`, `td[data-num]` right-aligned condensed; `tr[data-cut]` = 2px accent cut line. `.table-wrap` is `position: relative` so `.sr-only` cell text scrolls with the table instead of widening the page |
+| `.team-chip-tap` | team link in a table row (`TeamChip tap`): 44px-tall hit area with -8px block margins, so the row height does not change |
+| `.hero-name` | team-page hero name (`TeamBlock` `nameFit` from `heroNameFit()`): size container + `min(max, (100cqi - meta) / width-per-px)`, two stacked `.hero-line`s for long names on phones; never truncates |
 | `.callout` | `surface`, 4px `accent-edge` left rule |
 | `.ad-slot` + `.ad-label` + `.ad-box` | section 13 |
 
@@ -221,7 +231,7 @@ secondary rule carries identity (Michigan maize, Iowa gold). Seed plate sits lef
 | row | `h-12` 48 | `min-w-10` 22px | 18px | phone results list, rankings lists |
 | tile | `min-h-16` 64 | `min-w-9` 22px | `text-team` 16px, 2 lines max | results grid |
 | reveal | `h-14` 56 | `min-w-12` 28px | `text-heading` 24px | reveal panel |
-| hero | `h-[4.5rem] sm:h-24` | none | `text-title sm:text-display` | team page header |
+| hero | `min-h-[4.5rem] sm:min-h-24` | none | `.hero-name`: up to 32px phones / 56px from 640px, sized to fit (two lines on phones for long names) | team page header |
 
 ```html
 <a href="/teams/miami" class="team-block min-h-16 pr-3" style="--team-bg:#f47321;--team-ink:#0e0f12;--team-rule:#005030;--team-edge-dark:transparent;--team-edge-light:transparent">
@@ -320,6 +330,17 @@ The reveal panel shows the same slab painted in team colors.
   three dots (`role="tab"`, current `h-2 w-6 bg-accent-fill`, others `size-2 bg-control`; tap
   scrolls to that card) + `btn btn-rank flex-1` for the card in view ("Rank B 1st"; after a pick
   on that card: "1st · tap to undo" filled). Main content gets `pb-28`.
+- **Phone ranking is two deliberate taps:** "Rank B 1st" for the card in view, then two buttons
+  "Rank A 2nd" / "Rank C 2nd"; Undo stays in the same left-hand spot and the footer is a fixed 68px
+  tall in every state. After locking, the bar stays visible but disabled ("Locked in"). Any control
+  that appears or changes under the finger ignores taps for 400 ms (keyboard never blocked).
+- **At-a-glance table (phones):** above the cards, one row per team (record, SoR, Off, Def, Sched,
+  vs top 25), the best value per column highlighted; tapping a row scrolls to that card. The A/B/C
+  footer buttons show each team's record.
+- **Card credit:** every blind card ends with a one-line footer "Ratings: FEI by Brian Fremeau"
+  (`.link` to the season's FEI page; the link never wraps).
+- **Lock in automatically** (saved setting, on by default): the second pick locks after a short
+  countdown; only a real mouse move or keyboard focus on Undo stops it.
 - One line under the cards: "#N = rank among all 138 FBS teams · Ratings: FEI by Brian
   Fremeau" (`text-[0.8125rem] text-fg-muted`, link `.link`; 138 from `fbsCount`). This line
   also appears in the reveal footer and on results (the attribution on every game view).
@@ -343,7 +364,10 @@ heading announced (`aria-labelledby`, plus a polite live region with the running
   ("Matches committee"); not matched = `raised` + `fg-muted` + X icon ("Differs from FEI").
 - Running line 15px: "You've matched the committee in **4 of 6** rounds, FEI in **5 of 6**."
 - Footer `border-t border-line px-5 py-3 text-[0.75rem] text-fg-faint`: "Tap anywhere or press
-  any key to continue" left, attribution right.
+  any key to continue" left, attribution right; it and Next round stay pinned to the bottom edge
+  while the panel scrolls. Tap, Esc, Enter or a letter key closes; arrows, Page, Home/End and Space
+  scroll. The panel opens scrolled to the top. Without a committee the cells are two columns (You,
+  FEI SoR). The FEI cell is labeled "FEI SoR".
 
 ## 12. "15 rankings in" panel
 
@@ -361,13 +385,17 @@ agreement sentence, share module, play again.
 
 - **Header:** kicker `label-caps text-accent` "After Week 9 · 15 rounds" (add "· partial" when
   skipped), `cond text-title lg:text-display uppercase` "Your top 25", `btn btn-secondary` "Play
-  again" right.
+  again" right (phones: a jump row Bracket · Bids · Share instead). Under the title a headline stat
+  ("Matched the committee on **43%** of your head-to-head calls, FEI on **65%**.", numbers accent).
 - **Tabs:** `.tabs` with Your ranking / Committee / FEI / Fans (Fans only above the threshold).
 - **Controls row** (`flex flex-wrap gap-x-6 py-2`): two `.switch` ("Compare with committee",
   "Highlight playoff field"), then `.segmented` right-aligned (`ml-auto`; full width with equal
-  segments on phones): "12 teams · 2026 format" | "24 teams · proposed". Selecting 24 shows under
-  the controls: the one-line rules, "Proposed for 2027 — not final" (`label-caps text-fg-muted`),
-  source link (`.link`).
+  segments on phones): "12 teams · 2026 format" | "24 teams · proposed" (below 360px "12 · 2026
+  format" | "24 · proposed", so both fit 288px). Selecting 24 shows under the controls: the one-line
+  rules, "Proposed for 2027 — not final" (`label-caps text-fg-muted`), source link (`.link`).
+- **Legend** (13px `fg-muted`, under the controls): the delta triangle, the field ring, `AQ`
+  (automatic bid tag, also on the tiles), Unseen / Not shown. "NR" marks positions past what the
+  selected source ranked (committee 25; the fans' list length).
 - **Grid (>= 640px):** `grid grid-cols-5 gap-x-3 gap-y-3.5` of tiles (team block, tile size).
   >= 1024px: `grid lg:grid-cols-[minmax(0,5fr)_minmax(0,1fr)] gap-6`; right column `lg:border-l
   lg:border-line lg:pl-6`, `label-caps` "First 5 out", tiles 26-30 in one column. 640-1023px: the
@@ -377,8 +405,9 @@ agreement sentence, share module, play again.
 - **Compare with committee:** under each tile a 16px line `mt-1.5 flex justify-between px-0.5`:
   `label-caps text-fg-muted` "CFP 6" ("CFP NR" when unranked) and `.delta` up/down (omitted when
   equal). Delta = committee rank minus your rank (positive = you rank them higher = up).
-- **Highlight playoff field:** `data-in-field` on the team block: 2px `accent-edge` outline at
-  2px offset + accent seed plate. Field = the selected format's field.
+- **Highlight playoff field:** `data-in-field` on the team block: a 2px `accent-edge` ring at 2px
+  offset (box-shadow, so the 3px `fg` focus outline stays distinct) + accent seed plate. Field = the
+  selected format's field.
 - **Unseen:** tag `label-caps rounded-slab bg-raised-2 px-1 text-fg` "Unseen" in the tile's
   under-line (right side), never on the color block.
 
@@ -430,7 +459,8 @@ agreement sentence, share module, play again.
 - **Share module:** `rounded-card border border-line bg-surface p-4`: preview of the share image
   (1200x630, `rounded-chip`), buttons `btn btn-primary` "Share" (Web Share), `btn btn-secondary`
   "Copy link" (label flips to "Copied" for 2s with `aria-live`), `btn btn-secondary` "Save image".
-- One ad slot (`incontent`) between the top 25 and the share module, outside the play area.
+- One ad slot (`incontent`) just above the share module (after the bracket, bids and agreement
+  line), outside the play area; a plain div like the content slots.
 
 ## 14. Content pages
 
@@ -446,20 +476,43 @@ Typographic, tables not cards; light or dark by OS. `max-w-page`, `px-gutter lg:
   independents show the record only). Below, the **four ranks + committee rank** as a stat row
   `dl grid grid-cols-2 sm:grid-cols-5 gap-x-6 gap-y-5 mt-5`: Committee first (phones: `col-span-2`;
   desktop: `sm:border-r sm:border-line sm:pr-6`), `label-caps text-fg-muted` label, `cond
-  text-stat-lg` "#1" ("NR" if unranked), then a 6px bar: committee = full `accent-fill`
-  (`track` when unranked); others `.meter` with tier color and `rankFill`.
+  text-stat-lg` "#1" ("NR" if unranked), then a 6px bar: every rank, the committee's included, is a
+  `.meter` with the tier color of its rank band and `rankFill` (`track` when unranked), so a #20
+  committee bar is never longer than a #14 strength of record. Strength of record and schedule add
+  one plain line under the bar ("1.22 more wins than a good team would expect on this schedule",
+  "An elite team would expect 1.25 losses on this schedule"), the raw value below in `fg-muted`.
+- **Status line** under the hero: one sentence from the committee's projected fields ("By the
+  committee's ranking, Ohio State would be the 1st team out of the 12-team field and the No. 12
+  seed in the proposed 24-team field.").
+- **Resume highlights** (team page Resume section and compare cards): record vs the committee top
+  25, best win, worst loss (`resumeHighlights()` in site.ts).
+- **Labels:** the strength-of-record (GWD) rank is "SoR" in tight spots (columns, chips, "SoR 16"),
+  "FEI strength of record" / "Strength of record" in prose. Bare "FEI" only ever means FEI overall
+  (`ranks.fei`) or the system; `scripts/content-verify.mjs` fails on a bare "FEI 16"-style label.
+- **Jump nav** (`JumpNav`): a grid of 44px chips, 2 columns on phones, equal columns >= 10.5rem
+  from 640px: every chip visible (no hidden sideways scroll), and the row count never depends on
+  text width, so a late font swap cannot re-wrap it.
 - **Committee vs FEI callout:** `.callout mt-8`: `label-caps` "Committee vs FEI" + one 18px
   sentence with ranks in `cond 20px 700`: "The committee has Miami **#1**. FEI's strength of
   record puts them **#3**, two spots lower."
 - **Tables:** `.table-wrap` > `table.data-table`; team cells use `.team-chip` links; numeric
   columns `data-num`; results as `.result-chip`; score `pf-pa` in the condensed numeric cell.
   Game log columns: Opponent | Tier (stars + tier label in `fg-muted`) | Site | Result | Score.
-  Under 640px drop the Site column and the tier label (stars keep their `aria-label`); the site
-  becomes a second line under the opponent (`pl-5 text-[0.8125rem] leading-4 text-fg-muted`), so
-  the table fits 358px without scrolling. Non-FBS opponents: `.team-chip` with
+  Under 640px drop the Date and Site columns, the tier label (stars keep their `aria-label`) and
+  shorten the head to "Tier"; the site (and "CFP N") becomes a second line under the opponent
+  (`pl-5 text-[0.8125rem] leading-4 text-fg-muted`), the date a second line under the score, and
+  inner cell padding drops to 6px, so the table fits 328px (a 360px phone) without scrolling. Non-FBS opponents: `.team-chip` with
   `--team-bg: var(--color-raised-2)` (default rule), not a link. Rankings
-  tables: Rank | Team | Record | FEI GWD rank | Delta; cut lines for "in the 12" and "in the 24
+  tables: Rank | Team | Record | SoR (or CFP) | SoR vs CFP delta; cut lines for "in the 12" and "in the 24
   (proposed)" as `tr[data-cut]` + a right-aligned `label-caps text-accent` note in the last cell.
+- **Still to play** (team page, after the game log; `UpcomingTable` from `upcomingRows`): h2 + one
+  muted line ("4 games left · 1 vs the committee's top 25 · toughest: at Notre Dame (FEI 1-5
+  team)"), then a `data-table` in date order: Date | Opponent (chip + `CFP N`) | Opponent tier
+  (stars + label) | Site (· Conf for conference games). Under 640px the site and CFP rank fold into
+  a second line under the opponent and the tier label drops (stars keep their name). Hidden when
+  the week file has no schedule; "No regular-season games left." when it is empty.
+- **Remaining schedule** (compare page): the same table per team, `compact` (always folded), in
+  two columns from 768px (`md:grid-cols-2 gap-8`), each under its team chip and summary line.
 - **Rank-history strip:** `ol flex gap-1.5 overflow-x-auto`, one cell per week file:
   `w-16 rounded-slab bg-surface px-2 py-1.5` with `label-caps` "Wk 9", `cond 24px 700` GWD
   "#3", `label-caps text-fg-muted` "CFP 1" ("CFP —" before the first release).
@@ -467,20 +520,32 @@ Typographic, tables not cards; light or dark by OS. `max-w-page`, `px-gutter lg:
   each with its hero team block (reveal size) on top instead of the redacted header. Above them a
   head-to-head note (same style as the H2H flag) and a two-line verdict: "Committee: A (#4) over
   B (#9)" / "FEI strength of record: B (#6) over A (#11)", team names as `.team-chip`.
-- **Bubble:** a `data-table` of committee 8-20 sorted by GWD rank; the gap column uses `.delta`.
+- **Bubble:** a `data-table` of committee 8-20 sorted by GWD rank; the gap column uses `.delta`; the
+  gap chart is drawn in % of its column (fills any width). In/out cells: "In 10" / "2nd out" / "Out"
+  (one out-wording everywhere: `outText()` = "1st out"), 14px with 4px padding on phones.
+- **Play pitch** (`PlayCta`): `rounded-card border border-line bg-surface p-5`, kicker, one
+  question in condensed caps, one line, `btn btn-primary` "Rank them blind" to `/#play`. On compare,
+  bubble and team pages; never inside an ad slot.
+- **Compare hub** (`/compare`): neighbors in the ranking, the cut-line matchups (`CutPairs`), then a
+  no-JS `<details>` per committee team with all of its compares.
 
 ## 15. Ad slots
 
 ```html
-<aside class="ad-slot" data-kind="incontent" aria-label="Advertisement">
+<div class="ad-slot" data-kind="incontent">
   <span class="ad-label">Advertisement</span>
   <div class="ad-box"><!-- creative --></div>
-</aside>
+</div>
 ```
 
-Reserved creative heights: `leaderboard` 100px phones / 90px >= 768 (max 728 wide);
-`incontent` 250px (max 336); `sidebar` 250px phones, 600px sticky (`top-6`) >= 1024 in a 300px
-right column (`lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-10`). Hairlines above/below, label
+A plain div with the visible label, not a landmark (two `aside aria-label="Advertisement"` on one
+page were two identically named landmarks). The ad loader is injected only on pages that render a
+slot (`BaseLayout ads`).
+
+Reserved creative heights = the tallest unit the slot's width accepts: `leaderboard` 100px phones /
+90px >= 768 (max 728 wide); `incontent` 280px (max 336, so a 336x280 fill cannot grow it);
+`sidebar` 280px phones (max 336), 600px sticky (`top-6`) >= 1024 in a 300px right column
+(`lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-10`). Hairlines above/below, label
 `fg-faint`. Nothing else may look like this (no ads styled as content); never inside cards or
 modals.
 
@@ -498,15 +563,20 @@ TTF advance widths (`src/assets/fonts/BarlowCondensed-{600,700}.ttf`).
   `1088 - recordWidth - 48` (min 72px). Record right-aligned at x 1144 baseline 250, 700 120px.
 - Stat row y 312-558: five cells of 217.6px from x 56: label 600 caps 26px (shrink to fit cell
   minus 24, min 20) `fg-muted` baseline 388; numeral 700 92px `fg` baseline 478; bar y 500 h 10,
-  width cell minus 28, `track` + fill (committee: full `accent-fill`; others tier color x
-  `rankFill`). Order: Committee, Strength of record, Offense, Defense, Schedule.
+  width cell minus 28, `track` + fill: every bar, the committee's included, is the tier color of its
+  rank band x `rankFill` (a #20 committee rank must not draw a full bar). Order: Committee, Strength of record, Offense, Defense, Schedule.
 - Footer y 558-630 `surface`: "CFBBLINDRESUME.COM" 700 32px +1.5 tracking `fg` at x 56 baseline
   605; right-aligned at x 1144 "After Week 9 · Ratings: FEI by Brian Fremeau" 600 28px `fg-muted`.
 
 **Share image** (user's top 12, `/og/r/{code}.png`):
 - Page `#0e0f12`; 8px `accent-fill` bar at the top.
 - "MY TOP 12" 700 76px `fg` x 56 baseline 104; right-aligned "AFTER WEEK 9 · 2026" 600 30px
-  +2 tracking `fg-muted` baseline 102.
+  +2 tracking `fg-muted` baseline 102 (66 when the hook is drawn).
+- Hook (right-aligned, baseline 104, 600 28px, +0.3 tracking): "Matched the committee on **43%** ·
+  Biggest call: **Kentucky** ▲4" (`fg-muted`, the percentage in `accent`, the team and number in
+  `fg`, the triangle drawn as rectangles 15x13 in `win`/`loss`). Biggest call = the top-12 team
+  furthest from its committee rank (unranked by the committee counts as 26 − position). Shorter
+  wordings are used when it does not fit beside the title; no committee: "Matched FEI on 65%".
 - Two columns of six rows: x 56 and 628, width 516, rows 60px tall, 12px apart, from y 140.
   Each row: seed plate 64x60 (`accent-fill` + `on-accent` numeral for seeds 1-4 (byes),
   `raised-2` + `fg` otherwise), numeral 700 40px centered baseline +44; color block 452x60 in
@@ -514,7 +584,8 @@ TTF advance widths (`src/assets/fonts/BarlowCondensed-{600,700}.ttf`).
   +20, baseline +42; record 600 30px right-aligned at -18.
 - Footer baseline 600: "Same game. Different numbers." 600 28px `fg-muted` left; right-aligned
   "CFBBLINDRESUME.COM · RATINGS: FEI BY BRIAN FREMEAU" 600 26px +1.5 tracking.
-- Atlas glyph sizes needed: 76, 40, 34 (down to 26), 30, 28, 26 at weights 700/600.
+- Atlas glyph sizes needed: 76, 40, 34 (down to 26), 30, 28, 26 at weights 700/600 (600/28 also
+  carries mixed-case names and `%` for the hook).
 
 Reference renders (resvg, real data): see the mock list at the end.
 

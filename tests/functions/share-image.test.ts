@@ -6,7 +6,7 @@ import { nextTrio } from '@lib/trios';
 import { rngForRound } from '@lib/rng';
 import { colors, teamPaint } from '../../src/styles/tokens';
 import { drawable, findStrike, fitStrike, layout, measure, strikeSizes, type AtlasJson } from '../../functions/_lib/atlas';
-import { paintShareImage, renderBrandImage, renderShareImage, SHARE, shareImageAlt, shareImageModel } from '../../functions/_lib/share-image';
+import { paintShareImage, renderBrandImage, renderShareImage, SHARE, shareHook, shareImageAlt, shareImageModel } from '../../functions/_lib/share-image';
 import { decodePng, pixelHex, realGameData, testAtlas } from './helpers';
 
 const D = colors.dark;
@@ -149,6 +149,42 @@ describe('share image', () => {
       const fit = fitStrike(atlas, 700, t.name.toUpperCase(), maxW, 34, 26, 0.5);
       expect(fit.fits, t.name).toBe(true);
     }
+  });
+
+  it('adds a hook line: agreement with the committee and the biggest call in the top 12', async () => {
+    const results = computeRunResults(gd, sampleRun());
+    const order = results.ranking.order;
+    const m = shareImageModel(gd, order, results.playoff.byes.map((s) => s.slug), results.agreement);
+    const share = results.agreement.pairwise.committee.share!;
+    expect(m.hook!.ref).toBe('committee');
+    expect(m.hook!.pct).toBe(`${Math.round(share * 100)}%`);
+    // The call is the top-12 team furthest from its committee rank (unranked counts as 26 - position).
+    const dist = order.slice(0, 12).map((s, i) => {
+      const c = gd.teams[s]!.committee;
+      return c === null ? gd.committee!.length + 1 - (i + 1) : Math.abs(c - (i + 1));
+    });
+    const best = Math.max(...dist);
+    const at = dist.indexOf(best);
+    expect(m.hook!.call).toEqual({ name: gd.teams[order[at]!]!.name, rank: at + 1, delta: gd.teams[order[at]!]!.committee === null ? null : gd.teams[order[at]!]!.committee! - (at + 1) });
+    expect(shareImageAlt(m)).toContain(` Matched the committee on ${m.hook!.pct}; biggest call: ${m.hook!.call!.name}`);
+    // Drawn: the kicker moves up and the hook (accent percentage) sits on the title baseline, right side.
+    const img = decodePng(await renderShareImage(m, testAtlas()));
+    let accent = 0;
+    for (let x = 600; x < 1144; x++) for (let y = 80; y < 108; y++) if (pixelHex(img, x, y) === D.accent) accent++;
+    expect(accent).toBeGreaterThan(20);
+  });
+
+  it('hook: the committee order has no call; an unranked team in the top 12 is the call; no committee means FEI', () => {
+    const committee = gd.committee!;
+    const agreeAll = computeRunResults(gd, []).agreement;
+    const withShare = { ...agreeAll, hasCommittee: true, pairwise: { calls: 3, committee: { matched: 3, comparable: 3, share: 1 }, fei: { matched: 2, comparable: 3, share: 2 / 3 } } };
+    expect(shareHook(gd, committee, withShare, 12)).toEqual({ ref: 'committee', pct: '100%', call: null });
+    const outsider = gd.prior.find((s) => gd.teams[s]!.committee === null)!;
+    const order = [committee[0]!, outsider, ...committee.slice(1)];
+    expect(shareHook(gd, order, withShare, 12)!.call).toEqual({ name: gd.teams[outsider]!.name, rank: 2, delta: null });
+    const noCommittee = { ...gd, committee: null };
+    expect(shareHook(noCommittee, gd.prior, { ...withShare, hasCommittee: false }, 12)).toEqual({ ref: 'FEI', pct: '67%', call: null });
+    expect(shareHook(gd, committee, { ...withShare, pairwise: { calls: 0, committee: { matched: 0, comparable: 0, share: null }, fei: { matched: 0, comparable: 0, share: null } } }, 12)).toBeNull();
   });
 
   it('renders the generic brand image', async () => {

@@ -15,9 +15,11 @@ interface Props {
   nonFbs?: boolean;
   /** Override the visible text (defaults to the team name). */
   label?: string;
+  /** In a table row: grow the link's hit area to the full row height (44px) without moving layout. */
+  tap?: boolean;
   class?: string;
 }
-const { week, slug, nonFbs = false, label, class: cls } = Astro.props;
+const { week, slug, nonFbs = false, label, tap = false, class: cls } = Astro.props;
 const t = nonFbs ? undefined : week.teams[slug];
 const o = nonFbs ? week.opponents[slug] : undefined;
 if (!t && !o) throw new Error(`TeamChip: unknown team ${slug}`);
@@ -26,7 +28,7 @@ const name = label ?? t?.name ?? o!.name;
 
 {
   t ? (
-    <a href={teamHref(t.slug)} class:list={['team-chip hover:underline hover:decoration-2 hover:underline-offset-4', cls]} style={teamVars(t.colors)}>
+    <a href={teamHref(t.slug)} class:list={['team-chip hover:underline hover:decoration-2 hover:underline-offset-4', tap && 'team-chip-tap', cls]} style={teamVars(t.colors)}>
       {name}
     </a>
   ) : (

@@ -124,6 +124,23 @@ class MiniAndFallbacks(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, "twice"):
             parse_fei_text("\n".join(lines + [lines[2]]))
 
+    def test_rank_typo_in_a_paste_is_refused(self):
+        # Notre Dame's GWD rank 2 -> 4: now below Hawaii (#4, -.30) with a higher GWD (.20).
+        bad = read(FIX / "fei_mini.csv").replace(",-.55,3,.20,2,", ",-.55,3,.20,4,", 1)
+        self.assertNotEqual(bad, read(FIX / "fei_mini.csv"))
+        with self.assertRaisesRegex(PipelineError, "column GWD_Rk does not follow GWD"):
+            parse_fei_text(bad)
+
+    def test_value_typo_in_a_paste_is_refused(self):
+        # Texas A&M's FEI 1.10 -> -1.10 while it stays #1.
+        bad = read(FIX / "fei_mini.csv").replace(",1.10,", ",-1.10,", 1)
+        with self.assertRaisesRegex(PipelineError, "column Rk does not follow FEI"):
+            parse_fei_text(bad)
+
+    def test_real_page_ranks_follow_values(self):
+        # The trimmed real page (rows 1-30 and 136-138) passes the same check.
+        self.assertEqual(len(parse_fei_html(read(FIX / "fei_trimmed.html")).rows), 33)
+
     def test_non_table_content(self):
         blocked = "<html><body>Request unsuccessful. Incapsula incident ID: 123</body></html>"
         self.assertFalse(looks_like_fei_page(blocked))

@@ -3,40 +3,60 @@
  * /teams/{slug}: one resume page per FBS team in the latest week file (never a hard-coded count).
  * Header with record and the ranks, committee vs FEI callout, the blind card's content un-blinded
  * (quality wins, resume strip, toughest-first game log), where the team stands in every playoff
- * format by the committee and by FEI, rank history from every week file, nearest compares and the
- * conference table. Static HTML, no JS.
+ * format by the committee and by FEI, rank history from every week file, nearest compares (plus
+ * every compare for a committee team) and the conference table. Static HTML, no JS.
  */
-import { conferenceStandings, nearestCompares } from '@lib/data';
+import { comparePairs, conferenceStandings, nearestCompares } from '@lib/data';
 import type { PlayoffFormat } from '@lib/types';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AdSlot from '../../components/AdSlot.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import GameLogTable from '../../components/GameLogTable.astro';
+import PlayCta from '../../components/PlayCta.astro';
 import QualityWins from '../../components/QualityWins.astro';
 import RankBars from '../../components/RankBars.astro';
 import ResumeStrip from '../../components/ResumeStrip.astro';
 import TeamBlock from '../../components/TeamBlock.astro';
 import TeamChip from '../../components/TeamChip.astro';
+import TeamLink from '../../components/TeamLink.astro';
+import UpcomingTable from '../../components/UpcomingTable.astro';
+import { heroNameFit } from '../../components/text-metrics';
 import { teamVars } from '../../styles/tokens';
 import {
+  SOR,
+  autoBidPhrase,
   bidLabel,
+  clampText,
   committeeVsFei,
   compareHref,
+  compareHubHref,
   confAnchor,
   confRecord,
+  displacedBy,
   feiValue,
-  formatShortLabel,
+  firstFit,
+  formatFieldWords,
+  formatKicker,
   formatStatus,
+  joinAnd,
   latestWeek,
+  oppWithRank,
   ordinal,
+  outText,
   playoffViews,
+  rankIn,
   record,
+  resumeHighlights,
   seasonWeeks,
+  signed,
   sportsTeamLd,
   standingIn,
   teamHref,
   teamOgPath,
   type FieldStanding,
+  upcomingLine,
+  upcomingSummary,
+  siteVs,
 } from '../../components/site';
 
 export function getStaticPaths() {
@@ -53,13 +73,21 @@ const g = t.ranks.sor;
 const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.conference));
 const labelLower = week.label.replace(/^After/, 'after');
 
-// SEO
-const formatsPhrase = views.formats.map((f) => (f.status === 'proposed' ? `proposed ${f.size}-team` : `${f.size}-team`)).join(' and ');
-const title = `${t.name} Playoff Resume: ${week.committee ? (c ? `#${c} Committee` : 'Unranked by Committee') : record(t)}, #${g} FEI Strength of Record — ${week.label}`;
-const description =
-  `${t.name} (${record(t)}${independent ? '' : `, ${confRecord(t)} ${t.conference}`}) ` +
-  (week.committee ? (c ? `is #${c} in the committee's ranking` : `is outside the committee's top ${week.committee.length}`) + ' and ' : 'is ') +
-  `#${g} of ${n} in FEI strength of record ${labelLower}. Game log with opponent tiers, quality wins, and where they stand in the ${formatsPhrase} fields.`;
+// SEO: unique facts first, about 60 / 155 characters.
+const verdict = week.committee ? (c ? `CFP #${c}` : 'Unranked') : record(t);
+const title = firstFit([
+  `${t.name} Playoff Resume ${week.season}: ${verdict}, SoR #${g}`,
+  `${t.name} Resume ${week.season}: ${verdict}, SoR #${g}`,
+  `${t.name} ${week.season}: ${verdict}, SoR #${g}`,
+]);
+const standingWords =
+  (week.committee ? (c ? `#${c} in the committee's ranking, ` : `outside the committee's top ${week.committee.length}, `) : '') +
+  `#${g} of ${n} in FEI strength of record ${labelLower}.`;
+const description = clampText([
+  [`${t.name}, ${record(t)}${independent ? '' : ` (${confRecord(t)} ${t.conference})`}: ${standingWords}`, `${t.name}, ${record(t)}: ${standingWords}`],
+  [' Game log, opponent tiers and playoff outlook.', ' Game log and playoff outlook.'],
+]);
+const heroFit = heroNameFit(t.name, { record: record(t), conf: independent ? 'Independent' : `${t.conference} ${confRecord(t)}` });
 
 // Callout
 const phrase = committeeVsFei(t, week);
@@ -72,7 +100,7 @@ const orders = [
 function standingText(st: FieldStanding, f: PlayoffFormat, key: 'committee' | 'fei', res: (typeof orders)[number]['res']) {
   const p = res[f.id]!;
   if (st.kind === 'in') {
-    const bid = bidLabel(st.seed!, p);
+    const bid = bidLabel(st.seed!, p, week);
     const bidText = st.seed!.bid === 'champion' ? `Auto bid as ${bid}` : bid.charAt(0).toUpperCase() + bid.slice(1);
     const bits = [st.bye ? 'First-round bye' : null, bidText].filter(Boolean) as string[];
     return { main: `No. ${st.seed!.seed} seed`, sub: bits.join(' · '), tone: 'in' as const };
@@ -83,11 +111,33 @@ function standingText(st: FieldStanding, f: PlayoffFormat, key: 'committee' | 'f
         ? `Not in the committee's top ${week.committee?.length ?? ''}`.trim()
         : `Committee #${c}`
       : `FEI strength of record #${g}`;
-  if (st.kind === 'first-out') {
-    return { main: st.outPos === 1 ? 'First team out' : `${ordinal(st.outPos!)} team out`, sub: rankSub, tone: 'out' as const };
-  }
-  return { main: 'Out', sub: rankSub, tone: 'out' as const };
+  // Ranked inside the field size but out: name the automatic bid(s) that took the spot.
+  const by = displacedBy(p, slug);
+  const why = by.length
+    ? `out because ${joinAnd(by.map((b) => `${week.teams[b.slug]!.name} (${rankIn(key, week.teams[b.slug]!)})`))} ${autoBidPhrase(by, p, week)}`
+    : null;
+  const sub = why ? `${rankSub} · ${why}` : rankSub;
+  if (st.kind === 'first-out') return { main: outText(st.outPos!), sub, tone: 'out' as const };
+  return { main: 'Out', sub, tone: 'out' as const };
 }
+
+// One plain sentence near the top: where the team stands in every field by the main ranking.
+const mainOrder = orders[0]!;
+const statusBits = views.formats.map((f) => {
+  const st = standingIn(mainOrder.res[f.id]!, slug);
+  return st.kind === 'in'
+    ? `the No. ${st.seed!.seed} seed${st.bye ? ' (with a bye)' : ''} in ${formatFieldWords(f)}`
+    : st.kind === 'first-out'
+      ? `the ${ordinal(st.outPos!)} team out of ${formatFieldWords(f)}`
+      : `out of ${formatFieldWords(f)}`;
+});
+const statusLead = mainOrder.key === 'committee' ? "By the committee's ranking" : "By FEI's strength of record";
+
+// Resume highlights (record vs the committee's top 25, best win, worst loss).
+const hl = resumeHighlights(week, slug);
+
+// Still to play (null when the week file carries no schedules: the section is hidden)
+const upcoming = upcomingSummary(week, slug);
 
 // Rank history (every week file of the season)
 const history = seasonWeeks(week.season).map((w) => ({
@@ -97,8 +147,9 @@ const history = seasonWeeks(week.season).map((w) => ({
   hasCommittee: w.committee !== null,
 }));
 
-// Nearest compares and the conference table
+// Nearest compares, every compare (committee teams), and the conference table
 const compares = nearestCompares(week, slug, 3);
+const allCompares = c === null ? [] : comparePairs(week).filter((p) => p.a === slug || p.b === slug);
 const standing = conferenceStandings(week).find((s) => s.conference === t.conference)!;
 
 const ld = {
@@ -111,6 +162,7 @@ const ld = {
   title={title}
   description={description}
   path={teamHref(slug)}
+  ads
   ogImage={teamOgPath(slug)}
   ogImageAlt={`${t.name} ${record(t)}: ${week.committee ? `committee ${c ? `#${c}` : 'unranked'}, ` : ''}FEI strength of record #${g}, ${week.label}`}
   jsonLd={ld}
@@ -121,11 +173,11 @@ const ld = {
     <Breadcrumbs
       items={[
         { name: 'Teams', href: '/teams' },
-        { name: t.conference, href: `/teams#${confAnchor(t.conference)}` },
+        { name: t.conference, href: `/teams#${confAnchor(t.conference)}`, ld: false },
         { name: t.name, href: teamHref(slug) },
       ]}
     />
-    <TeamBlock team={t} size="hero" href={false} nameAs="h1" meta={record(t)} class="mt-2">
+    <TeamBlock team={t} size="hero" href={false} nameAs="h1" nameFit={heroFit} meta={record(t)} class="mt-2">
       <Fragment slot="meta">
         {record(t)}
         <span class="block text-[0.8125rem] leading-4 font-semibold tracking-[0.06em] sm:text-[0.9375rem] sm:leading-5">
@@ -135,6 +187,11 @@ const ld = {
     </TeamBlock>
     <p class="mt-3 text-sm text-fg-muted">
       {t.mascot ? `${t.name} ${t.mascot}` : t.name} · {t.conference} · {week.label}, {week.season}
+    </p>
+    <p class="mt-2 max-w-read text-[0.9375rem] leading-6">
+      <span class="text-fg-muted">{statusLead}, {t.name} would be</span>{' '}
+      <b class="font-semibold">{joinAnd(statusBits)}</b>.{' '}
+      <a class="link text-fg-muted" href="#stand">Details</a>
     </p>
 
     <RankBars team={t} week={week} class="mt-6" />
@@ -159,9 +216,49 @@ const ld = {
         <section aria-labelledby="resume">
           <h2 id="resume" class="cond text-heading uppercase">Resume</h2>
           <p class="mt-1 text-sm text-fg-muted">What the blind game shows for {t.name}, with the name on.</p>
-          <div class="mt-4 flex flex-wrap gap-x-12 gap-y-5">
+          <dl class="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-3">
+            {
+              hl.vsCommittee && (
+                <div class="min-w-0">
+                  <dt class="label-caps text-fg-muted">vs committee top {hl.vsCommittee.n}</dt>
+                  <dd class="cond mt-0.5 text-[1.375rem] leading-7 font-bold">
+                    {hl.vsCommittee.w + hl.vsCommittee.l === 0 ? <span class="text-fg-muted">No games</span> : `${hl.vsCommittee.w}-${hl.vsCommittee.l}`}
+                  </dd>
+                </div>
+              )
+            }
+            {
+              [
+                { k: 'Best win', g: hl.bestWin, none: 'No wins yet' },
+                { k: 'Worst loss', g: hl.worstLoss, none: 'Unbeaten' },
+              ].map(({ k, g, none }) => {
+                const o = g ? oppWithRank(week, g) : null;
+                return (
+                  <div class="min-w-0">
+                    <dt class="label-caps text-fg-muted">{k}</dt>
+                    <dd class="mt-1 text-[0.9375rem] leading-6">
+                      {g && o ? (
+                        <>
+                          <span class="result-chip mr-1.5 align-middle" data-result={g.result}>
+                            <span>{g.result}</span>
+                            <span>{signed(g.margin)}</span>
+                          </span>
+                          {g.site === 'away' ? 'at ' : 'vs '}
+                          {o.slug ? <TeamLink team={{ slug: o.slug, name: o.name }} /> : o.name}
+                          {g.site === 'neutral' && ' (neutral)'} <span class="text-fg-muted">· {o.rank}</span>
+                        </>
+                      ) : (
+                        <span class="text-fg-muted">{none}</span>
+                      )}
+                    </dd>
+                  </div>
+                );
+              })
+            }
+          </dl>
+          <div class="mt-6 flex flex-wrap gap-x-12 gap-y-5">
             <div class="max-w-md min-w-0 flex-[1_1_18rem]">
-              <h3 class="label-caps text-fg-muted">Quality wins (by current FEI rank)</h3>
+              <h3 class="label-caps text-fg-muted">Quality wins (by FEI rank, this week)</h3>
               <QualityWins week={week} slug={slug} class="mt-1.5" />
             </div>
             <div class="max-w-full min-w-0 flex-none">
@@ -196,14 +293,13 @@ const ld = {
                   <tbody>
                     <tr class="sm:hidden">
                       <th scope="rowgroup" colspan={orders.length} class="!pt-4 !pb-1 !text-fg">
-                        {formatShortLabel(f, week.season)}
-                        {f.status === 'proposed' && <span class="!normal-case !tracking-normal font-sans text-[0.75rem] font-normal text-fg-muted"> · {formatStatus(f, week.season)}</span>}
+                        {formatKicker(f, week.season)}
                       </th>
                     </tr>
                     <tr>
                       <th scope="row" class="!border-b-line !align-middle !text-fg max-sm:hidden">
-                        <span class="block">{formatShortLabel(f, week.season)}</span>
-                        {f.status === 'proposed' && <span class="block !normal-case !tracking-normal font-sans text-[0.75rem] font-normal text-fg-muted">{formatStatus(f, week.season)}</span>}
+                        <span class="block">{f.label}</span>
+                        <span class="block !normal-case !tracking-normal font-sans text-[0.75rem] font-normal text-fg-muted">{formatStatus(f, week.season)}</span>
                       </th>
                       {orders.map((o) => {
                         const s = standingText(standingIn(o.res[f.id]!, slug), f, o.key, o.res);
@@ -220,9 +316,26 @@ const ld = {
               }
             </table>
           </div>
+          {
+            views.formats
+              .filter((f) => f.status === 'proposed')
+              .map((f) => (
+                <p class="mt-2 text-[0.8125rem] text-fg-muted">
+                  {`${f.label}: ${formatStatus(f, week.season)}. `}
+                  <a class="link" href={f.sourceUrl}>
+                    Source: {f.sourceName}
+                  </a>
+                </p>
+              ))
+          }
           <p class="mt-2 text-[0.8125rem] text-fg-muted">
             Full fields and first-round games: <a class="link" href="/rankings">rankings</a> · <a class="link" href="/bubble">bubble</a>.
           </p>
+          <PlayCta
+            class="mt-6"
+            heading={`Where would you put ${t.name}?`}
+            body="Rank three resumes at a time with the names hidden. Your picks build your own top 25 and playoff bracket."
+          />
         </section>
 
         <section aria-labelledby="log" class="mt-10">
@@ -230,6 +343,33 @@ const ld = {
           <GameLogTable week={week} slug={slug} caption={`${t.name} game log, toughest opponent first`} />
           <p class="mt-2 text-[0.8125rem] text-fg-muted">Opponent tiers use this week's FEI ranks, so they move as the season goes on.</p>
         </section>
+
+        {
+          upcoming && (
+            <section aria-labelledby="upcoming" class="mt-10">
+              <h2 id="upcoming" class="cond text-heading uppercase">
+                Still to play
+              </h2>
+              <p class="mt-1 text-sm text-fg-muted">
+                {upcomingLine(week, upcoming)}
+                {upcoming.toughest && (
+                  <>
+                    {' · toughest: '}
+                    <span class="text-fg">{siteVs(upcoming.toughest.site, upcoming.toughest.opp.name)}</span>
+                    {` (${upcoming.toughest.tier.label})`}
+                  </>
+                )}
+              </p>
+              <UpcomingTable week={week} slug={slug} caption={`${t.name} remaining schedule, in date order`} class="mt-3" />
+              {upcoming.rows.length > 0 && (
+                <p class="mt-2 text-[0.8125rem] text-fg-muted">
+                  Regular season, in date order. Conf = conference game. Tiers and CFP ranks are this week's; conference title games appear once
+                  they are set.
+                </p>
+              )}
+            </section>
+          )
+        }
 
         <section aria-labelledby="history" class="mt-10">
           <h2 id="history" class="cond text-heading uppercase">Rank by week</h2>
@@ -285,6 +425,39 @@ const ld = {
                   );
                 })}
               </ul>
+              {allCompares.length > compares.length && (
+                <details class="group mt-3">
+                  <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-chip border border-line px-3 text-sm font-semibold transition-colors hover:border-control hover:bg-surface [&::-webkit-details-marker]:hidden">
+                    {`All ${allCompares.length} compares for ${t.name}`}
+                    <span aria-hidden="true" class="text-fg-muted transition-transform group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <ul class="mt-2 flex flex-col">
+                    {allCompares.map((p) => {
+                      const other = week.teams[p.a === slug ? p.b : p.a]!;
+                      return (
+                        <li>
+                          <a href={compareHref(p.slug)} class="flex min-h-11 items-center justify-between gap-3 border-b border-line px-1 hover:bg-surface">
+                            <span class="flex items-center gap-2 text-sm text-fg-muted">
+                              vs
+                              <span class="team-chip text-fg" style={teamVars(other.colors)}>
+                                {other.name}
+                              </span>
+                            </span>
+                            <span class="label-caps text-fg-muted">CFP {other.ranks.committee}</span>
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p class="mt-2 text-[0.8125rem] text-fg-muted">
+                    <a class="link" href={compareHubHref}>
+                      Every committee matchup
+                    </a>
+                  </p>
+                </details>
+              )}
             </section>
           )
         }
@@ -302,7 +475,7 @@ const ld = {
                   {standing.crownsChampion && <th scope="col" data-num>Conf</th>}
                   <th scope="col" data-num>All</th>
                   <th scope="col" data-num>
-                    <abbr title="FEI strength of record rank" class="no-underline">SoR</abbr>
+                    <abbr title="FEI strength of record rank" class="no-underline">{SOR}</abbr>
                   </th>
                 </tr>
               </thead>
@@ -310,7 +483,7 @@ const ld = {
                 {standing.teams.map((r) => (
                   <tr class:list={[r.slug === slug && 'bg-surface']} aria-current={r.slug === slug ? 'true' : undefined}>
                     <td class="w-full">
-                      <TeamChip week={week} slug={r.slug} class={r.slug === slug ? 'font-bold' : ''} />
+                      <TeamChip week={week} slug={r.slug} tap class={r.slug === slug ? 'font-bold' : ''} />
                     </td>
                     {standing.crownsChampion && (
                       <td data-num>
@@ -326,6 +499,9 @@ const ld = {
               </tbody>
             </table>
           </div>
+          <p class="mt-2 text-[0.8125rem] text-fg-muted">
+            {standing.crownsChampion ? 'Conf = conference record. ' : ''}All = overall record. {SOR} = FEI strength of record rank.
+          </p>
         </section>
 
         <AdSlot kind="sidebar" />

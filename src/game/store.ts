@@ -9,7 +9,8 @@ import { gameRunViolations, gameTrioState, type GameData } from '@lib/game-data'
 import { rngForRound } from '@lib/rng';
 import { encodeRun, parseShareCode, resolveShareCode, type ShareCodeError } from '@lib/sharecode';
 import { nextTrio, TRIO_RULES, type Trio } from '@lib/trios';
-import { fetchFansTrio, loadWeekData, postVote, track, WeekNotFoundError } from './api';
+import { fetchFansTrio, loadWeekData, postVote, track, trackRound, WeekNotFoundError } from './api';
+import { readHistoryRun, readSavedRun, writeSavedRun, type SavedRun } from './saved';
 
 export type Phase = 'loading' | 'round' | 'done' | 'results' | 'error';
 
@@ -18,6 +19,8 @@ export interface GameInit {
   season: number;
   week: number;
   adsEnabled: boolean;
+  /** Weeks that have game data (shared links to any other week are not fetched). */
+  weeks?: { season: number; week: number }[];
 }
 
 /** The reveal shown after a round locks (the round is already in `rounds`). */
@@ -53,11 +56,19 @@ export interface GameState extends GameInit {
   trio: Trio | null;
   /** Slugs picked this round, in order (0..2). */
   picks: string[];
-  /** Set after the second pick: the "lock in / undo" moment. `auto` = locks itself after a beat. */
-  confirm: { auto: boolean } | null;
+  /**
+   * Set after the second pick: the "lock in / undo" moment. `auto` = locks itself after a beat.
+   * `locked` = the round is locked (its reveal is open): the bar keeps showing the locked order,
+   * inert, until the next round replaces it.
+   */
+  confirm: { auto: boolean; locked: boolean } | null;
   reveal: RevealState | null;
   /** Show the reveal after each round (persisted in localStorage). */
   showReveals: boolean;
+  /** Pointer picks lock in by themselves after a short undo window (persisted; off = always press Lock in). */
+  autoLock: boolean;
+  /** The run on screen was restored (reload, Back, header link) rather than started by a tap. */
+  resumed: boolean;
   /** The user skipped to results before round 15. */
   skipped: boolean;
   /** Share code when viewing someone's link. */
@@ -77,61 +88,32 @@ export interface GameActions {
   keepPlaying(): void;
   playAgain(): void;
   setShowReveals(on: boolean): void;
+  setAutoLock(on: boolean): void;
   setConfirmManual(): void;
+  /** Back/Forward between runs (Play again pushes a history entry): show the entry's run. */
+  restoreFromHistory(): void;
 }
 
 export type GameStore = GameState & GameActions;
 
 const REVEAL_KEY = 'cfbbr:reveal';
-const HISTORY_KEY = 'cfbbr';
+const AUTOLOCK_KEY = 'cfbbr:autolock';
 
-function readShowReveals(): boolean {
+/** A UI preference flag in localStorage (no personal data); `true` unless the user turned it off. */
+function readFlag(key: string): boolean {
   try {
-    return window.localStorage.getItem(REVEAL_KEY) !== 'off';
+    return window.localStorage.getItem(key) !== 'off';
   } catch {
     return true;
   }
 }
 
-function writeShowReveals(on: boolean): void {
+function writeFlag(key: string, on: boolean): void {
   try {
-    if (on) window.localStorage.removeItem(REVEAL_KEY);
-    else window.localStorage.setItem(REVEAL_KEY, 'off');
+    if (on) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, 'off');
   } catch {
     /* private mode etc. */
-  }
-}
-
-/** Run snapshot kept in history.state so a reload or Back from a team page resumes the run. */
-interface SavedRun {
-  v: 1;
-  season: number;
-  week: number;
-  seed: number;
-  code: string | null;
-  phase: 'round' | 'done' | 'results';
-  skipped: boolean;
-}
-
-export function readSavedRun(season: number, week: number): SavedRun | null {
-  try {
-    const s = (window.history.state as Record<string, unknown> | null)?.[HISTORY_KEY] as SavedRun | undefined;
-    if (!s || s.v !== 1 || s.season !== season || s.week !== week) return null;
-    return s;
-  } catch {
-    return null;
-  }
-}
-
-function writeSavedRun(run: SavedRun | null): void {
-  try {
-    const prev = (window.history.state as Record<string, unknown> | null) ?? {};
-    const next = { ...prev };
-    if (run) next[HISTORY_KEY] = run;
-    else delete next[HISTORY_KEY];
-    window.history.replaceState(next, '');
-  } catch {
-    /* history unavailable: the run just won't survive a reload */
   }
 }
 
@@ -177,16 +159,36 @@ export function codeFromPath(pathname: string): string | null {
 
 export function createGameStore(init: GameInit): StoreApi<GameStore> {
   return createStore<GameStore>()((set, get) => {
-    /** Next trio for the current rounds, or null after the last allowed round. */
-    const trioFor = (gd: GameData, rounds: Trio[], seed: number): Trio | null =>
-      nextTrio(gameTrioState(gd, rounds), rngForRound(seed, rounds.length + 1));
+    /**
+     * Next trio for the current rounds, or null after the last allowed round. Deterministic in
+     * (rounds, seed), so the answer is memoized: lock() works it out while the reveal is on screen
+     * and closing the reveal only has to render (adaptive selection is the expensive part).
+     */
+    let memo: { key: string; trio: Trio | null } | null = null;
+    const trioKey = (rounds: Trio[], seed: number): string => `${seed}|${rounds.map((r) => r.join(',')).join(';')}`;
+    const trioFor = (gd: GameData, rounds: Trio[], seed: number): Trio | null => {
+      const key = trioKey(rounds, seed);
+      if (memo?.key === key) return memo.trio;
+      const trio = nextTrio(gameTrioState(gd, rounds), rngForRound(seed, rounds.length + 1));
+      memo = { key, trio };
+      return trio;
+    };
+    const precompute = (gd: GameData, rounds: Trio[], seed: number): void => {
+      if (rounds.length >= TRIO_RULES.maxRounds) return;
+      const run = () => {
+        const s = get();
+        if (s.gd === gd && s.seed === seed && s.rounds === rounds) trioFor(gd, rounds, seed);
+      };
+      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 1500 });
+      else setTimeout(run, 50);
+    };
 
-    const save = (): void => {
+    const snapshot = (): SavedRun | null => {
       const s = get();
-      if (s.mode !== 'play' || !s.gd) return;
+      if (s.mode !== 'play' || !s.gd) return null;
       const phase = s.phase === 'round' || s.phase === 'done' || s.phase === 'results' ? s.phase : null;
-      if (!phase) return;
-      writeSavedRun({
+      if (!phase) return null;
+      return {
         v: 1,
         season: s.gd.season,
         week: s.gd.week,
@@ -194,7 +196,11 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
         code: s.rounds.length ? encodeRun({ season: s.gd.season, week: s.gd.week, rounds: s.rounds }, s.gd.slugs) : null,
         phase,
         skipped: s.skipped,
-      });
+      };
+    };
+    const save = (push = false): void => {
+      const run = snapshot();
+      if (run) writeSavedRun(run, push);
     };
 
     /** After a round locks (and its reveal closes): next round, the "15 in" panel, or results. */
@@ -220,9 +226,8 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
       save();
     };
 
-    /** Restore a run saved in history.state (reload / Back), if it decodes cleanly for this week. */
-    const restore = (gd: GameData): boolean => {
-      const saved = readSavedRun(gd.season, gd.week);
+    /** Restore a saved run (reload / Back / header link), if it decodes cleanly for this week. */
+    const restore = (gd: GameData, saved: SavedRun | null = readSavedRun(gd.season, gd.week)): boolean => {
       if (!saved) return false;
       let rounds: Trio[] = [];
       if (saved.code) {
@@ -233,17 +238,18 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
         rounds = run.value.rounds;
       }
       const seed = saved.seed >>> 0;
+      const base: Partial<GameState> = { gd, seed, rounds, picks: [], confirm: null, reveal: null, resumed: true };
       if (saved.phase === 'results' && rounds.length) {
-        set({ gd, seed, rounds, phase: 'results', trio: null, skipped: saved.skipped, picks: [], confirm: null });
+        set({ ...base, phase: 'results', trio: null, skipped: saved.skipped });
         return true;
       }
       if (saved.phase === 'done' && rounds.length >= TRIO_RULES.baseRounds) {
-        set({ gd, seed, rounds, phase: 'done', trio: null, picks: [], confirm: null });
+        set({ ...base, phase: 'done', trio: null });
         return true;
       }
       const trio = trioFor(gd, rounds, seed);
       if (!trio) return false;
-      set({ gd, seed, rounds, trio, phase: 'round', picks: [], confirm: null, skipped: false });
+      set({ ...base, trio, phase: 'round', skipped: false });
       return true;
     };
 
@@ -258,7 +264,9 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
       picks: [],
       confirm: null,
       reveal: null,
-      showReveals: typeof window === 'undefined' ? true : readShowReveals(),
+      showReveals: typeof window === 'undefined' ? true : readFlag(REVEAL_KEY),
+      autoLock: typeof window === 'undefined' ? true : readFlag(AUTOLOCK_KEY),
+      resumed: false,
       skipped: false,
       sharedCode: null,
 
@@ -279,10 +287,13 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
           });
           return;
         }
-        if (restore(gd)) return;
+        if (restore(gd)) {
+          save(); // re-sync the history entry and the session mirror with the run on screen
+          return;
+        }
         const seed = newSeed();
         const trio = trioFor(gd, [], seed);
-        set({ gd, seed, rounds: [], trio, phase: 'round', picks: [], confirm: null, reveal: null, skipped: false });
+        set({ gd, seed, rounds: [], trio, phase: 'round', picks: [], confirm: null, reveal: null, skipped: false, resumed: false });
         save();
       },
 
@@ -297,6 +308,15 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
         const raw = parseShareCode(code);
         if (!raw.ok) {
           bad(shareErrorCopy(raw.error));
+          return;
+        }
+        // Only fetch weeks the site has (a missing week would log a 404 for nothing).
+        const { season, week, weeks } = get();
+        const known = weeks?.length
+          ? weeks.some((w) => w.season === raw.value.season && w.week === raw.value.week)
+          : raw.value.season < season || (raw.value.season === season && raw.value.week <= week);
+        if (!known) {
+          bad(shareErrorCopy({ kind: 'week-not-found', message: '', season: raw.value.season, week: raw.value.week }));
           return;
         }
         let gd: GameData | null = null;
@@ -325,48 +345,60 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
       },
 
       pick(slug, via) {
-        const { trio, picks, confirm, reveal, phase } = get();
+        const { trio, picks, confirm, reveal, phase, autoLock } = get();
         if (phase !== 'round' || !trio || confirm || reveal || !trio.includes(slug)) return;
         const at = picks.indexOf(slug);
         if (at >= 0) {
-          // Tapping a picked card undoes that pick (and anything after it).
+          // Picking the 1st-placed card again undoes it (desktop rank bar; double clicks are filtered in the UI).
           set({ picks: picks.slice(0, at) });
           return;
         }
         const next = [...picks, slug];
-        set({ picks: next, confirm: next.length === 2 ? { auto: via === 'pointer' } : null });
+        set({ picks: next, confirm: next.length === 2 ? { auto: via === 'pointer' && autoLock, locked: false } : null });
       },
 
       undo() {
-        const { picks, phase, reveal } = get();
-        if (phase !== 'round' || reveal || !picks.length) return;
+        const { picks, phase, reveal, confirm } = get();
+        if (phase !== 'round' || reveal || confirm?.locked || !picks.length) return;
         set({ picks: picks.slice(0, -1), confirm: null });
       },
 
       setConfirmManual() {
-        if (get().confirm?.auto) set({ confirm: { auto: false } });
+        const c = get().confirm;
+        if (c?.auto && !c.locked) set({ confirm: { auto: false, locked: false } });
       },
 
       lock() {
-        const { trio, picks, confirm, gd, rounds, showReveals } = get();
-        if (!trio || !confirm || picks.length !== 2 || !gd) return;
+        const { trio, picks, confirm, gd, rounds, showReveals, seed } = get();
+        if (!trio || !confirm || confirm.locked || picks.length !== 2 || !gd) return;
         const third = trio.find((s) => !picks.includes(s))!;
         const order: Trio = [picks[0]!, picks[1]!, third];
         const nextRounds = [...rounds, order];
-        set({ rounds: nextRounds, confirm: null });
         postVote(gd.season, gd.week, order);
-        track({ name: 'round_completed', round: nextRounds.length });
+        trackRound(nextRounds.length);
         if (!showReveals) {
+          set({ rounds: nextRounds, confirm: null });
           advance();
           return;
         }
         const round = nextRounds.length;
-        set({ reveal: { round, order, display: trio, fans: null } });
+        // The locked order stays on the (inert) bar behind the reveal until the next round. The tap
+        // paints that first; the reveal (a modal: full style + layout pass) opens on the next frame,
+        // which keeps the Lock in interaction itself fast on slow phones.
+        set({ rounds: nextRounds, confirm: { auto: false, locked: true } });
         save();
-        void fetchFansTrio(gd.season, gd.week, [...order].sort()).then((fans) => {
-          const r = get().reveal;
-          if (fans && r && r.round === round) set({ reveal: { ...r, fans } });
-        });
+        const open = () => {
+          const s = get();
+          if (s.rounds !== nextRounds || s.phase !== 'round' || !s.confirm?.locked || s.reveal) return;
+          set({ reveal: { round, order, display: trio, fans: null } });
+          precompute(gd, nextRounds, seed);
+          void fetchFansTrio(gd.season, gd.week, [...order].sort()).then((fans) => {
+            const r = get().reveal;
+            if (fans && r && r.round === round) set({ reveal: { ...r, fans } });
+          });
+        };
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(open, 0));
+        else open();
       },
 
       closeReveal() {
@@ -421,19 +453,37 @@ export function createGameStore(init: GameInit): StoreApi<GameStore> {
       },
 
       playAgain() {
-        const { gd } = get();
+        const { gd, rounds } = get();
         if (!gd) return;
         const seed = newSeed();
         const trio = trioFor(gd, [], seed);
-        set({ seed, rounds: [], trio, phase: 'round', picks: [], confirm: null, reveal: null, skipped: false });
-        save();
+        set({ seed, rounds: [], trio, phase: 'round', picks: [], confirm: null, reveal: null, skipped: false, resumed: false });
+        // A new history entry: Back returns to the run just left (an accidental Play again is undoable).
+        save(rounds.length > 0);
+      },
+
+      restoreFromHistory() {
+        const { gd, mode } = get();
+        if (!gd || mode !== 'play') return;
+        const saved = readHistoryRun(gd.season, gd.week);
+        if (!saved) return;
+        const cur = snapshot();
+        if (cur && cur.seed === saved.seed && cur.code === saved.code && cur.phase === saved.phase) return;
+        if (restore(gd, saved)) save();
       },
 
       setShowReveals(on) {
         if (get().showReveals === on) return;
-        writeShowReveals(on);
+        writeFlag(REVEAL_KEY, on);
         if (!on) track({ name: 'reveal_disabled' });
         set({ showReveals: on });
+      },
+
+      setAutoLock(on) {
+        if (get().autoLock === on) return;
+        writeFlag(AUTOLOCK_KEY, on);
+        const c = get().confirm;
+        set({ autoLock: on, ...(c && !c.locked && !on ? { confirm: { auto: false, locked: false } } : {}) });
       },
     };
   });

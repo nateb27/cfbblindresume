@@ -45,7 +45,8 @@ function inRound(label: string): string {
 function Slot({ side, gd, winnerOf }: { side: BracketSide; gd: GameData; winnerOf: (id: string) => string }) {
   if (side.kind === 'team') {
     const { slug, seed } = side.team;
-    return <TeamBlock slug={slug} team={gd.teams[slug]!} seed={seed} size="slot" className="pr-2.5" label={`${seed} seed: ${gd.teams[slug]!.name}`} />;
+    // Name = the visible "8 Ole Miss" (WCAG 2.5.3); the round lists give the seeding context.
+    return <TeamBlock slug={slug} team={gd.teams[slug]!} seed={seed} size="slot" className="pr-2.5" />;
   }
   return (
     <div className="flex h-9 items-center rounded-slab border-b-4 border-transparent bg-raised pr-2.5">
@@ -88,7 +89,7 @@ export function Bracket({ playoff, gd, source }: { playoff: PlayoffResult; gd: G
   return (
     <section className="mt-10" aria-labelledby="bracket-h" data-testid="bracket">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-2">
-        <h3 id="bracket-h" className="cond text-heading uppercase">
+        <h3 id="bracket-h" tabIndex={-1} className="cond text-heading uppercase outline-none">
           {f.size}-team bracket
         </h3>
         <p className="text-sm text-fg-muted">
@@ -147,9 +148,10 @@ export function Bracket({ playoff, gd, source }: { playoff: PlayoffResult; gd: G
                 role="tab"
                 aria-selected={i === idx}
                 onClick={() => setRoundIdx(i)}
-                className="min-w-max"
+                className="min-w-max max-[23rem]:px-2"
               >
                 {shortRoundLabel(games[0]!.label, rounds.length)}
+                {shortRoundLabel(games[0]!.label, rounds.length) !== columnRoundLabel(games[0]!.label) && <span className="sr-only">, {columnRoundLabel(games[0]!.label)}</span>}
               </button>
             ))}
           </div>

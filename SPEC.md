@@ -121,6 +121,10 @@ present) so a 24 field + first five out always exists.
 
 Opponent tier is computed at render time from the CURRENT week's ranks.
 
+Remaining schedule (additive, schemaVersion still 2): each team may carry `upcoming` (games after
+week N not yet played: week, date, opponent, site, conference flag; no score). `upcomingRows`
+in `data.ts` adds the opponent's current tier and committee rank. A missing list means unknown.
+
 ## Shared library `src/lib/` (owner: algorithms) — public API
 
 All pure functions, deterministic, no `Math.random()` except where an injected `rng` is used.
@@ -195,17 +199,25 @@ team indices in the user's order (1st, 2nd, 3rd), where index = position in the 
 ALL FBS slugs in that week's file (fits a byte), then a CRC-16/CCITT of everything before.
 15 rounds ≈ 68 chars. `decode` returns a typed error (bad base64, version, checksum, length,
 index out of range, duplicate team in a trio, week not found) — never throws to the UI.
+Future versions keep byte 0 = version and the trailing CRC, so `version` is reported only for a
+version byte 2..15 with an intact CRC; garbled or mistyped codes read as damaged.
 Round-trip test on 1,000 random runs.
 
 ### Playoff (`playoff.ts`) — generalized to any PlayoffFormat (see Playoff formats)
 
-Input: user's ordered list (pool order, extended with non-pool conference leaders appended in
-GWD order so 5 champions always exist), week file. Champions: `week.champions[conf]` if set,
-else stand-in = best conference win pct (from confRecord), tie → higher in the given order,
-then better GWD. Auto bids = the `conferenceChampions` highest-ranked champions + guaranteed
-teams within their threshold. Fill at-large by order to `size`. Seeds: straight by order among
-the field. Byes = top `byes` seeds. First round pairs (5v12, 6v11, 7v10, 8v9 for 12/4); QF:
-1 vs 8/9 winner, 2 vs 7/10, 3 vs 6/11, 4 vs 5/12. Also return first five out.
+Input: any ordered list of teams (the user's ranking, the committee, FEI or fans) and the week
+(`playoffContext(week)` carries every format, default first). The order is deduplicated and
+extended with the best non-order teams in GWD order to `size + 5`, plus any champion still
+missing, so every format's field and first five out always exist. Champions: `week.champions[conf]`
+if set, else stand-in = best conference win pct (from confRecord), tie → higher in the given
+order, then better GWD. Auto bids: each `autoBids.rules` entry in order takes its `count`
+best-ranked champions without a bid from `all`, `power` (conference in `powerConferences`) or
+`nonPower` champions; then guaranteed teams ranked at or above their threshold. Fill at-large by
+order to `size`. Seeds: straight by order among the field. Bracket: the standard seeded bracket
+for `nextPow2(size)` slots, byes = the top `nextPow2(size) - size` seeds (pairings in "Playoff
+formats" above). `computePlayoffs(order, ctx)` returns every format keyed by id (default first);
+`computePlayoff(order, ctx, id?)` one format (default when omitted). Each result has the format,
+champions, auto bids, at-large, field, byes, bracket games and first five out.
 
 ### Agreement (`agreement.ts`)
 
@@ -221,10 +233,10 @@ the field. Byes = top `byes` seeds. First round pairs (5v12, 6v11, 7v10, 8v9 for
 | `/` | Home: H1 + one indexable paragraph above the fold, the game island, then current top 12 (independent vs committee) as static HTML below |
 | `/rankings` | FEI GWD top 25 beside committee top 25 with deltas (current week), with "in the 12" / "in the 24 (proposed)" cut lines for both orders and the projected fields |
 | `/rankings/{season}/week-{N}` | Frozen weekly copy; canonical to itself |
-| `/teams/{slug}` | Team resume page: header with four ranks + committee rank, un-blinded card, game log table with tiers, resume strip, rank history by week (from all week files), "committee vs FEI" callout, links to 3 nearest compares |
-| `/compare/{a}-vs-{b}` | Every pair in the committee top 25 (300). Slug order: better committee rank first. Two cards side by side, head-to-head note, who FEI and the committee prefer |
+| `/teams/{slug}` | Team resume page: header with four ranks + committee rank, un-blinded card, game log table with tiers, resume strip, "Still to play" (remaining schedule with opponent tiers, from `upcoming`), rank history by week (from all week files), "committee vs FEI" callout, links to 3 nearest compares |
+| `/compare/{a}-vs-{b}` | Every pair in the committee top 25 (300). Slug order: better committee rank first. Two cards side by side, head-to-head note, who FEI and the committee prefer, remaining schedules side by side |
 | `/bubble` | Committee 8-20 sorted by GWD rank, gap highlighted; who is in/out of the 12 and of the proposed 24 by committee vs by FEI |
-| `/r/{code}` | Shared result (island renders from code; Pages Function injects per-code title/OG tags) |
+| `/r/{code}` | Shared result (island renders from code; Pages Function injects per-code title/OG tags). The static shell is noindex with canonical = the site root, which a code that cannot be opened keeps |
 | `/how-it-works` | Glossary: GWD, ELS, OFEI, DFEI, tiers, ranking method, playoff format |
 | `/about` | Who/why, the independence statement (the ONLY place "ESPN", "FPI", "SP+", "Game Control" may appear), attribution, contact |
 | `/privacy` | Plain-language privacy page |
@@ -265,11 +277,17 @@ OG images: one per team (1200×630 PNG generated at build with @resvg/resvg-js i
   result with margin ("W +16"). Head-to-head flag above the cards when trio teams played
   ("B beat A head-to-head · +16"; multiple flags when all three played).
 - Ranking: "Rank 1st" on each card; after the first pick that card shows "1st" and the other two
-  show "Rank 2nd"; the third is implied. Undo before the round locks.
+  show "Rank 2nd"; the third is implied. Undo before the round locks. The second pick locks the
+  round after a short countdown ("Lock in automatically", a saved setting that can be turned off,
+  WCAG 2.2.1); a real mouse move or keyboard focus on Undo stops the countdown. Controls that appear
+  under the finger ignore taps for 400 ms (keyboard and screen-reader activation never blocked).
+  Every blind card ends with "Ratings: FEI by Brian Fremeau" (linked).
 - Reveal modal after each round (skippable via settings): teams in the user's order, name,
   record, color block; under each: You / Committee / FEI / Fans (Fans hidden until data exists);
-  running line "You've matched the committee in 4 of 6 rounds, FEI in 5 of 6." Tap anywhere or
-  press a key to continue. Focus-trapped, Esc closes, announced to screen readers.
+  running line "You've matched the committee in 4 of 6 rounds, FEI in 5 of 6." Tap, Esc, Enter or a
+  letter key continues; arrows, Page, Home/End and Space scroll it; Next round and the FEI credit
+  stay pinned to the bottom edge. Focus-trapped, announced to screen readers. Its FEI column is
+  labeled "FEI SoR".
 - After round 15: "15 rankings in" panel — "Do another" (up to 30) or "Final results".
 - Results: tabs Your ranking / Committee / FEI / Fans (when ≥ threshold); the selected list as
   a 5×5 grid of numbered team tiles (color block + condensed name, no logos; single column list
@@ -281,38 +299,60 @@ OG images: one per team (1200×630 PNG generated at build with @resvg/resvg-js i
   (12: first round 5v12, 6v11, 7v10, 8v9, quarterfinals vs byes 1-4; 24: first round 9-24, byes 1-8),
   readable on a phone (horizontal scroll by round or stacked rounds), automatic bids and
   at-large lists; agreement sentence; share (copy link, Web Share API, image); play again.
-  One ad slot between the top 25 and the share module (when ads on).
+  A headline stat under the title ("Matched the committee on 43% of your head-to-head calls"), a
+  legend for the marks (triangles, field outline, AQ, Unseen / Not shown) and AQ tags on automatic
+  bids. One ad slot just above the share module (when ads on). Below 360px the format segments read
+  "12 · 2026 format" | "24 · proposed"; phone bracket tabs read Rd 1 · Rd 2 · QF · SF · Final.
 - Mobile (390px): cards in a horizontal snap-scroll row at 88% width with a sticky footer holding
-  the rank button for the card in view, plus dots showing which card is in view. One-thumb.
+  the rank button for the card in view, plus dots showing which card is in view. One-thumb, two
+  deliberate taps: "Rank B 1st" for the card in view, then two buttons "Rank A 2nd" / "Rank C 2nd"
+  (Undo stays on the left; the footer is a fixed 68px in every state). A compact at-a-glance table
+  above the cards compares the three teams (record, SoR, Off, Def, Sched, vs top 25).
 - Data: fetches `/game-data/{season}-{week}.json` (current week for `/`, the code's week for /r/).
   Initial HTML (SSR) shows the intro panel so LCP does not wait on the fetch.
 - State in Zustand; no ad script runs before the game is interactive.
-- Votes: after each round POST `/api/vote` (fire-and-forget). Analytics events via
-  `navigator.sendBeacon('/api/event', ...)`: round_completed {round}, run_completed,
-  results_shared {channel}, skip_to_results, reveal_disabled, do_another.
+- Votes: after each round POST `/api/vote` (fire-and-forget). A 404 stops votes for the page view;
+  a dropped vote (`202` + `X-Vote-Dropped`, or a `429`) pauses them until `Retry-After`.
+  Analytics events via `navigator.sendBeacon('/api/event', ...)`: round_completed {round} at
+  milestone rounds only (1, 5, 10, 15, 20, 25, 30), run_completed, results_shared {channel},
+  skip_to_results, reveal_disabled, do_another.
+- Fans: one `GET /api/fans/top25` per week per 5 minutes gives the week's vote count and the fans'
+  order; per-trio `GET /api/fans` is skipped while the week has fewer than 20 votes (no pair can
+  reach the threshold).
 
 ## Backend (owner: backend) — Cloudflare Pages Functions + D1
 
 Pages Functions in `/functions` (same origin as the site; no separate Worker, no routes, works
 on pages.dev previews). Binding `DB` (D1). `wrangler.toml` with `pages_build_output_dir = "dist"`.
 
-- `POST /api/vote` `{season, week, order:[a,b,c]}` → validates slugs against that week's
-  game-data (fetched via `env.ASSETS`), rate limit 30/hour per salted-hash IP (salt rotates daily,
-  from env `IP_SALT`), stores one row (no IP). Deletes rate-limit rows older than 24h on write.
+- `POST /api/vote` `{season, week, order:[a,b,c]}` (`application/json` only; a browser request
+  must be same-origin by `Sec-Fetch-Site`/`Origin`, else 403) → validates slugs against that week's
+  game-data (fetched via `env.ASSETS`), rate limit 120/rolling hour per client (full IPv4 address
+  or IPv6 /64), keyed by a salted hash (salt rotates daily, from env `IP_SALT`; each hourly window
+  is keyed under its own UTC day so the limit carries over midnight). The count and the vote are
+  one D1 batch (atomic under concurrency). Over the limit the vote is dropped with `202` +
+  `Retry-After` + `X-Vote-Dropped: rate-limit` (no browser console error). Stores one row (no IP)
+  plus three pairwise counters. Rate-limit rows are deleted 24h after their window starts (on
+  vote and event writes, and by a daily GitHub Action).
 - `GET /api/fans?season=&week=&trio=a,b,c` → consensus order for the trio from pairwise vote
   counts that week; `null` unless every pair has ≥ 20 votes. Cache 60s.
-- `GET /api/fans/top25?season=&week=` → BT ranking over all pairwise votes that week, `null`
-  under a threshold (e.g. 200 votes). Cache 300s.
-- `POST /api/event` → increments `(day, name, prop)` counter; no IP, no IDs.
+- `GET /api/fans/top25?season=&week=` → `{votes, threshold, top25, order}`: BT ranking over all
+  pairwise votes that week (`order` = every voted team, so results can show the fans' next five;
+  `top25` its first 25), both `null` under 200 votes; `votes` always present. Cache 300s.
+- `POST /api/event` → increments `(day, name, prop)` counter; no IP, no IDs. Same-origin only;
+  past 100 events per client per 10 minutes (per isolate) events are dropped silently.
 - `GET /og/r/{code}.png` → 1200×630 PNG of the user's top 12 computed from the code alone
-  (no DB); long cache headers + Cache API so each code renders once; invalid code → default image.
+  (no DB), with a one-line hook ("Matched the committee on 43% · Biggest call: Kentucky ▲4");
+  long cache headers + Cache API so each code renders once; invalid code → default image.
   HARD CONSTRAINT: Cloudflare Workers/Pages Functions FREE plan = 10 ms CPU per request and 3 MiB
   compressed bundle. satori/resvg are likely too slow/heavy. Design for it (e.g. build-time glyph
   atlas of the condensed font + palette PNG + native CompressionStream) and measure render CPU in
   Node (target < 8 ms) — report the number. If it truly cannot fit, report and propose the
   Workers Paid plan ($5/mo) as the human's decision; keep the default-image fallback working.
 - `GET /r/{code}` → serves the static results shell with per-code `<title>`, description,
-  `og:image`, canonical, via HTMLRewriter; invalid code still serves the shell (UI shows error).
+  `og:image`, canonical, via HTMLRewriter; invalid code still serves the shell with 200 (UI shows
+  error; a 404 document would log a console error) with canonical and og:url pointing at `/`.
+  API and image responses carry `X-Robots-Tag: noindex`; pages get anti-framing headers.
 
 ## Working in parallel (build-time rules for agents)
 
@@ -334,7 +374,8 @@ on mobile), how-it-works/about 1.
 ## Environment variables
 
 `CFBD_API_KEY` (pipeline), `PUBLIC_ADS`, `PUBLIC_AD_NETWORK`, `IP_SALT` (Functions secret),
-`CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (deploy). Document all in README.
+`CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (deploy from a shell, and the daily rate-limit
+purge Action). Document all in README.
 
 ## Deviations from the plan (keep README in sync)
 
@@ -348,5 +389,8 @@ on mobile), how-it-works/about 1.
 6. Fans consensus uses pairwise counts (≥ 20 per pair) rather than exact-trio counts, which would
    almost never reach 20.
 7. Event analytics stored in D1 by our own endpoint instead of Plausible (free, cookie-free, first-party).
-8. "Do another" rounds after 15 (up to 30) and a full 12-team bracket on results.
+8. "Do another" rounds after 15 (up to 30) and full brackets on results: the 12-team 2026
+   format by default and the proposed 24-team format behind a toggle.
 9. Automatic bids: the five highest-ranked conference champions plus Notre Dame if ranked in the top 12 (2026 format), from data config.
+10. Ratings come from FEI by Brian Fremeau (bcftoys.com) plus raw scores (CollegeFootballData.com);
+    no ESPN-produced metric is used anywhere.

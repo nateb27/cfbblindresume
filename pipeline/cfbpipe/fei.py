@@ -96,6 +96,28 @@ def row_from_fields(fields: dict[str, str], where: str) -> FeiRow:
     )
 
 
+# The rank columns the week file uses, each with the value it orders (a higher value ranks better).
+RANKED_COLUMNS = (("Rk", "FEI"), ("OFEI_Rk", "OFEI"), ("DFEI_Rk", "DFEI"), ("ELS_Rk", "ELS"), ("GWD_Rk", "GWD"))
+
+
+def _check_rank_order(rows: list[FeiRow], origin: str) -> None:
+    """Ranks must follow their values: ordered by rank, a value never increases and tied ranks share a value.
+
+    Works on any subset of the table (trimmed copies too). It catches the typical hand-paste typo (a
+    rank or value changed in one row); validate.py also checks that each rank column is a complete,
+    gap-free ranking of every FBS team.
+    """
+    for rk, vk in RANKED_COLUMNS:
+        pts = sorted(((r.rank if rk == "Rk" else r.ranks[rk]), r.values[vk], r.team) for r in rows)
+        for (r0, v0, t0), (r1, v1, t1) in zip(pts, pts[1:]):
+            if (r0 == r1 and v0 != v1) or v1 > v0:
+                raise PipelineError(
+                    f"FEI ({origin}): column {rk} does not follow {vk}: {t0} is #{r0} with {vk} {v0:g} and {t1} is "
+                    f"#{r1} with {v1:g}. A higher {vk} must rank better and tied ranks must share a value; check "
+                    "these rows against the page (a typo in a pasted table?)"
+                )
+
+
 def _check_rows(rows: list[FeiRow], origin: str) -> None:
     if not rows:
         raise PipelineError(f"FEI ({origin}): no data rows found")
@@ -104,6 +126,7 @@ def _check_rows(rows: list[FeiRow], origin: str) -> None:
         if r.team in seen:
             raise PipelineError(f"FEI ({origin}): team {r.team!r} appears twice")
         seen[r.team] = r.rank
+    _check_rank_order(rows, origin)
 
 
 # ---------------------------------------------------------------- HTML

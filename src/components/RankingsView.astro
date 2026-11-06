@@ -9,12 +9,13 @@ import { deltas, gwdOrder, TOP_N } from '@lib/data';
 import type { WeekFile } from '@lib/types';
 import AdSlot from './AdSlot.astro';
 import Breadcrumbs from './Breadcrumbs.astro';
+import CutPairs from './CutPairs.astro';
 import Delta from './Delta.astro';
 import JumpNav from './JumpNav.astro';
 import PlayoffBlock from './PlayoffBlock.astro';
 import RankingsTable from './RankingsTable.astro';
 import TeamChip from './TeamChip.astro';
-import { ADS_ON, allWeekRefs, archiveHref, fmtDate, fmtLongDate, playoffViews } from './site';
+import { ADS_ON, SOR, allWeekRefs, archiveHref, fmtDate, fmtLongDate, formatFieldWords, joinAnd, playoffViews } from './site';
 
 interface Props {
   week: WeekFile;
@@ -28,7 +29,7 @@ const isLatest = latestRef.season === week.season && latestRef.week === week.wee
 const committee = week.committee;
 const release = week.sources.committee?.releaseDate;
 const n = committee?.length ?? TOP_N;
-const formatsWords = views.formats.map((f) => (f.status === 'proposed' ? `the proposed ${f.size}-team field` : `the ${f.size}-team field`)).join(' and ');
+const formatsWords = joinAnd(views.formats.map(formatFieldWords));
 
 // Biggest disagreements among teams the committee ranks, plus FEI top-25 teams it leaves out.
 const ranked = deltas(week).filter((d) => d.delta !== null) as { slug: string; committee: number; gwd: number; delta: number }[];
@@ -36,8 +37,8 @@ const feiHigher = ranked.filter((d) => d.delta > 0).sort((a, b) => b.delta - a.d
 const cmteHigher = ranked.filter((d) => d.delta < 0).sort((a, b) => a.delta - b.delta || a.committee - b.committee).slice(0, 4);
 const leftOut = committee ? gwdOrder(week).slice(0, n).filter((s) => week.teams[s]!.ranks.committee === null) : [];
 const groups = [
-  { title: 'FEI is higher than the committee', rows: feiHigher },
-  { title: 'The committee is higher than FEI', rows: cmteHigher },
+  { title: 'Strength of record has them higher', rows: feiHigher },
+  { title: 'The committee has them higher', rows: cmteHigher },
 ];
 ---
 
@@ -51,7 +52,7 @@ const groups = [
       : [{ name: 'Rankings', href: '/rankings' }]}
   />
   <h1 class="cond mt-2 text-title uppercase lg:text-display">
-    {committee ? 'Committee vs FEI' : 'FEI strength of record'}
+    {committee ? 'Committee vs strength of record' : 'FEI strength of record'}{' '}
     <span class="block text-fg-muted">{archive ? `${week.label}, ${week.season}` : `Top ${n}, ${week.label.replace(/^After/, 'after')}`}</span>
   </h1>
   <p class="mt-4 max-w-read text-lg leading-7">
@@ -83,7 +84,7 @@ const groups = [
     class="mt-6"
     items={[
       ...(committee ? [{ href: '#t-cmte', label: `Committee top ${n}` }] : []),
-      { href: '#t-fei', label: `FEI top ${n}` },
+      { href: '#t-fei', label: `${SOR} top ${n}` },
       ...views.formats.map((f) => ({ href: `#field-${f.id}-${week.season}-${week.week}`, label: `${f.size}-team field` })),
       { href: '#archive', label: 'Every week' },
     ]}
@@ -92,24 +93,24 @@ const groups = [
   <div class:list={['mt-10 grid gap-x-12 gap-y-12', committee && 'lg:grid-cols-2']}>
     {
       committee && (
-        <section aria-labelledby="t-cmte">
+        <section aria-labelledby="t-cmte" class="min-w-0">
           <h2 id="t-cmte" class="cond text-heading uppercase">
             Committee top {n}
           </h2>
-          <p class="mt-1 text-sm text-fg-muted">With FEI's strength-of-record rank for each team.</p>
+          <p class="mt-1 text-sm text-fg-muted">With each team's FEI strength-of-record rank ({SOR}).</p>
           <RankingsTable week={week} kind="committee" caption={`Committee top ${n} with FEI strength of record ranks`} class="mt-3" />
         </section>
       )
     }
-    <section aria-labelledby="t-fei">
+    <section aria-labelledby="t-fei" class="min-w-0">
       <h2 id="t-fei" class="cond text-heading uppercase">FEI strength of record top {n}</h2>
       <p class="mt-1 text-sm text-fg-muted">{committee ? 'With the committee rank for each team (NR = unranked).' : `Among all ${week.fbsCount} FBS teams.`}</p>
       <RankingsTable week={week} kind="fei" caption={`FEI strength of record top ${n}${committee ? ' with committee ranks' : ''}`} class="mt-3" />
     </section>
   </div>
   <p class="mt-4 text-[0.8125rem] text-fg-muted">
-    FEI vs CFP: how many spots higher (up) or lower (down) FEI's strength of record ranks a team than the committee does. Field teams below a line
-    got in on an automatic bid.
+    {SOR} = FEI strength of record rank (not FEI overall, which rates efficiency). {SOR} vs CFP: how many spots higher (up) or lower (down)
+    strength of record ranks a team than the committee does. Field teams below a line got in on an automatic bid.
   </p>
 
   <AdSlot kind="incontent" class="mt-10" />
@@ -131,7 +132,7 @@ const groups = [
                       <TeamChip week={week} slug={r.slug} />
                       <span class="flex items-center gap-3 whitespace-nowrap">
                         <span class="label-caps text-fg-muted">
-                          CFP {r.committee} · FEI {r.gwd}
+                          CFP {r.committee} · {SOR} {r.gwd}
                         </span>
                         <Delta value={r.delta} />
                       </span>
@@ -144,11 +145,11 @@ const groups = [
           </div>
           {leftOut.length > 0 && (
             <p class="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-fg-muted">
-              <span>In FEI's top {n}, not in the committee's:</span>
+              <span>In the strength-of-record top {n}, not in the committee's:</span>
               {leftOut.map((s) => (
                 <span class="flex items-center gap-1.5">
                   <TeamChip week={week} slug={s} />
-                  <span class="label-caps">FEI {week.teams[s]!.ranks.sor}</span>
+                  <span class="label-caps">{SOR} {week.teams[s]!.ranks.sor}</span>
                 </span>
               ))}
             </p>
@@ -166,6 +167,8 @@ const groups = [
   <div class="mt-14 flex flex-col gap-14">
     {views.formats.map((f) => <PlayoffBlock week={week} format={f} />)}
   </div>
+
+  {committee && <CutPairs week={week} class="mt-14" />}
 
   <section aria-labelledby="archive" class="mt-14">
     <h2 id="archive" class="cond text-heading uppercase">Every week</h2>

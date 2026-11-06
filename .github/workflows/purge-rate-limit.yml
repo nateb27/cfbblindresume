@@ -1,0 +1,54 @@
+name: Purge rate-limit rows
+
+# SPEC house rule 6 / the privacy page: the salted IP hashes used for vote rate limiting are
+# deleted 24 hours after their window starts. The Functions purge them on every vote and event;
+# this daily job does it on days without traffic too (Pages has no cron of its own).
+#
+# Needs the repository secrets CLOUDFLARE_API_TOKEN (an API token with Account > D1 > Edit) and
+# CLOUDFLARE_ACCOUNT_ID. See README.md "Deploy".
+
+on:
+  schedule:
+    - cron: "41 7 * * *"   # daily, 07:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: purge-rate-limit
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: "1"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - name: Check secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Set the repository secrets CLOUDFLARE_API_TOKEN (Account > D1 > Edit) and CLOUDFLARE_ACCOUNT_ID so expired rate-limit rows are deleted on days without votes (README.md, Deploy)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install wrangler (from the lockfile)
+        run: npm ci --no-audit --no-fund
+
+      - name: Delete rows older than 24 hours (production and preview)
+        run: |
+          cutoff=$(( $(date -u +%s) - 86400 ))
+          sql="DELETE FROM rate_limit WHERE window_start < ${cutoff}"
+          npx wrangler d1 execute cfbblindresume --remote --command "$sql"
+          npx wrangler d1 execute cfbblindresume-preview --remote --env preview --command "$sql"

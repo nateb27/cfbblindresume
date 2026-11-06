@@ -2,7 +2,8 @@
 /**
  * / (dark): H1 + one indexable paragraph above the fold, the game island (the only JS on the
  * site), the leaderboard ad below the game container, then a static "This week" section:
- * committee top 12 vs FEI strength-of-record top 12 and the projected fields.
+ * committee top 12 vs FEI strength-of-record top 12 and the projected fields. Without JavaScript
+ * the Play button is hidden and a note points to the static pages.
  */
 import { committeeOrder, gwdOrder } from '@lib/data';
 import { TRIO_RULES } from '@lib/trios';
@@ -12,7 +13,7 @@ import AdSlot from '../components/AdSlot.astro';
 import Delta from '../components/Delta.astro';
 import PlayoffBlock from '../components/PlayoffBlock.astro';
 import TeamBlock from '../components/TeamBlock.astro';
-import { ADS_ON, SITE, absUrl, fmtLongDate, formatShortLabel, formatStatus, latestWeek, playoffViews, record } from '../components/site';
+import { ADS_ON, SITE, SOR, absUrl, clampText, fmtLongDate, formatKicker, latestWeek, playoffViews, record } from '../components/site';
 
 const week = latestWeek();
 const views = playoffViews(week);
@@ -24,8 +25,11 @@ const TOP = def.size;
 const rounds = TRIO_RULES.baseRounds;
 const release = week.sources.committee?.releaseDate;
 
-const title = `Blind Resume Game: Rank the College Football Playoff Contenders — ${week.label}, ${week.season}`;
-const description = `Three college football resumes per round, names hidden. Rank them for ${rounds} rounds and get your own top 25 and ${def.size}-team bracket, side by side with the committee and FEI. Free, no sign-up. ${SITE.tagline}`;
+const title = `${SITE.name}: Rank the ${week.season} Playoff Contenders Blind`;
+const description = clampText([
+  `Rank three college football resumes a round with the names hidden. After ${rounds} rounds, get your top 25 and ${def.size}-team bracket vs the committee and FEI.`,
+  ' Free, no sign-up.',
+]);
 const ld = [
   { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE.name, url: absUrl('/') },
   {
@@ -40,14 +44,18 @@ const ld = [
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   },
 ];
+// Each list shows the other ranking's number with a delta from that ranking's side, so the
+// triangle always agrees with the label beside it ("SoR 16 ▼5": strength of record has them five
+// lower; "CFP 1 ▲2": the committee has them two higher).
 const lists = [
-  ...(committee ? [{ id: 'cmte', title: `Committee top ${TOP}`, order: committee, other: 'FEI' as const }] : []),
-  { id: 'fei', title: `FEI strength of record top ${TOP}`, order: fei, other: 'CFP' as const },
+  ...(committee ? [{ id: 'cmte', title: `Committee top ${TOP}`, order: committee, other: 'cmte-sor' as const }] : []),
+  { id: 'fei', title: `FEI strength of record top ${TOP}`, order: fei, other: 'sor-cmte' as const },
 ];
 ---
 
-<BaseLayout title={title} description={description} path="/" jsonLd={ld} game current="play" week={week}>
-  <div class="mx-auto max-w-game px-gutter lg:px-gutter-lg">
+<BaseLayout title={title} description={description} path="/" jsonLd={ld} game ads current="play" week={week}>
+  <noscript slot="head"><style>.game-root [data-testid="play"], .game-root [data-testid="play"] + p { display: none !important; }</style></noscript>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <section class="pt-6 lg:pt-10" aria-labelledby="hero">
       <p class="label-caps text-fg-muted">
         {week.label}, {week.season}{release && <span class="max-sm:hidden">{` · committee ranking of ${fmtLongDate(release)}`}</span>}
@@ -64,10 +72,21 @@ const lists = [
   </div>
 
   <div id="play" class="mt-6 lg:mt-8">
-    <GameApp client:load mode="play" season={week.season} week={week.week} adsEnabled={ADS_ON} />
+    <noscript>
+      <div class="mx-auto max-w-page px-gutter pb-4 lg:px-gutter-lg">
+        <p class="callout text-[0.9375rem] leading-6">
+          <b class="font-semibold">The blind resume game needs JavaScript.</b>{' '}
+          <span class="text-fg-muted">
+            Everything else works without it: <a class="link text-fg" href="/rankings">this week's rankings</a>, the{' '}
+            <a class="link text-fg" href="/bubble">bubble</a> and <a class="link text-fg" href="/teams">every team's resume</a>.
+          </span>
+        </p>
+      </div>
+    </noscript>
+    <GameApp client:load mode="play" season={week.season} week={week.week} adsEnabled={ADS_ON} hasCommittee={!!week.committee} />
   </div>
 
-  <div class="mx-auto mt-10 max-w-game px-gutter lg:px-gutter-lg">
+  <div class="mx-auto mt-10 max-w-page px-gutter lg:px-gutter-lg">
     <AdSlot kind="leaderboard" />
   </div>
 
@@ -86,21 +105,33 @@ const lists = [
         {
           lists.map((l) => (
             <section aria-labelledby={`top-${l.id}`}>
-              <h3 id={`top-${l.id}`} class="label-caps text-fg">
-                {l.title}
-              </h3>
+              <div class="flex items-end justify-between gap-3">
+                <h3 id={`top-${l.id}`} class="label-caps text-fg">
+                  {l.title}
+                </h3>
+                {committee && (
+                  <span class="label-caps w-[4.75rem] flex-none text-fg-muted" aria-hidden="true">
+                    {l.other === 'cmte-sor' ? `${SOR} vs CFP` : 'CFP vs SoR'}
+                  </span>
+                )}
+              </div>
               <ol class="mt-2 flex flex-col gap-2">
                 {l.order.slice(0, TOP).map((slug, i) => {
                   const t = week.teams[slug]!;
-                  const otherRank = l.other === 'FEI' ? t.ranks.sor : t.ranks.committee;
+                  const c = t.ranks.committee;
+                  const g = t.ranks.sor;
+                  const label = l.other === 'cmte-sor' ? `${SOR} ${g}` : `CFP ${c ?? 'NR'}`;
                   return (
                     <li class="flex items-center gap-3">
                       <TeamBlock team={t} size="row" seed={i + 1} meta={record(t)} class="min-w-0 flex-1" />
                       <span class="flex w-[4.75rem] flex-none flex-col items-start gap-1">
-                        <span class="label-caps text-fg-muted">
-                          {l.other} {otherRank ?? 'NR'}
-                        </span>
-                        {committee && <Delta value={t.ranks.committee === null ? null : t.ranks.committee - t.ranks.sor} />}
+                        <span class="label-caps text-fg-muted">{label}</span>
+                        {committee &&
+                          (l.other === 'cmte-sor' ? (
+                            <Delta value={c === null ? null : c - g} />
+                          ) : (
+                            <Delta value={c === null ? null : g - c} subject="The committee" ref="FEI's strength of record" />
+                          ))}
                       </span>
                     </li>
                   );
@@ -110,19 +141,21 @@ const lists = [
           ))
         }
       </div>
-      <p class="mt-4 text-[0.8125rem] text-fg-muted">
-        Triangles: how many spots higher (up) or lower (down) FEI's strength of record ranks a team than the committee does.
-      </p>
+      {
+        committee && (
+          <p class="mt-4 text-[0.8125rem] text-fg-muted">
+            {SOR} = FEI strength of record rank. Triangles: how many spots higher (up) or lower (down) the other ranking puts the team. No
+            triangle: they agree.
+          </p>
+        )
+      }
 
       <PlayoffBlock week={week} format={def} headingLevel="h3" class="mt-14" />
 
       {
         others.map((f) => (
-          <aside class="callout mt-10" aria-label={formatShortLabel(f, week.season)}>
-            <p class="label-caps flex flex-wrap gap-x-2 text-fg">
-              {formatShortLabel(f, week.season)}
-              <span class="text-fg-muted">· {formatStatus(f, week.season)}</span>
-            </p>
+          <aside class="callout mt-10" aria-label={formatKicker(f, week.season)}>
+            <p class="label-caps text-fg">{formatKicker(f, week.season)}</p>
             <p class="mt-1.5">
               {f.note}{' '}
               <a class="link" href={f.sourceUrl}>

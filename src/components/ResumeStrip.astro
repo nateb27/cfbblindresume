@@ -7,7 +7,7 @@
 import { gameRows } from '@lib/data';
 import type { WeekFile } from '@lib/types';
 import { TIER_DOT_PX, tierKey } from '../styles/tokens';
-import { SITE_LABELS, fmtShortDate, signed } from './site';
+import { fmtShortDate, signed, siteVs } from './site';
 
 interface Props {
   week: WeekFile;
@@ -28,7 +28,7 @@ const oppLabel = (g: (typeof games)[number]): string => {
   return g.site === 'away' ? `@${abbr}` : g.site === 'neutral' ? `vs ${abbr}` : abbr;
 };
 const summary = `${t.name} season in order: ${games
-  .map((g) => `${g.result === 'W' ? 'win' : 'loss'} ${g.site === 'away' ? 'at' : 'vs'} ${g.opp.name} (${g.tier.label}) ${g.pf}-${g.pa}`)
+  .map((g) => `${g.result === 'W' ? 'win' : 'loss'} ${siteVs(g.site, g.opp.name)}, ${g.tier.label}, ${g.pf}-${g.pa}`)
   .join('; ')}.`;
 ---
 
@@ -49,7 +49,7 @@ const summary = `${t.name} season in order: ${games
         const key = tierKey(g.tier.stars);
         return (
           <g>
-            <title>{`${fmtShortDate(g.date)} · ${SITE_LABELS[g.site]} vs ${g.opp.name} (${g.tier.label}) · ${g.result} ${g.pf}-${g.pa}`}</title>
+            <title>{`${fmtShortDate(g.date)} · ${siteVs(g.site, g.opp.name)} (${g.tier.label}) · ${g.result} ${g.pf}-${g.pa}`}</title>
             {full && (
               <text x={x} y="12" text-anchor="middle" font-size="12" font-weight="600" letter-spacing="0.3" class="fill-fg-muted">
                 {oppLabel(g)}

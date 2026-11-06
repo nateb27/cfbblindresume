@@ -124,7 +124,7 @@
   --spacing-gutter-lg: 2rem;     /* page side gutter >= 1024px */
   --container-read: 42rem;       /* prose column (max-w-read) */
   --container-page: 76rem;       /* content pages (max-w-page) */
-  --container-game: 78rem;       /* game + results (max-w-game) */
+  --container-game: 76rem;       /* game + results (max-w-game): = page, so home shares one left edge */
 
   /* ---------------------------------------------------------------- radius */
   --radius-slab: 2px;            /* team blocks, seed plates, bars */
@@ -198,9 +198,9 @@
   --color-loss: #b91e2a;
   --color-win-tint: #e3f3e9;
   --color-loss-tint: #fbe7e8;
-  --color-tier-50: #a07300;
-  --color-tier-45: #ae6408;
-  --color-tier-40: #9b724b;
+  --color-tier-50: #937900;
+  --color-tier-45: #b65a00;
+  --color-tier-40: #8c6b56;
   --color-tier-30: #4479a9;
   --color-tier-20: #698098;
   --color-tier-15: #768392;

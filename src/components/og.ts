@@ -3,79 +3,15 @@
  * Barlow Condensed glyphs only (the self-hosted TTFs in src/assets/fonts). Node only: used by the
  * prerendered endpoints under src/pages/og/.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { committeeOrder, gwdOrder } from '@lib/data';
 import { rankFill, tierFor } from '@lib/tiers';
 import type { WeekFile } from '@lib/types';
 import { colors, fonts, og, teamPaint, tierColor } from '../styles/tokens';
 import { SITE } from './site';
+import { fontFile, textWidth } from './text-metrics';
 
 const D = colors.dark;
-const fontFile = (w: 600 | 700): string => join(process.cwd(), fonts.ttf[w]);
-
-/* ------------------------------------------------------------------ advance widths from the TTF */
-
-interface Metrics {
-  unitsPerEm: number;
-  advance: (codePoint: number) => number;
-}
-
-function loadMetrics(file: string): Metrics {
-  const buf = readFileSync(file);
-  const tables: Record<string, number> = {};
-  const numTables = buf.readUInt16BE(4);
-  for (let i = 0; i < numTables; i++) {
-    const o = 12 + 16 * i;
-    tables[buf.toString('ascii', o, o + 4)] = buf.readUInt32BE(o + 8);
-  }
-  const head = tables.head!;
-  const unitsPerEm = buf.readUInt16BE(head + 18);
-  const numH = buf.readUInt16BE(tables.hhea! + 34);
-  const cmapTable = tables.cmap!;
-  let sub = -1;
-  for (let i = 0; i < buf.readUInt16BE(cmapTable + 2); i++) {
-    const pid = buf.readUInt16BE(cmapTable + 4 + i * 8);
-    const eid = buf.readUInt16BE(cmapTable + 6 + i * 8);
-    if (pid === 3 && eid === 1) sub = cmapTable + buf.readUInt32BE(cmapTable + 8 + i * 8);
-  }
-  if (sub < 0 || buf.readUInt16BE(sub) !== 4) throw new Error(`og: no format-4 cmap in ${file}`);
-  const segX2 = buf.readUInt16BE(sub + 6);
-  const ends = sub + 14;
-  const starts = ends + segX2 + 2;
-  const deltas = starts + segX2;
-  const ranges = deltas + segX2;
-  const glyph = (c: number): number => {
-    for (let i = 0; i < segX2 / 2; i++) {
-      if (c > buf.readUInt16BE(ends + 2 * i)) continue;
-      const st = buf.readUInt16BE(starts + 2 * i);
-      if (c < st) return 0;
-      const d = buf.readInt16BE(deltas + 2 * i);
-      const r = buf.readUInt16BE(ranges + 2 * i);
-      if (!r) return (c + d) & 0xffff;
-      const g = buf.readUInt16BE(ranges + 2 * i + r + 2 * (c - st));
-      return g ? (g + d) & 0xffff : 0;
-    }
-    return 0;
-  };
-  const hmtx = tables.hmtx!;
-  return { unitsPerEm, advance: (c) => buf.readUInt16BE(hmtx + 4 * Math.min(glyph(c), numH - 1)) };
-}
-
-let metrics: Record<600 | 700, Metrics> | null = null;
-function m(w: 600 | 700): Metrics {
-  metrics ??= { 600: loadMetrics(fontFile(600)), 700: loadMetrics(fontFile(700)) };
-  return metrics[w];
-}
-
-/** Rendered width of a string in px (letter-spacing added after every glyph, as resvg does). */
-export function textWidth(s: string, size: number, weight: 600 | 700 = 700, track = 0): number {
-  const mm = m(weight);
-  let w = 0;
-  for (const ch of s) w += (mm.advance(ch.codePointAt(0)!) / mm.unitsPerEm) * size + track;
-  return w;
-}
 
 /** Largest size <= `size` (2px steps, >= `min`) at which `s` fits in `max` px. */
 function fit(s: string, max: number, size: number, min: number, weight: 600 | 700 = 700, track = 0): number {
@@ -132,12 +68,12 @@ export function teamOgSvg(week: WeekFile, slug: string): string {
   s += text(W - pad, 250, rec, 120, p.ink, { anchor: 'end' });
   s += text(pad, 250, name, nameSize, p.ink, { track: 1 });
 
-  const stats: { label: string; rank: number | null; committee: boolean }[] = [
-    ...(week.committee ? [{ label: 'Committee', rank: t.ranks.committee, committee: true }] : [{ label: 'FEI overall', rank: t.ranks.fei, committee: false }]),
-    { label: 'Strength of record', rank: t.ranks.sor, committee: false },
-    { label: 'Offense', rank: t.ranks.off, committee: false },
-    { label: 'Defense', rank: t.ranks.def, committee: false },
-    { label: 'Schedule', rank: t.ranks.sos, committee: false },
+  const stats: { label: string; rank: number | null }[] = [
+    ...(week.committee ? [{ label: 'Committee', rank: t.ranks.committee }] : [{ label: 'FEI overall', rank: t.ranks.fei }]),
+    { label: 'Strength of record', rank: t.ranks.sor },
+    { label: 'Offense', rank: t.ranks.off },
+    { label: 'Defense', rank: t.ranks.def },
+    { label: 'Schedule', rank: t.ranks.sos },
   ];
   const cw = (W - 2 * pad) / stats.length;
   stats.forEach((st, i) => {
@@ -146,8 +82,10 @@ export function teamOgSvg(week: WeekFile, slug: string): string {
     s += text(x, 388, label, fit(label, cw - 24, 26, 20, 600, 1.5), D['fg-muted'], { weight: 600, track: 1.5 });
     s += text(x, 478, st.rank === null ? 'NR' : `#${st.rank}`, 92, D.fg);
     const bw = cw - 28;
-    const f = st.rank === null ? 0 : st.committee ? 1 : rankFill(st.rank, week.fbsCount);
-    const color = st.committee ? D['accent-fill'] : tierColor(tierFor({ fbs: true, feiRank: st.rank ?? week.fbsCount }).stars);
+    // Every bar, the committee's included, is rankFill in the tier color of its rank band, so a
+    // #20 committee rank never draws a longer bar than a #14 strength of record.
+    const f = st.rank === null ? 0 : rankFill(st.rank, week.fbsCount);
+    const color = tierColor(tierFor({ fbs: true, feiRank: st.rank ?? week.fbsCount }).stars);
     s += rect(x, 500, bw, 10, D.track);
     if (st.rank !== null) s += rect(x, 500, Math.max(6, Math.round(bw * f)), 10, color);
   });

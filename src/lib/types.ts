@@ -17,6 +17,8 @@
  *   12-team format and the proposed 24-team format side by side. PlayoffFormat gained id, label,
  *   status, default, note, sourceName, checkedOn and powerConferences; `autoBids.conferenceChampions`
  *   became `autoBids.rules`. Every other field kept its meaning.
+ *   Additive (still 2): optional `Team.upcoming` (games not yet played, after week N). Files
+ *   without it stay valid; readers treat a missing list as unknown, not as "no games left".
  */
 
 export const SCHEMA_VERSION = 2 as const;
@@ -155,6 +157,24 @@ export interface Team {
   values: { fei: number; ofei: number; dfei: number; gwd: number; els: number };
   /** Completed games in chronological order. */
   games: Game[];
+  /**
+   * Additive: scheduled regular-season games after week N that were not yet played when the file
+   * was built, in chronological order (conference championship games appear once CFBD lists them).
+   * Optional: absent in files built before it existed.
+   */
+  upcoming?: UpcomingGame[];
+}
+
+/** A scheduled game (no score yet), from the team's point of view. */
+export interface UpcomingGame {
+  week: number;
+  /** YYYY-MM-DD (kickoff date in US Eastern; the time may still be TBD). */
+  date: string;
+  /** Slug of the opponent; key into `teams` when oppFbs, else into `opponents`. */
+  opp: string;
+  oppFbs: boolean;
+  site: Site;
+  conf: boolean;
 }
 
 export interface Game {

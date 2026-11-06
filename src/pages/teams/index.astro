@@ -1,18 +1,30 @@
 ---
-/** /teams: every FBS team in the latest week file, grouped by conference in standings order. */
+/**
+ * /teams: every FBS team in the latest week file, grouped by conference in standings order, plus a
+ * no-JS A-Z list for fans who do not know a team's (new) conference.
+ */
 import { conferenceStandings, teamList } from '@lib/data';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import JumpNav from '../../components/JumpNav.astro';
 import TeamChip from '../../components/TeamChip.astro';
 import TeamLink from '../../components/TeamLink.astro';
-import { absUrl, confAnchor, itemListLd, latestWeek, teamHref } from '../../components/site';
+import { SOR, absUrl, clampText, confAnchor, itemListLd, latestWeek, teamHref } from '../../components/site';
 
 const week = latestWeek();
 const n = Object.keys(week.teams).length;
 const confs = conferenceStandings(week);
-const title = `All ${n} FBS Teams by Conference: Playoff Resumes and Rankings — ${week.label}, ${week.season}`;
-const description = `Every FBS team's playoff resume, grouped by conference in standings order ${week.label.replace(/^After/, 'after')}: record, committee rank and FEI strength of record for all ${n} teams in ${confs.length} conferences.`;
+const labelLower = week.label.replace(/^After/, 'after');
+const titled = confs.filter((c) => c.crownsChampion).length;
+const untitled = confs.length - titled;
+const confWords = `${titled} conferences${untitled ? ` and the ${untitled === 1 ? confs.find((c) => !c.crownsChampion)!.conference.replace(/^FBS /, '').toLowerCase() : 'independents'}` : ''}`;
+const title = `All ${n} FBS Teams: Playoff Resumes by Conference (${week.season})`;
+const description = clampText([
+  `Every FBS team's playoff resume ${labelLower}, grouped by conference in standings order: record, committee rank and FEI strength of record.`,
+  [` All ${n} teams, ${confWords}.`, ` All ${n} teams.`],
+]);
+const az = [...teamList(week)].sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })); // A-Z as people read it (Ball State before BYU)
+const letters = [...new Set(az.map((t) => t.name.charAt(0).toUpperCase()))];
 const ld = [
   {
     '@context': 'https://schema.org',
@@ -21,9 +33,11 @@ const ld = [
     url: absUrl('/teams'),
     description,
   },
+  // Same order as the page: conference by conference, standings order.
   itemListLd(
-    `FBS teams, ${week.season}`,
-    teamList(week).map((t) => ({ name: t.name, path: teamHref(t.slug) })),
+    `FBS teams by conference, ${week.season}`,
+    confs.flatMap((c) => c.teams.map((r) => ({ name: week.teams[r.slug]!.name, path: teamHref(r.slug) }))),
+    { itemListOrder: 'https://schema.org/ItemListUnordered' },
   ),
 ];
 ---
@@ -34,10 +48,37 @@ const ld = [
     <h1 class="cond mt-2 text-title uppercase lg:text-display">All {n} FBS teams</h1>
     <p class="mt-4 max-w-read text-lg leading-7">
       Every team's full resume, from the committee contenders to the rebuilds. Grouped by conference in standings order, with the committee rank
-      and FEI's strength of record ({week.label.replace(/^After/, 'after')}).
+      (CFP) and FEI's strength of record rank ({SOR}), {labelLower}.
     </p>
 
     <JumpNav label="Conferences" class="mt-6" items={confs.map((c) => ({ href: `#${confAnchor(c.conference)}`, label: c.conference }))} />
+
+    <details class="group mt-4 rounded-card border border-line open:bg-surface">
+      <summary class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 font-semibold hover:bg-surface [&::-webkit-details-marker]:hidden">
+        <span>Find a team A to Z <span class="font-normal text-fg-muted">· all {n}</span></span>
+        <span aria-hidden="true" class="text-lg leading-none text-fg-muted transition-transform group-open:rotate-45">+</span>
+      </summary>
+      <div class="border-t border-line px-4 pt-3 pb-4">
+        {
+          letters.map((L) => (
+            <div class="flex gap-3 border-b border-line py-1.5 last:border-b-0">
+              <span class="cond w-5 flex-none pt-2.5 text-[1.0625rem] font-bold text-fg-muted" aria-hidden="true">
+                {L}
+              </span>
+              <ul class="flex flex-wrap gap-x-5" aria-label={`Teams starting with ${L}`}>
+                {az
+                  .filter((t) => t.name.charAt(0).toUpperCase() === L)
+                  .map((t) => (
+                    <li>
+                      <TeamChip week={week} slug={t.slug} class="min-h-11" />
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))
+        }
+      </div>
+    </details>
 
     <div class="mt-10 grid gap-x-12 gap-y-12 lg:grid-cols-2">
       {
@@ -88,7 +129,7 @@ const ld = [
                     )}
                     <th scope="col" data-num>
                       <abbr title="FEI strength of record rank" class="no-underline">
-                        FEI SoR
+                        {SOR}
                       </abbr>
                     </th>
                   </tr>
@@ -99,7 +140,7 @@ const ld = [
                     return (
                       <tr>
                         <td class="w-full">
-                          <TeamChip week={week} slug={r.slug} />
+                          <TeamChip week={week} slug={r.slug} tap />
                         </td>
                         {c.crownsChampion && (
                           <td data-num>

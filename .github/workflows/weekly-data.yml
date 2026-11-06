@@ -1,8 +1,9 @@
 name: Weekly data
 
 # Builds data/{season}/week-{N}.json from FEI (bcftoys.com), CollegeFootballData.com and the
-# CFP committee ranking, validates every week file, and commits to main only when data changed.
-# The push to main triggers the Cloudflare Pages deploy.
+# CFP committee ranking, validates every week file, runs the site's unit tests and build against
+# the new data, and commits to main only when data changed and all of that passed.
+# The push to main triggers the Cloudflare Pages deploy (Git integration).
 
 on:
   schedule:
@@ -75,6 +76,19 @@ jobs:
 
       - name: Validate all week files
         run: python pipeline/validate.py --all
+
+      # The site must build from the new data before it reaches main (Cloudflare would otherwise
+      # fail its build and keep serving the previous week).
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Site tests and build with the new data
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
 
       - name: Commit data changes
         run: |

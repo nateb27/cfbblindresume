@@ -7,7 +7,7 @@
  */
 import type { PlayoffFormat, WeekFile } from '@lib/types';
 import TeamChip from './TeamChip.astro';
-import { bidLabel, formatSizeLabel, formatStatus, openingGame, playoffViews, teamHref } from './site';
+import { bidLabel, formatSizeLabel, formatStatus, lowerFirst, openingGame, playoffViews, teamHref } from './site';
 
 interface Props {
   week: WeekFile;
@@ -53,7 +53,7 @@ const standIns = columns.some((c) => c.res.champions.some((ch) => ch.standIn));
           <div class="table-wrap mt-1">
             <table class="data-table [&_td]:h-10">
               <caption class="sr-only">
-                Projected {formatSizeLabel(f)} field {titleFor(o).toLowerCase()}
+                Projected {formatSizeLabel(f)} field {lowerFirst(titleFor(o))}
               </caption>
               <thead>
                 <tr>
@@ -76,22 +76,23 @@ const standIns = columns.some((c) => c.res.champions.some((ch) => ch.standIn));
                       <td class="cond text-[1.0625rem] font-bold">{s.seed}</td>
                       <td>
                         <span class="flex flex-col items-start">
-                          <TeamChip week={week} slug={s.slug} />
-                          <span class="pl-5 text-[0.8125rem] leading-4 text-fg-muted sm:hidden">{bidLabel(s, res)}</span>
+                          <TeamChip week={week} slug={s.slug} tap />
+                          <span class="pl-5 text-[0.8125rem] leading-4 text-fg-muted sm:hidden">{bidLabel(s, res, week)}</span>
                         </span>
                       </td>
-                      <td class:list={['max-sm:hidden', s.bid === 'at-large' ? 'text-fg-muted' : 'text-fg']}>{bidLabel(s, res)}</td>
-                      <td class="whitespace-nowrap">
+                      <td class:list={['max-sm:hidden', bidLabel(s, res, week) === 'at-large' ? 'text-fg-muted' : 'text-fg']}>{bidLabel(s, res, week)}</td>
+                      <td>
                         {!g ? (
                           '—'
                         ) : g.kind === 'bye' ? (
                           <span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5 text-fg">Bye</span>
                         ) : (
                           <span class="text-fg-muted">
-                            {g.kind === 'home' ? 'vs' : 'at'} <b class="cond text-[1.0625rem] text-fg">{g.opp.seed}</b>{' '}
-                            <a href={teamHref(g.opp.slug)} class="hover:text-fg hover:underline">
-                              <span class="max-sm:hidden">{opp?.name}</span>
-                              <span class="sm:hidden">{opp?.short}</span>
+                            <span class="whitespace-nowrap">
+                              {g.kind === 'home' ? 'vs' : 'at'} <b class="cond text-[1.0625rem] text-fg">{g.opp.seed}</b>
+                            </span>{' '}
+                            <a href={teamHref(g.opp.slug)} class="link relative py-2.5">
+                              {opp?.name}
                             </a>
                           </span>
                         )}
@@ -121,7 +122,7 @@ const standIns = columns.some((c) => c.res.champions.some((ch) => ch.standIn));
     standIns && (
       <p class="mt-4 text-[0.8125rem] text-fg-muted">
         "Leader" = best conference record so far, standing in for the champion until title games are played. Teams outside a ranking are added in
-        FEI strength-of-record order.
+        FEI strength-of-record order.{f.autoBids.guaranteed.length > 0 && ' "Guaranteed spot" appears only when the guarantee is what puts a team in the field.'}
       </p>
     )
   }

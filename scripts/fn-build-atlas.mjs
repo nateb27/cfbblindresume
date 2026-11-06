@@ -46,6 +46,9 @@ const DIGITS = '0123456789';
 // School names in caps: Latin-1 capitals cover every FBS name (e.g. SAN JOSÉ STATE) with room to spare.
 const NAME = `${UPPER}${DIGITS} &'()-.,/:ÀÁÂÄÃÅÇÈÉÊËÌÍÎÏÑÒÓÔÖÕÙÚÛÜÝ’ʻ`;
 const KICKER = `${UPPER}${DIGITS} ·-–.,:/&'#`;
+// Mixed-case school names for the share-image hook line ("Biggest call: San José State"), plus the
+// percent sign of the agreement number.
+const HOOK = `${UPPER}${LOWER}${DIGITS} .,'-·!?:%&()/àáâäãåçèéêëìíîïñòóôöõùúûüýÀÁÂÄÃÅÇÈÉÊËÌÍÎÏÑÒÓÔÖÕÙÚÛÜÝ’ʻ`;
 
 /**
  * Strikes = (weight, px size) pairs from DESIGN.md §16 "Share image". `phases` = sub-pixel
@@ -56,7 +59,7 @@ const STRIKES = [
   { weight: 700, size: 40, phases: 2, chars: DIGITS }, // seed plates
   ...[34, 32, 30, 28, 26].map((size) => ({ weight: 700, size, phases: 4, chars: NAME })), // team names (34, shrink to 26)
   { weight: 600, size: 30, phases: 4, chars: KICKER }, // "AFTER WEEK 9 · 2026", records "8-0"
-  { weight: 600, size: 28, phases: 4, chars: `${UPPER}${LOWER}${DIGITS} .,'-·!?` }, // tagline
+  { weight: 600, size: 28, phases: 4, chars: HOOK }, // tagline; hook "Matched the committee on 43% · Biggest call: Kentucky
   { weight: 600, size: 26, phases: 4, chars: KICKER }, // "CFBBLINDRESUME.COM · RATINGS: FEI BY BRIAN FREMEAU"
 ];
 

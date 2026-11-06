@@ -34,6 +34,16 @@ BANNED_HOST = "".join(("es", "pn"))
 # At least one letter: a purely numeric id would reorder JS object keys (results are keyed by id).
 FORMAT_ID = re.compile(r"^(?=[a-z0-9-]*[a-z])[a-z0-9]+(-[a-z0-9]+)*$")
 AUTO_BID_POOLS = ("all", "power", "nonPower")
+CONFIG_DIR = REPO / "pipeline"
+# Each rank and the value it orders (bcftoys columns): a higher value always ranks better.
+RANKED_VALUES = (("fei", "fei"), ("off", "ofei"), ("def", "dfei"), ("sor", "gwd"), ("sos", "els"))
+# A committee release this many days older than the newest game in the file is stale (the pipeline
+# keeps last week's release on a Monday build, which is at most ~6 days behind week N's games).
+STALE_COMMITTEE_DAYS = 7
+# Two games against the same opponent closer than this are a duplicate (a rescheduled game listed
+# twice); a regular-season finale and a Friday championship rematch are 6 days apart.
+MIN_REMATCH_DAYS = 6
+_DEFAULT = object()
 
 TOP_KEYS = {"schemaVersion", "season", "week", "asOf", "label", "sources", "playoffFormats", "fbsCount",
             "teams", "opponents", "committee"}
@@ -43,6 +53,8 @@ TEAM_KEYS = {"slug", "id", "name", "short", "mascot", "conference", "colors", "r
 RANK_KEYS = {"sor", "sos", "off", "def", "fei", "committee"}
 VALUE_KEYS = {"fei", "ofei", "dfei", "gwd", "els"}
 GAME_KEYS = {"week", "date", "opp", "oppFbs", "site", "pf", "pa", "result", "conf"}
+UPCOMING_KEYS = {"week", "date", "opp", "oppFbs", "site", "conf"}
+OPTIONAL_TEAM = {"upcoming"}
 OPP_KEYS = {"slug", "name", "classification"}
 FORMAT_KEYS = {"id", "label", "status", "default", "note", "sourceName", "sourceUrl", "checkedOn", "size", "byes",
                "seeding", "autoBids", "powerConferences", "nonConferences"}
@@ -301,8 +313,233 @@ def _validate_game(g, path: str, file_week: int, err: Errors) -> bool:
     return ok
 
 
-def validate_week(doc, index: dict | None = None, label: str = "week file") -> list[str]:
-    """Return a list of human-readable problems (empty = valid)."""
+def load_season_lists(season, config_dir: Path = CONFIG_DIR) -> tuple[list[str] | None, list[str] | None, list[str]]:
+    """(conference names, scheduled committee release dates, problems) for a season from the config files.
+
+    conferences.json must list the season (a missing entry is a problem: add the season's names);
+    committee_schedule.json is optional (None when the season has no entry).
+    """
+    problems: list[str] = []
+    conferences = releases = None
+    path = config_dir / "conferences.json"
+    try:
+        data = load_json(path)
+        entry = data.get(str(season)) if isinstance(data, dict) else None
+        if entry is None:
+            problems.append(f"{path} has no conference list for season {season!r}: add the season's FBS conference "
+                            "names (as CFBD spells them) first")
+        elif not _str_list(entry):
+            problems.append(f"{path}: {season} must be a list of conference names")
+        else:
+            conferences = entry
+    except (OSError, ValueError) as exc:
+        problems.append(f"cannot read {path}: {exc}")
+    path = config_dir / "committee_schedule.json"
+    if path.exists():
+        try:
+            data = load_json(path)
+            entry = data.get(str(season)) if isinstance(data, dict) else None
+            if isinstance(entry, dict) and isinstance(entry.get("releases"), list) and all(valid_date(d) for d in entry["releases"]):
+                releases = sorted(entry["releases"])
+        except (OSError, ValueError) as exc:
+            problems.append(f"cannot read {path}: {exc}")
+    return conferences, releases, problems
+
+
+def ranking_problems(rows: list[tuple[int, float, str]], what: str) -> list[str]:
+    """Problems with one ranked column: rows are (rank, value, slug) for every team.
+
+    The ranks must be a standard competition ranking (the best is 1; each next rank equals the
+    previous one, a tie, or the count of teams ahead of it plus one: 1, 2, 2, 4), and ordered by
+    rank the value must never increase; tied teams have equal values. Equal values may still carry
+    different ranks (values are published rounded).
+    """
+    out: list[str] = []
+    rows = sorted(rows, key=lambda r: (r[0], r[2]))
+    if not rows:
+        return out
+    if rows[0][0] != 1:
+        out.append(f"{what}: no team is ranked #1 (the best is #{rows[0][0]}, {rows[0][2]})")
+    for i in range(1, len(rows)):
+        (r0, _, s0), (r1, _, s1) = rows[i - 1], rows[i]
+        if r1 != r0 and r1 != i + 1:
+            gap = f"no team is ranked #{i + 1}" if r1 > i + 1 else f"too few teams share #{r0}"
+            out.append(f"{what}: not a valid ranking ({gap}): {i} teams are ranked ahead of {s1}, so it must be "
+                       f"#{i + 1} or tied at #{r0} with {s0}, not #{r1}")
+            break
+    for (r0, v0, s0), (r1, v1, s1) in zip(rows, rows[1:]):
+        if r1 == r0 and v1 != v0:
+            out.append(f"{what}: {s0} and {s1} share #{r0} but have different values ({v0} vs {v1})")
+            break
+        if v1 > v0:
+            out.append(f"{what}: {s1} (#{r1}) has a higher value ({v1}) than {s0} (#{r0}, {v0}): ranks and values disagree")
+            break
+    return out
+
+
+def _validate_rankings(teams: dict, n, err: Errors) -> None:
+    """Every FEI rank column is a valid ranking of all FBS teams that agrees with its values."""
+    if n is None or n != len(teams):
+        return
+    for rk, vk in RANKED_VALUES:
+        rows = []
+        for slug, t in teams.items():
+            r = t.get("ranks") if isinstance(t, dict) else None
+            v = t.get("values") if isinstance(t, dict) else None
+            if not isinstance(r, dict) or not isinstance(v, dict) or not is_int(r.get(rk)) or not is_num(v.get(vk)):
+                return  # already reported field by field
+            rows.append((r[rk], v[vk], slug))
+        for p in ranking_problems(rows, f"ranks.{rk} (by values.{vk})"):
+            err.add(p)
+
+
+def _validate_conferences(doc: dict, teams: dict, good_games: dict, conferences: list[str] | None, err: Errors) -> None:
+    """Conference names come from the season's list; conference games are between members of one conference."""
+    non = set()
+    for f in doc["playoffFormats"] if isinstance(doc.get("playoffFormats"), list) else []:
+        if isinstance(f, dict) and _str_list(f.get("nonConferences")):
+            non.update(f["nonConferences"])
+    if conferences is not None:
+        allowed = set(conferences)
+        unknown: dict[str, list[str]] = {}
+        for slug, t in teams.items():
+            if isinstance(t, dict) and isinstance(t.get("conference"), str) and t["conference"] not in allowed:
+                unknown.setdefault(t["conference"], []).append(slug)
+        for conf, slugs in sorted(unknown.items()):
+            err.add(f"conference {conf!r} ({', '.join(sorted(slugs)[:5])}) is not in the season's list in "
+                    f"pipeline/conferences.json: a rename or typo? Fix the data, or add the name after checking it")
+    for slug, games in sorted(good_games.items()):
+        conf = teams[slug].get("conference")
+        for g in games:
+            if not g["conf"]:
+                continue
+            where = f"teams[{slug}]: week {g['week']} {g['date']} vs {g['opp']}"
+            if conf in non:
+                err.add(f"{where} is marked a conference game, but {conf!r} is not a conference")
+            elif not g["oppFbs"]:
+                err.add(f"{where} is marked a conference game against a non-FBS team")
+            elif isinstance(teams.get(g["opp"]), dict) and teams[g["opp"]].get("conference") != conf:
+                err.add(f"{where} is marked a conference game, but {slug} plays in {conf!r} and {g['opp']} in "
+                        f"{teams[g['opp']].get('conference')!r}")
+
+
+def _validate_dates(doc: dict, good_games: dict, releases: list[str] | None, err: Errors) -> None:
+    """Games are on or before asOf; no game is listed twice; the committee release fits the week."""
+    as_of = doc["asOf"] if valid_date(doc.get("asOf")) else None
+    latest = None
+    for slug, games in sorted(good_games.items()):
+        for g in games:
+            if as_of and g["date"] > as_of:
+                err.add(f"teams[{slug}]: week {g['week']} game vs {g['opp']} is dated {g['date']}, after asOf {as_of}")
+            if latest is None or g["date"] > latest:
+                latest = g["date"]
+        by_opp: dict[str, list[dict]] = {}
+        for g in games:
+            by_opp.setdefault(g["opp"], []).append(g)
+        for opp, gl in sorted(by_opp.items()):
+            gl = sorted(gl, key=lambda g: g["date"])
+            for a, b in zip(gl, gl[1:]):
+                days = (date.fromisoformat(b["date"]) - date.fromisoformat(a["date"])).days
+                if a["week"] == b["week"] or days < MIN_REMATCH_DAYS:
+                    err.add(f"teams[{slug}]: two games vs {opp} ({a['date']} week {a['week']}, {b['date']} week {b['week']}): "
+                            "the same game listed twice (e.g. rescheduled under a new id)?")
+    c = doc["sources"].get("committee") if isinstance(doc.get("sources"), dict) else None
+    if not isinstance(c, dict) or not valid_date(c.get("releaseDate")):
+        return
+    rel = c["releaseDate"]
+    if releases and rel < releases[0]:
+        err.add(f"sources.committee.releaseDate {rel} is before the season's first scheduled release {releases[0]} "
+                "(pipeline/committee_schedule.json)")
+    if latest and (date.fromisoformat(latest) - date.fromisoformat(rel)).days > STALE_COMMITTEE_DAYS:
+        err.add(f"sources.committee.releaseDate {rel} is more than {STALE_COMMITTEE_DAYS} days before the newest game "
+                f"in the file ({latest}): a stale committee ranking for week {doc.get('week')}")
+
+
+def _validate_upcoming(teams: dict, opponents: dict, file_week, referenced_opps: set[str], err: Errors) -> dict[str, list[dict]]:
+    """Optional Team.upcoming: scheduled games after week N (no scores). Returns the well-formed ones per team."""
+    out: dict[str, list[dict]] = {}
+    for slug, t in teams.items():
+        if not isinstance(t, dict) or "upcoming" not in t:
+            continue
+        path = f"teams[{slug}].upcoming"
+        if not isinstance(t["upcoming"], list):
+            err.add(f"{path}: expected a list")
+            continue
+        good = []
+        for i, g in enumerate(t["upcoming"]):
+            gp = f"{path}[{i}]"
+            if not check_keys(g, UPCOMING_KEYS, gp, err):
+                continue
+            ok = True
+            if not is_int(g["week"]) or (is_int(file_week) and g["week"] <= file_week):
+                err.add(f"{gp}.week: {g['week']!r} must be after the file's week {file_week}")
+                ok = False
+            if not valid_date(g["date"]):
+                err.add(f"{gp}.date: expected YYYY-MM-DD, got {g['date']!r}")
+                ok = False
+            if g["site"] not in ("home", "away", "neutral"):
+                err.add(f"{gp}.site: expected home/away/neutral, got {g['site']!r}")
+                ok = False
+            if not isinstance(g["oppFbs"], bool) or not isinstance(g["conf"], bool):
+                err.add(f"{gp}: oppFbs and conf must be booleans")
+                ok = False
+            elif g["oppFbs"] and (g["opp"] not in teams or g["opp"] == slug):
+                err.add(f"{gp}.opp: {g['opp']!r} is marked FBS but is not another team in teams")
+                ok = False
+            elif not g["oppFbs"]:
+                if g["opp"] not in opponents:
+                    err.add(f"{gp}.opp: {g['opp']!r} is marked non-FBS but is not in opponents")
+                    ok = False
+                else:
+                    referenced_opps.add(g["opp"])
+                if g["conf"]:
+                    err.add(f"{gp}: a conference game against a non-FBS team")
+            if ok and g["oppFbs"] and g["conf"] and isinstance(teams[g["opp"]], dict) and teams[g["opp"]].get("conference") != t.get("conference"):
+                err.add(f"{gp}: marked a conference game, but {slug} plays in {t.get('conference')!r} and {g['opp']} in "
+                        f"{teams[g['opp']].get('conference')!r}")
+            if ok:
+                good.append(g)
+        dates = [g["date"] for g in good]
+        if dates != sorted(dates):
+            err.add(f"{path}: not in chronological order")
+        for (wk, opp), c in Counter((g["week"], g["opp"]) for g in good).items():
+            if c > 1:
+                err.add(f"{path}: two games vs {opp} in week {wk}")
+        out[slug] = good
+    return out
+
+
+def _validate_against_previous(doc: dict, teams: dict, previous: dict, err: Errors) -> None:
+    """Within a season the FBS teams, their conferences and non-FBS opponents' classifications do not change."""
+    if not isinstance(previous, dict) or previous.get("season") != doc.get("season") or not isinstance(previous.get("teams"), dict):
+        return
+    pw = previous.get("week")
+    before = previous["teams"]
+    for slug in sorted(set(before) - set(teams)):
+        err.add(f"teams: {slug!r} was an FBS team in week {pw} but is missing (FBS membership is fixed for a season)")
+    for slug in sorted(set(teams) - set(before)):
+        err.add(f"teams: {slug!r} is new since week {pw} (FBS membership is fixed for a season)")
+    for slug in sorted(set(teams) & set(before)):
+        a, b = before[slug], teams[slug]
+        if isinstance(a, dict) and isinstance(b, dict) and a.get("conference") != b.get("conference"):
+            err.add(f"teams[{slug}].conference is {b.get('conference')!r} but week {pw} says {a.get('conference')!r}: "
+                    "conference membership does not change mid-season; fix whichever file is wrong")
+    opp_now = doc.get("opponents") if isinstance(doc.get("opponents"), dict) else {}
+    opp_before = previous.get("opponents") if isinstance(previous.get("opponents"), dict) else {}
+    for slug in sorted(set(opp_now) & set(opp_before)):
+        a, b = opp_before[slug], opp_now[slug]
+        if isinstance(a, dict) and isinstance(b, dict) and a.get("classification") != b.get("classification"):
+            err.add(f"opponents[{slug}].classification is {b.get('classification')!r} but week {pw} says "
+                    f"{a.get('classification')!r} (it sets the opponent's tier)")
+
+
+def validate_week(doc, index: dict | None = None, label: str = "week file", previous: dict | None = None,
+                  config_dir: Path = CONFIG_DIR) -> list[str]:
+    """Return a list of human-readable problems (empty = valid).
+
+    `previous` is the season's preceding week file, if any (teams and conferences must not change);
+    `config_dir` holds conferences.json and committee_schedule.json.
+    """
     err = Errors(label)
     if not check_keys(doc, TOP_KEYS, "file", err, optional=OPTIONAL_TOP):
         return err.items
@@ -348,7 +585,7 @@ def validate_week(doc, index: dict | None = None, label: str = "week file") -> l
     referenced_opps: set[str] = set()
     for slug, t in teams.items():
         path = f"teams[{slug}]"
-        if not check_keys(t, TEAM_KEYS, path, err):
+        if not check_keys(t, TEAM_KEYS, path, err, optional=OPTIONAL_TEAM):
             continue
         if t["slug"] != slug:
             err.add(f"{path}.slug is {t['slug']!r}, expected the key {slug!r}")
@@ -419,6 +656,8 @@ def validate_week(doc, index: dict | None = None, label: str = "week file") -> l
             if (t["confRecord"].get("w"), t["confRecord"].get("l")) != (cw, cl):
                 err.add(f"{path}.confRecord is {t['confRecord'].get('w')}-{t['confRecord'].get('l')} but conference games are {cw}-{cl}")
 
+    good_upcoming = _validate_upcoming(teams, opponents, file_week, referenced_opps, err)
+
     for slug in sorted(set(opponents) - referenced_opps):
         err.add(f"opponents[{slug}]: not referenced by any game")
 
@@ -439,6 +678,15 @@ def validate_week(doc, index: dict | None = None, label: str = "week file") -> l
                 f"teams[{slug}]: week {g['week']} {g['date']} {g['site']} vs {g['opp']} {g['pf']}-{g['pa']} "
                 f"is not mirrored in teams[{g['opp']}].games (same week/date, swapped score, matching site/conf)"
             )
+
+    for slug, gl in sorted(good_upcoming.items()):
+        for g in gl:
+            if not g["oppFbs"] or g["opp"] not in good_upcoming:
+                continue
+            key = (g["week"], g["date"], slug, flip_site[g["site"]], g["conf"])
+            if key not in {(x["week"], x["date"], x["opp"], x["site"], x["conf"]) for x in good_upcoming[g["opp"]]}:
+                err.add(f"teams[{slug}].upcoming: week {g['week']} {g['date']} {g['site']} vs {g['opp']} is not mirrored in "
+                        f"teams[{g['opp']}].upcoming (same week/date, matching site/conf)")
 
     # ---- committee
     com = doc["committee"]
@@ -461,6 +709,16 @@ def validate_week(doc, index: dict | None = None, label: str = "week file") -> l
         r = t.get("ranks") if isinstance(t, dict) else None
         if isinstance(r, dict) and "committee" in r and r["committee"] != crank.get(slug):
             err.add(f"teams[{slug}].ranks.committee is {r['committee']!r} but the committee list says {crank.get(slug)!r}")
+
+    # ---- rankings, conferences, dates, previous week
+    _validate_rankings(teams, n, err)
+    conferences, releases, config_problems = load_season_lists(doc["season"], config_dir) if is_int(doc["season"]) else (None, None, [])
+    for p in config_problems:
+        err.add(p)
+    _validate_conferences(doc, teams, good_games, conferences, err)
+    _validate_dates(doc, good_games, releases, err)
+    if previous is not None:
+        _validate_against_previous(doc, teams, previous, err)
 
     # ---- champions
     champs = doc.get("champions")
@@ -565,7 +823,24 @@ def validate_path(path: Path) -> list[str]:
         problems.append(f"file name says week {m.group(1)} but the file says week {doc.get('week')!r}")
     if isinstance(doc, dict) and path.parent.name.isdigit() and doc.get("season") != int(path.parent.name):
         problems.append(f"directory says season {path.parent.name} but the file says {doc.get('season')!r}")
-    return problems + validate_week(doc, index=index, label=str(path))
+    previous = None
+    prev_path = previous_week_path(path)
+    if prev_path is not None:
+        try:
+            previous = load_json(prev_path)
+        except (OSError, ValueError) as exc:
+            problems.append(f"cannot read the previous week {prev_path}: {exc}")
+    return problems + validate_week(doc, index=index, label=str(path), previous=previous)
+
+
+def previous_week_path(path: Path) -> Path | None:
+    """The same season's week file just before `path` (by week number), or None."""
+    m = WEEK_FILE.match(path.name)
+    if not m or not path.parent.is_dir():
+        return None
+    week = int(m.group(1))
+    earlier = [(int(mm.group(1)), p) for p in path.parent.iterdir() if (mm := WEEK_FILE.match(p.name)) and int(mm.group(1)) < week]
+    return max(earlier)[1] if earlier else None
 
 
 def main(argv: list[str] | None = None) -> int:

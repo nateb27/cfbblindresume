@@ -1,22 +1,31 @@
 /**
- * Checks against the real pipeline output, when it exists (skipped otherwise).
+ * Checks against the real pipeline output: every committed week file (so the weekly data Action
+ * tests each new week before it reaches main), with the slow criterion-7 sweep on the newest week.
+ * Skipped when /data has no week files.
  */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { comparePairs, gwdOrder } from '../src/lib/data';
-import { loadWeek } from '../src/lib/data-node';
+import { listSeasons, loadSeasonIndex, loadWeek } from '../src/lib/data-node';
 import { buildGameData, computeRunResults, gameTrioState } from '../src/lib/game-data';
 import { computePlayoff, nonPoolLeaders, playoffContext } from '../src/lib/playoff';
 import { rngForRound } from '../src/lib/rng';
 import { isValidRun, nextTrio } from '../src/lib/trios';
 
-const FILE = join(process.cwd(), 'data', '2026', 'week-9.json');
-const HAVE = existsSync(FILE);
+function committedWeeks(): [number, number][] {
+  try {
+    return listSeasons().flatMap((season) => loadSeasonIndex(season).weeks.map((w): [number, number] => [season, w.week]));
+  } catch {
+    return [];
+  }
+}
 
-describe.skipIf(!HAVE)('real data: data/2026/week-9.json', () => {
-  const week = HAVE ? loadWeek(2026, 9) : null!;
-  const gd = HAVE ? buildGameData(week) : null!;
+const WEEKS = committedWeeks();
+const LATEST = WEEKS[WEEKS.length - 1];
+
+describe.skipIf(!WEEKS.length).each(WEEKS)('real data: data/%i/week-%i.json', (season, wk) => {
+  const week = loadWeek(season, wk);
+  const gd = buildGameData(week);
+  const isLatest = LATEST?.[0] === season && LATEST?.[1] === wk;
 
   it('pool = committee top 25 ∪ GWD top 25', () => {
     const gwdTop = gwdOrder(week).filter((s) => week.teams[s]!.ranks.sor <= 25);
@@ -53,7 +62,7 @@ describe.skipIf(!HAVE)('real data: data/2026/week-9.json', () => {
     console.log(`non-pool leaders: ${expected.map((s) => `${s} (GWD ${sor(s)})`).join(', ')}`);
   });
 
-  it('criterion 7 on the real pool: prior-following runs reproduce the committee top 25', () => {
+  it.runIf(isLatest)('criterion 7 on the real pool: prior-following runs reproduce the committee top 25', () => {
     const pos = new Map(gd.prior.map((s, i) => [s, i]));
     for (let seed = 0; seed < 100; seed++) {
       const rounds: string[][] = [];
@@ -73,4 +82,30 @@ describe.skipIf(!HAVE)('real data: data/2026/week-9.json', () => {
       }
     }
   }, 120_000);
+});
+
+describe.skipIf(!LATEST)('remaining schedule (upcomingRows) on the newest week', () => {
+  it('lists every scheduled game chronologically with the opponent tier and committee rank', async () => {
+    const { upcomingRows } = await import('../src/lib/data');
+    const week = loadWeek(LATEST![0], LATEST![1]);
+    let total = 0;
+    for (const slug of Object.keys(week.teams)) {
+      const rows = upcomingRows(week, slug);
+      if (!week.teams[slug]!.upcoming) {
+        expect(rows).toBeNull();
+        continue;
+      }
+      expect(rows).toHaveLength(week.teams[slug]!.upcoming!.length);
+      total += rows!.length;
+      const dates = rows!.map((r) => r.date);
+      expect(dates).toEqual([...dates].sort());
+      for (const r of rows!) {
+        expect(r.week).toBeGreaterThan(week.week);
+        if (r.opp.fbs) expect(r.oppCommittee).toBe(week.teams[r.opp.slug]!.ranks.committee);
+        else expect(['FCS team', 'Non-FBS team']).toContain(r.tier.label);
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(`upcoming: ${total} team-games after week ${week.week}`);
+  });
 });

@@ -69,7 +69,7 @@ export function Share({ code, shared, title }: { code: string; shared: boolean; 
           </a>
         )}
         <div className={imgOk ? '' : 'md:col-span-2'}>
-          <h3 id="share-h" className="cond text-heading uppercase">
+          <h3 id="share-h" tabIndex={-1} className="cond text-heading uppercase outline-none">
             {shared ? 'Share this ranking' : 'Share your ranking'}
           </h3>
           <p className="mt-1 text-[0.9375rem] leading-6 text-fg-muted">
@@ -96,7 +96,7 @@ export function Share({ code, shared, title }: { code: string; shared: boolean; 
                 Share
               </button>
             )}
-            <button type="button" className={`btn ${canShare ? 'btn-secondary' : 'btn-primary'}`} onClick={copy} data-testid="copy-link">
+            <button type="button" className={`btn min-w-40 ${canShare ? 'btn-secondary' : 'btn-primary'}`} onClick={copy} data-testid="copy-link">
               <LinkIcon />
               <span aria-live="polite">{copied ? 'Copied' : 'Copy link'}</span>
             </button>

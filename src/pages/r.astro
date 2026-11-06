@@ -2,21 +2,29 @@
 /**
  * /r (dark, noindex): the shared-result shell. The Pages Function serves this page for /r/{code}
  * with per-code title, description, og:image and canonical; the island reads the code from the URL.
+ * The shell's own canonical is the site root (a code that cannot be opened keeps it); the Function
+ * reads only the origin from it. `weeks` lists every week that has game data, so a link to a week
+ * the site does not have shows the friendly panel without a failing request.
+ * Without JavaScript the island (a "Loading" placeholder that would never finish) is hidden and the
+ * <noscript> note shows instead. `ads`: the results view renders one ad slot.
  */
 import GameApp from '../game/GameApp.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { listSeasons, loadSeasonIndex } from '@lib/data-node';
 import { ADS_ON, latestWeek } from '../components/site';
 
 const week = latestWeek();
+const weeks = listSeasons().flatMap((season) => loadSeasonIndex(season).weeks.map((w) => ({ season, week: w.week })));
 const title = 'A Shared Blind Resume Ranking | CFB Blind Resume';
 const description =
   'Someone ranked college football playoff resumes without seeing the names. See their top 25 and bracket next to the committee and FEI, then play your own.';
 ---
 
-<BaseLayout title={title} description={description} path="/r" game noindex week={week}>
+<BaseLayout title={title} description={description} path="/" game noindex ads week={week}>
+  <noscript slot="head"><style>.game-root { display: none !important; }</style></noscript>
   <h1 class="sr-only">Shared blind resume ranking</h1>
   <div class="pt-6 lg:pt-10">
-    <GameApp client:load mode="shared" season={week.season} week={week.week} adsEnabled={ADS_ON} />
+    <GameApp client:load mode="shared" season={week.season} week={week.week} adsEnabled={ADS_ON} weeks={weeks} />
   </div>
   <noscript>
     <div class="mx-auto max-w-read px-gutter py-10">

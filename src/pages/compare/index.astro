@@ -1,0 +1,149 @@
+---
+/**
+ * /compare: the hub for every compare page (all pairs in the committee top 25). Neighbors in the
+ * ranking first, then the cut-line matchups, then every team's full list of matchups in a
+ * no-JS <details> per team. Gives every compare page an internal link.
+ */
+import { comparePairs, committeeOrder } from '@lib/data';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import CutPairs from '../../components/CutPairs.astro';
+import { teamVars } from '../../styles/tokens';
+import { SOR, absUrl, clampText, compareHref, compareHubHref, latestWeek, record } from '../../components/site';
+
+const week = latestWeek();
+const order = committeeOrder(week) ?? [];
+const pairs = comparePairs(week);
+const n = order.length;
+const labelLower = week.label.replace(/^After/, 'after');
+const pairOf = (x: string, y: string) => pairs.find((p) => (p.a === x && p.b === y) || (p.a === y && p.b === x))!;
+const neighbors = order.slice(1).map((s, i) => pairOf(order[i]!, s));
+
+const title = n ? `Compare Playoff Resumes: Every CFP Top ${n} Matchup (${week.season})` : `Compare Playoff Resumes (${week.season})`;
+const description = n
+  ? clampText([
+      `Side-by-side playoff resumes for all ${pairs.length} pairs in the committee's top ${n} ${labelLower}.`,
+      [' Ratings, head-to-head, shared opponents and projected fields.', ' Ratings, head-to-head and shared opponents.'],
+    ])
+  : `Side-by-side playoff resume comparisons open when the committee releases its first top 25 of ${week.season}.`;
+const ld = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Compare playoff resumes',
+  url: absUrl(compareHubHref),
+  description,
+};
+---
+
+<BaseLayout title={title} description={description} path={compareHubHref} jsonLd={ld} current="rankings" week={week}>
+  <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
+    <Breadcrumbs
+      items={[
+        { name: 'Rankings', href: '/rankings' },
+        { name: 'Compare', href: compareHubHref },
+      ]}
+    />
+    <h1 class="cond mt-2 text-title uppercase lg:text-display">
+      Compare teams{' '}
+      <span class="block text-fg-muted">{n ? `Every pair in the committee's top ${n}` : week.label}</span>
+    </h1>
+    <p class="mt-4 max-w-read text-lg leading-7">
+      {
+        n
+          ? `Two playoff resumes side by side: the committee's and FEI's verdicts, the head-to-head result, shared opponents and where each team lands in every projected field. ${pairs.length} matchups, ${labelLower}.`
+          : `Compares open when the committee releases its first top 25 of ${week.season}.`
+      }
+    </p>
+
+    {
+      n > 0 && (
+        <>
+          <section aria-labelledby="neighbors" class="mt-10">
+            <h2 id="neighbors" class="cond text-heading uppercase">
+              Side by side in the ranking
+            </h2>
+            <p class="mt-1 text-sm text-fg-muted">
+              Each committee team against the one right behind it. "{SOR} flips it" = FEI's strength of record has them the other way round.
+            </p>
+            <ul class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {neighbors.map((p) => {
+                const x = week.teams[p.a]!;
+                const y = week.teams[p.b]!;
+                const flips = y.ranks.sor < x.ranks.sor;
+                return (
+                  <li>
+                    <a
+                      href={compareHref(p.slug)}
+                      class="flex min-h-12 flex-col justify-center gap-1 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface"
+                    >
+                      <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span class="team-chip" style={teamVars(x.colors)}>
+                          {x.name}
+                        </span>
+                        <span class="text-sm text-fg-muted">vs</span>
+                        <span class="team-chip" style={teamVars(y.colors)}>
+                          {y.name}
+                        </span>
+                      </span>
+                      <span class="text-[0.8125rem] leading-4 text-fg-muted">
+                        {`#${p.aRank} vs #${p.bRank}`}
+                        {flips && <b class="font-semibold text-fg"> · {SOR} flips it</b>}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <CutPairs week={week} class="mt-12" heading="On the cut line" hubLink={false} />
+
+          <section aria-labelledby="by-team" class="mt-12">
+            <h2 id="by-team" class="cond text-heading uppercase">
+              Every matchup, by team
+            </h2>
+            <p class="mt-1 text-sm text-fg-muted">Open a team to see all {n - 1} of its compares.</p>
+            <ul class="mt-3 grid gap-x-6 gap-y-2 lg:grid-cols-2">
+              {order.map((slug, i) => {
+                const t = week.teams[slug]!;
+                const mine = pairs.filter((p) => p.a === slug || p.b === slug);
+                return (
+                  <li>
+                    <details class="group rounded-chip border border-line open:bg-surface">
+                      <summary class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-3 py-2 hover:bg-surface [&::-webkit-details-marker]:hidden">
+                        <span class="cond w-7 flex-none text-[1.125rem] font-bold">{i + 1}</span>
+                        <span class="team-chip" style={teamVars(t.colors)}>
+                          {t.name}
+                        </span>
+                        <span class="cond text-[0.9375rem] font-semibold text-fg-muted">{record(t)}</span>
+                        <span aria-hidden="true" class="ml-auto text-lg leading-none text-fg-muted transition-transform group-open:rotate-45">
+                          +
+                        </span>
+                      </summary>
+                      <ul class="grid gap-x-4 border-t border-line px-3 pt-1 pb-2 sm:grid-cols-2">
+                        {mine.map((p) => {
+                          const o = week.teams[p.a === slug ? p.b : p.a]!;
+                          return (
+                            <li>
+                              <a href={compareHref(p.slug)} class="flex min-h-11 items-center gap-2 border-b border-line text-sm hover:text-fg">
+                                <span class="text-fg-muted">vs</span>
+                                <span class="team-chip" style={teamVars(o.colors)}>
+                                  {o.name}
+                                </span>
+                                <span class="label-caps ml-auto text-fg-muted">CFP {o.ranks.committee}</span>
+                              </a>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </>
+      )
+    }
+  </div>
+</BaseLayout>

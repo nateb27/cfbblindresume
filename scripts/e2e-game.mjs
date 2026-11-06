@@ -12,10 +12,13 @@
  * tab are exercised; pass --no-fans to make every fans endpoint 404 instead).
  *
  * Flows:
- *  1. Phone 390x844 (touch): 15 rounds using only the sticky footer (card chips + rank button) and
- *     the reveal's button, always ranking in committee order; an undo; "Do another" once; final
+ *  1. Phone 390x844 (touch): 15 rounds using only the sticky footer (card chips + "Rank X 1st" for
+ *     the card in view, then one of the two "Rank X 2nd" buttons) and the reveal's button, always
+ *     ranking in committee order; a double tap that must not undo; an undo; "Do another" once; final
  *     results must equal the committee top 25; switch to the 24-team format; copy the share link;
  *     open /r/{code} in a fresh context and get the same top 25.
+ *  Controls that change under the pointer ignore pointer activations for 400 ms (double-tap guard),
+ *  so the script waits `GUARD` between dependent taps, as a person would.
  *  2. Laptop 1280x800, keyboard only (Tab / Enter / A-B-C / Escape): 15 rounds with a different
  *     order, results, format and tab switches, shared view matches.
  *  3. Skip to results after 5 rounds: partial results with Unseen teams.
@@ -158,6 +161,10 @@ async function noHorizontalScroll(page, label) {
   check(sw <= iw, `${label}: no horizontal page scroll (${sw} <= ${iw})`);
 }
 
+/** Longer than the island's double-tap guard (src/game/hooks.ts GUARD_MS = 400). */
+const GUARD = 450;
+const settle = (page) => page.waitForTimeout(GUARD);
+
 const cardKey = (c) => `${c.record.w}-${c.record.l}|${c.ranks.sor}|${c.ranks.off}|${c.ranks.def}|${c.ranks.sos}`;
 
 /** Identify the three blind cards by their stats (black-box: the DOM never carries identities). */
@@ -193,45 +200,62 @@ async function phoneRun(browser, base) {
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await ctx.newPage();
   watch(page, 'phone');
+  // The week's data is fetched at idle (prefetch) or on Play, whichever comes first.
+  const gdResp = page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
   await page.goto(base + PLAY, { waitUntil: 'networkidle' });
   await page.locator('[data-testid=play]').scrollIntoViewIfNeeded();
   await shot(page, 'm-01-intro');
   check(await page.locator('[data-testid=play]').isVisible(), 'intro is server-rendered with a Play button');
 
-  const gdResp = page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
   await page.locator('[data-testid=play]').tap();
   gameData = await (await gdResp).json();
   const committee = gameData.committee.map((s) => gameData.teams[s].name);
 
   for (let round = 1; round <= 16; round++) {
     await waitRound(page, round);
+    await settle(page);
     if (round === 1) await shot(page, 'm-02-round');
     await noHorizontalScroll(page, `round ${round}`);
     const trio = await readTrio(page);
     check(trio.every((t) => t.slug), `round ${round}: all three cards identified`);
     const want = byPrior(trio);
-    for (let k = 0; k < 2; k++) {
-      const pickCard = async (t, place) => {
-        await page.locator(`[data-testid=dot-${t.letter}]`).tap();
-        const btn = page.locator('[data-testid=rank-current]');
-        await page.waitForFunction(
-          ([L, place]) => document.querySelector('[data-testid=rank-current]')?.textContent === `Rank ${L} ${place}`,
-          [t.letter, place],
-          { timeout: 5000 },
-        );
-        await btn.tap();
-      };
-      await pickCard(want[k], k === 0 ? '1st' : '2nd');
-      if (round === 1 && k === 0) await shot(page, 'm-03-first-pick');
-      if (round === 2 && k === 1) {
-        // Undo inside the lock-in window, then pick again.
-        await page.locator('[data-testid=undo]').tap();
-        await page.waitForSelector('[data-testid=rank-current]');
-        check((await page.locator('[data-testid=lock]').count()) === 0, 'undo returns to picking');
-        await pickCard(want[1], '2nd');
-      }
-      if (round === 1 && k === 1) await shot(page, 'm-04-lock-in', { settle: 150 });
+    if (round === 1) {
+      check((await page.locator('[data-testid=glance] tbody tr').count()) === 3, 'phone: the at-a-glance table lists the three resumes');
+      const credits = await page.$$eval('[data-card] [data-testid=card-credit] a', (as) => as.map((a) => `${a.textContent}|${a.getAttribute('href')}`));
+      check(credits.length === 3 && credits.every((c) => c.startsWith('FEI by Brian Fremeau|https://bcftoys.com/')), 'every blind card carries the FEI credit link');
     }
+    // 1st: show the card with its chip, then "Rank X 1st" (the button for the card in view).
+    await page.locator(`[data-testid=dot-${want[0].letter}]`).tap();
+    await page.waitForFunction((L) => document.querySelector('[data-testid=rank-current]')?.textContent === `Rank ${L} 1st`, want[0].letter, { timeout: 5000 });
+    if (round === 1) {
+      // A double tap on the 1st pick must leave it picked (it used to undo itself).
+      const b = await page.locator('[data-testid=rank-current]').boundingBox();
+      await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+      await page.waitForTimeout(120);
+      await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+      await page.waitForTimeout(200);
+      check((await page.locator(`[data-card=${want[0].letter}]`).getAttribute('aria-label')).includes('ranked 1st'), 'phone: a double tap on Rank 1st keeps the pick');
+      await shot(page, 'm-03-first-pick');
+    } else await page.locator('[data-testid=rank-current]').tap();
+    // 2nd: one of the two "Rank X 2nd" buttons for the cards left.
+    const pick2 = async () => {
+      const btn = page.locator(`[data-testid=footer] [data-testid=rank-${want[1].letter}]`);
+      await btn.waitFor({ timeout: 5000 });
+      check((await btn.textContent()) === `Rank ${want[1].letter} 2nd`, `round ${round}: footer offers Rank ${want[1].letter} 2nd`);
+      await settle(page);
+      await btn.tap();
+    };
+    await pick2();
+    if (round === 2) {
+      // Undo inside the lock-in window, then pick again.
+      await page.locator('[data-testid=undo]').waitFor();
+      await settle(page);
+      await page.locator('[data-testid=undo]').tap();
+      await page.locator(`[data-testid=footer] [data-testid=rank-${want[1].letter}]`).waitFor();
+      check((await page.locator('[data-testid=lock]').count()) === 0, 'undo returns to picking');
+      await pick2();
+    }
+    if (round === 1) await shot(page, 'm-04-lock-in', { settle: 150 });
     // Pointer picks lock themselves; the reveal follows (reveals are on).
     await page.waitForSelector('[data-testid=reveal][open]', { timeout: 5000 });
     const order = await page.$$eval('[data-testid=reveal] ol > li .team-block span:nth-child(2)', (els) => els.map((e) => e.textContent));
@@ -241,16 +265,19 @@ async function phoneRun(browser, base) {
       if (FANS) check((await page.locator('[data-testid=fans-cell]').count()) === 3, 'reveal shows the Fans column when fan data exists');
       await shot(page, 'm-05-reveal');
     }
+    await settle(page);
     await page.locator('[data-testid=reveal-next]').tap();
     await page.waitForSelector('[data-testid=reveal]', { state: 'detached' });
     if (round === 15) {
       await page.waitForSelector('[data-testid=done]');
       await shot(page, 'm-06-done');
+      await settle(page);
       await page.locator('[data-testid=do-another]').tap();
     }
     if (round === 16) {
       await page.waitForSelector('[data-testid=done]');
       check((await page.locator('[data-testid=done]').textContent()).includes('16'), '"16 rankings in" after Do another');
+      await settle(page);
       await page.locator('[data-testid=final-results]').tap();
     }
   }
@@ -258,6 +285,8 @@ async function phoneRun(browser, base) {
   await page.waitForSelector('[data-testid=results]');
   await shot(page, 'm-07-results');
   await noHorizontalScroll(page, 'results');
+  await settle(page);
+  check((await page.locator('[data-testid=legend]').count()) === 1, 'results explain their marks (legend)');
   const mine = await topNames(page, 'top25-list');
   check(mine.length === 25, 'phone results list has 25 teams');
   check(JSON.stringify(mine) === JSON.stringify(committee), 'always ranking in committee order yields the committee top 25');
@@ -320,12 +349,12 @@ async function laptopRun(browser, base) {
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await ctx.newPage();
   watch(page, 'laptop');
+  const gdResp = gameData ? null : page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
   await page.goto(base + PLAY, { waitUntil: 'networkidle' });
   await shot(page, 'd-01-intro');
   check(await tabTo(page, 'play'), 'Tab reaches Play');
-  const gdResp = page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
   await page.keyboard.press('Enter');
-  gameData ??= await (await gdResp).json();
+  if (gdResp) gameData = await (await gdResp).json();
 
   for (let round = 1; round <= 15; round++) {
     await waitRound(page, round);
@@ -350,7 +379,15 @@ async function laptopRun(browser, base) {
     await page.keyboard.press('Enter');
     await page.waitForSelector('[data-testid=reveal][open]');
     check(await page.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'reveal-next'), `round ${round}: reveal takes focus`);
-    if (round === 1) await shot(page, 'd-05-reveal');
+    if (round === 1) {
+      await shot(page, 'd-05-reveal');
+      check(await page.evaluate(() => document.querySelector('[data-testid=reveal]').scrollTop === 0), 'reveal opens scrolled to the top');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('PageUp');
+      await page.waitForTimeout(150);
+      check((await page.locator('[data-testid=reveal][open]').count()) === 1, 'arrow and Page keys scroll the reveal instead of closing it');
+    }
+    await settle(page);
     await page.keyboard.press(round % 2 ? 'Escape' : 'Enter');
     await page.waitForSelector('[data-testid=reveal]', { state: 'detached' });
   }
@@ -424,23 +461,31 @@ async function skipRun(browser, base) {
   await page.locator('[data-testid=play]').tap();
   for (let round = 1; round <= 5; round++) {
     await waitRound(page, round);
+    await settle(page);
     check(await page.locator('[data-testid=skip]').isDisabled(), `round ${round}: skip disabled before round 5 is done`);
-    for (const k of [0, 1]) {
-      const t = (await readTrio(page))[k === 0 ? 2 : 0];
-      await page.locator(`[data-testid=dot-${t.letter}]`).tap();
-      await page.waitForFunction((L) => document.querySelector('[data-testid=rank-current]')?.textContent?.startsWith(`Rank ${L}`), t.letter);
-      await page.locator('[data-testid=rank-current]').tap();
-    }
+    const trio = await readTrio(page);
+    await page.locator(`[data-testid=dot-${trio[2].letter}]`).tap();
+    await page.waitForFunction((L) => document.querySelector('[data-testid=rank-current]')?.textContent?.startsWith(`Rank ${L}`), trio[2].letter);
+    await page.locator('[data-testid=rank-current]').tap();
+    await settle(page);
+    await page.locator(`[data-testid=footer] [data-testid=rank-${trio[0].letter}]`).tap();
+    await settle(page);
     await page.locator('[data-testid=lock]').tap(); // tap Lock in right away (no reveal: it is off)
   }
   await waitRound(page, 6);
   await shot(page, 'm-14-round6-skip-enabled');
-  await page.locator('[data-testid=skip]').tap();
+  await settle(page);
+  // A double tap on Skip must not land on anything on the results screen (Play again used to sit there).
+  const sb = await page.locator('[data-testid=skip]').boundingBox();
+  await page.touchscreen.tap(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  await page.waitForTimeout(200);
+  await page.touchscreen.tap(sb.x + sb.width / 2, sb.y + sb.height / 2);
   await page.waitForSelector('[data-testid=results]');
   const kicker = await page.locator('[data-testid=results] p.label-caps').first().textContent();
   check(kicker.includes('partial'), 'skipped run is marked partial');
   check((await page.locator('text=Unseen').count()) > 0, 'unseen teams are tagged');
   await shot(page, 'm-15-partial');
+  await settle(page);
   await page.locator('[data-testid=keep-playing]').tap();
   await waitRound(page, 6);
   check(true, 'Keep ranking returns to round 6');

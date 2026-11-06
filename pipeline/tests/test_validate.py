@@ -4,6 +4,7 @@ import io
 import json
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 from _util import PIPE
@@ -319,6 +320,170 @@ class PlayoffFormatsConfig(unittest.TestCase):
         self.assertNotIn(V.BANNED_HOST, blob.lower())
         for b in V.BANNED:
             self.assertNotIn(b, blob)
+
+
+class RankingsConferencesDates(unittest.TestCase):
+    """DA-1/2/3: realistic corruptions of the real week-9 file that used to pass the validator."""
+
+    @classmethod
+    def setUpClass(cls):
+        path = PIPE.parent / "data" / "2026" / "week-9.json"
+        if not path.exists():
+            raise unittest.SkipTest("no committed week-9 file")
+        cls.base = V.load_json(path)
+
+    def setUp(self):
+        self.doc = copy.deepcopy(self.base)
+        self.t = self.doc["teams"]
+
+    def problems(self, **kw):
+        return V.validate_week(self.doc, **kw)
+
+    def assertProblem(self, needle, **kw):
+        probs = self.problems(**kw)
+        self.assertTrue(any(needle in p for p in probs), f"{needle!r} not in {probs[:8]}")
+
+    def test_real_file_passes_including_legitimate_ties(self):
+        # ELS has a nine-way tie at #129 (so 130-137 are absent): a valid competition ranking.
+        self.assertEqual(sum(1 for t in self.t.values() if t["ranks"]["sos"] == 129), 9)
+        self.assertEqual(self.problems(), [])
+
+    def test_rank_gap_and_shared_rank(self):  # 03a: no #5, two #6
+        self.t["alabama"]["ranks"]["fei"] = 6
+        self.assertProblem("ranks.fei (by values.fei): not a valid ranking (no team is ranked #5)")
+
+    def test_no_number_one(self):  # 03b
+        self.t["kentucky"]["ranks"]["sor"] = 2
+        self.assertProblem("ranks.sor (by values.gwd): no team is ranked #1")
+
+    def test_shifted_tail(self):  # 03c: every OFEI rank >= 60 shifted +1
+        for t in self.t.values():
+            if t["ranks"]["off"] >= 60:
+                t["ranks"]["off"] = min(138, t["ranks"]["off"] + 1)
+        self.assertProblem("ranks.off (by values.ofei): not a valid ranking (no team is ranked #60)")
+
+    def test_rank_value_inversion(self):  # 03d: best and worst swapped
+        self.t["notre-dame"]["ranks"]["fei"], self.t["sacramento-state"]["ranks"]["fei"] = 138, 1
+        self.assertProblem("ranks and values disagree")
+
+    def test_value_contradicts_rank(self):  # 09
+        self.t["miami"]["values"]["gwd"] = -9.99
+        self.assertProblem("ranks.sor (by values.gwd): texas (#4) has a higher value (1.92) than miami (#3, -9.99)")
+
+    def test_tied_ranks_need_equal_values(self):
+        self.t["wyoming"]["values"]["els"] = 0.08
+        self.assertProblem("share #129 but have different values")
+
+    def test_unknown_conference_name(self):  # 07a: a typo makes a one-team conference
+        self.t["ohio-state"]["conference"] = "Big 10"
+        self.assertProblem("conference 'Big 10' (ohio-state) is not in the season's list")
+
+    def test_conference_game_against_fcs(self):  # 07b
+        g = next(g for g in self.t["miami"]["games"] if not g["oppFbs"])
+        g["conf"] = True
+        self.t["miami"]["confRecord"]["w" if g["result"] == "W" else "l"] += 1
+        self.assertProblem("is marked a conference game against a non-FBS team")
+
+    def test_conference_game_across_conferences(self):  # 07c
+        for a, b in (("usc", "fresno-state"), ("fresno-state", "usc")):
+            g = next(g for g in self.t[a]["games"] if g["opp"] == b)
+            g["conf"] = True
+            self.t[a]["confRecord"]["w" if g["result"] == "W" else "l"] += 1
+        self.assertProblem("but usc plays in 'Big Ten' and fresno-state in 'Pac-12'")
+
+    def test_independent_has_no_conference_games(self):
+        for a, b in (("notre-dame", "navy"), ("navy", "notre-dame")):
+            g = next((g for g in self.t[a]["games"] if g["opp"] == b), None)
+            if g is None:
+                self.skipTest("no Notre Dame - Navy game in this file")
+            g["conf"] = True
+            self.t[a]["confRecord"]["w" if g["result"] == "W" else "l"] += 1
+        self.assertProblem("is marked a conference game, but 'FBS Independents' is not a conference")
+
+    def test_committee_release_before_the_season_schedule(self):  # 08
+        self.doc["sources"]["committee"]["releaseDate"] = "2026-10-20"
+        self.assertProblem("is before the season's first scheduled release 2026-11-03")
+        self.assertProblem("a stale committee ranking for week 9")
+
+    def test_last_weeks_release_is_still_allowed(self):
+        # A Monday build keeps the previous Tuesday's release: up to a week older than the newest game.
+        newest = max(g["date"] for t in self.t.values() for g in t["games"])
+        self.assertLessEqual((date.fromisoformat(newest) - date.fromisoformat("2026-11-03")).days, V.STALE_COMMITTEE_DAYS)
+        self.assertEqual(self.problems(), [])
+
+    def test_game_after_as_of(self):  # 10
+        g = next(g for g in self.t["miami"]["games"] if not g["oppFbs"])
+        g["date"] = "2026-11-14"
+        self.t["miami"]["games"].sort(key=lambda x: x["date"])
+        self.assertProblem("is dated 2026-11-14, after asOf 2026-11-05")
+
+    def test_duplicate_game_on_another_date(self):  # 13: a rescheduled game listed twice, mirrored
+        for a, b in (("miami", "stanford"), ("stanford", "miami")):
+            g = copy.deepcopy(next(g for g in self.t[a]["games"] if g["opp"] == b))
+            g["date"] = (date.fromisoformat(g["date"]) + timedelta(days=1)).isoformat()
+            self.t[a]["games"].append(g)
+            self.t[a]["games"].sort(key=lambda x: x["date"])
+            self.t[a]["record"]["w" if g["result"] == "W" else "l"] += 1
+            if g["conf"]:
+                self.t[a]["confRecord"]["w" if g["result"] == "W" else "l"] += 1
+        self.assertProblem("teams[miami]: two games vs stanford")
+
+    def test_rematch_six_days_later_is_allowed(self):
+        # A Saturday finale and a Friday conference championship six days later are two real games.
+        probs = []
+        err = V.Errors("x")
+        games = {"a": [{"week": 13, "date": "2026-11-28", "opp": "b"}, {"week": 14, "date": "2026-12-04", "opp": "b"}]}
+        V._validate_dates({"asOf": "2026-12-08", "sources": {}}, games, None, err)
+        probs.extend(err.items)
+        self.assertEqual(probs, [])
+
+    def test_conference_or_membership_change_from_previous_week(self):
+        previous = copy.deepcopy(self.base)
+        previous["week"] = 8
+        self.t["boise-state"]["conference"] = "Mountain West"
+        self.assertProblem("teams[boise-state].conference is 'Mountain West' but week 8 says 'Pac-12'", previous=previous)
+        self.doc = copy.deepcopy(self.base)
+        del previous["teams"]["utep"]
+        self.assertProblem("'utep' is new since week 8", previous=previous)
+        previous = copy.deepcopy(self.base)
+        previous["week"] = 8
+        opp = next(iter(sorted(self.doc["opponents"])))
+        self.doc["opponents"][opp]["classification"] = "ii"
+        self.assertProblem(f"opponents[{opp}].classification is 'ii' but week 8 says", previous=previous)
+
+    def test_upcoming_schedule(self):
+        up = self.t["miami"]["upcoming"]
+        self.assertTrue(up)
+        g = up[0]
+        g["site"] = "neutral"
+        self.assertProblem("teams[miami].upcoming: week 10")
+        self.doc = copy.deepcopy(self.base)
+        self.doc["teams"]["miami"]["upcoming"][0]["week"] = 9
+        self.assertProblem("must be after the file's week 9")
+        self.doc = copy.deepcopy(self.base)
+        self.doc["teams"]["miami"]["upcoming"][0]["pf"] = 3
+        self.assertProblem("teams[miami].upcoming[0].pf: unexpected field")
+        self.doc = copy.deepcopy(self.base)
+        for t in self.doc["teams"].values():
+            del t["upcoming"]
+        # Optional: a file without schedules is valid once opponents only referenced by them are gone.
+        used = {g["opp"] for t in self.doc["teams"].values() for g in t["games"] if not g["oppFbs"]}
+        self.doc["opponents"] = {k: v for k, v in self.doc["opponents"].items() if k in used}
+        self.assertEqual(V.validate_week(self.doc), [])
+
+    def test_season_needs_a_conference_list(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "conferences.json").write_text(json.dumps({"2025": ["SEC"]}), encoding="utf-8")
+            self.assertProblem("has no conference list for season 2026", config_dir=Path(d))
+
+
+class ConferencesConfig(unittest.TestCase):
+    def test_every_committed_conference_is_listed(self):
+        cfg = V.load_json(PIPE / "conferences.json")
+        for path in sorted((PIPE.parent / "data").glob("*/week-*.json")):
+            doc = V.load_json(path)
+            used = {t["conference"] for t in doc["teams"].values()}
+            self.assertEqual(sorted(used - set(cfg[str(doc["season"])])), [], path)
 
 
 class CommittedData(unittest.TestCase):

@@ -1,7 +1,9 @@
 -- cfbblindresume D1 schema (Cloudflare D1 = SQLite).
--- Privacy (SPEC house rule 6): no IP addresses, user ids, cookies or timestamps finer than a UTC
--- day anywhere. The only per-client value is rate_limit.hash, a salted SHA-256 whose salt rotates
--- daily; its rows are deleted 24 hours after their window starts (on every vote write).
+-- Privacy (SPEC house rule 6): no IP addresses, user ids or cookies anywhere, and no timestamp finer
+-- than a UTC day except rate_limit.window_start (the hour a rate-limit window starts), which sits
+-- next to the only per-client value, rate_limit.hash: a salted SHA-256 whose salt rotates daily.
+-- Rate-limit rows are deleted 24 hours after their window starts (on vote and event writes, and by
+-- the daily purge workflow .github/workflows/purge-rate-limit.yml).
 
 -- One row per ranked trio (POST /api/vote). a, b, c are in the order the user ranked them.
 CREATE TABLE votes (

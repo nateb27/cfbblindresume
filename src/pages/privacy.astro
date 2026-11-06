@@ -1,18 +1,23 @@
 ---
-/** /privacy: plain-language privacy page (SPEC house rule 6). */
+/**
+ * /privacy: plain-language privacy page (SPEC house rule 6). "Last updated" is a hand-edited date
+ * (PRIVACY_UPDATED in site.ts), never the season. When the site is built with ads on, the ads
+ * section names the network (PUBLIC_AD_NETWORK) instead of saying ads are hypothetical.
+ */
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
-import { SITE, absUrl, latestWeek } from '../components/site';
+import { ADS_ON, AD_NETWORK, PRIVACY_UPDATED, SITE, absUrl, fmtLongDate, latestWeek } from '../components/site';
 
 const week = latestWeek();
 const title = 'Privacy: No Accounts, No Cookies | CFB Blind Resume';
-const description =
-  'CFB Blind Resume has no accounts and sets no cookies. Votes are anonymous, a salted hash of your IP is kept for 24 hours to stop spam, and usage counts carry no IDs.';
+const description = `${ADS_ON ? 'No accounts; the site itself sets no cookies.' : 'No accounts and no cookies.'} Votes are anonymous, a salted hash of your IP is kept for 24 hours to stop spam, and usage counts carry no IDs.`;
 const ld = { '@context': 'https://schema.org', '@type': 'WebPage', name: 'Privacy', url: absUrl('/privacy'), description };
 const items = [
   {
     h: 'No accounts, no cookies',
-    p: 'There is nothing to sign up for and the site sets no cookies. We do not use third-party analytics or tracking pixels.',
+    p: ADS_ON
+      ? 'There is nothing to sign up for and the site itself sets no cookies. We do not use third-party analytics or tracking pixels. The ad network may set its own cookies; see "Ads" below.'
+      : 'There is nothing to sign up for and the site sets no cookies. We do not use third-party analytics or tracking pixels.',
   },
   {
     h: 'What your browser keeps',
@@ -35,9 +40,20 @@ const items = [
     p: 'A shared result link contains your picks for that run, encoded in the URL, and nothing else. Anyone with the link can see that ranking.',
   },
   {
-    h: 'Hosting and ads',
-    p: 'The site is served by Cloudflare, which processes requests to deliver pages. If advertising is ever turned on, ad slots will be clearly labeled, will load only after the page is usable, and this page will name the ad network and what it collects before that happens.',
+    h: 'Hosting',
+    p: 'The site is served by Cloudflare, which processes requests to deliver pages.',
   },
+  ADS_ON
+    ? {
+        h: 'Ads',
+        p: AD_NETWORK
+          ? `Ads on this site are served by ${AD_NETWORK}. They sit only in slots labeled "Advertisement", never inside the game, and load only after the page is usable (after your first tap, scroll or key press, or three seconds). ${AD_NETWORK} may set cookies and collect device and usage information to show and measure ads, under its own privacy policy. We receive none of that information.`
+          : 'Ad space is reserved in slots labeled "Advertisement", but no ad network is loading, so nothing is collected.',
+      }
+    : {
+        h: 'Ads',
+        p: 'There are no ads right now. If advertising is ever turned on, ad slots will be clearly labeled, will load only after the page is usable, and this page will name the ad network and what it collects before that happens.',
+      },
 ];
 ---
 
@@ -58,7 +74,8 @@ const items = [
       <section class="mt-10">
         <h2 class="cond text-heading uppercase">Questions</h2>
         <p class="mt-2 leading-7">
-          Email <a class="link" href={`mailto:${SITE.email}`}>{SITE.email}</a>. Last updated {week.season}.
+          Email <a class="link" href={`mailto:${SITE.email}`}>{SITE.email}</a>. Last updated{' '}
+          <time datetime={PRIVACY_UPDATED}>{fmtLongDate(PRIVACY_UPDATED)}</time>.
         </p>
       </section>
     </article>

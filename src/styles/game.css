@@ -32,3 +32,56 @@
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
+
+/*
+ * Reserve the viewport while the island swaps screens without user input, so nothing below the
+ * game (footer, ad, "This week") moves on screen: zero layout shift.
+ * - Shared links (/r/{code}): the loading skeleton is replaced by results (taller) or the error
+ *   panel (shorter). Only with scripting: without JS the noscript note right below must stay in view.
+ * - Resumed runs (reload, Back, header link): the inline boot script marks <html> before first
+ *   paint; the server-rendered intro is replaced by the restored round or results.
+ * 3.5rem = the site header (h-14), so the game ends just below the fold.
+ */
+@media (scripting: enabled) {
+  .game-root[data-mode="shared"] {
+    min-height: calc(100vh - 3.5rem);
+  }
+}
+html.cfbbr-resume .game-root[data-mode="play"] {
+  min-height: calc(100vh - 3.5rem);
+}
+
+/* A tap on Play before the island hydrates: instant "loading" feedback (the boot script sets the
+   class; GameApp starts the run on hydration and removes it). Text is painted by CSS so the
+   React-managed label never changes before hydration. */
+html.cfbbr-play-pending .game-root [data-testid="play"] {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+html.cfbbr-play-pending .game-root [data-testid="play"]::after {
+  content: "Loading resumes…";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-on-accent);
+}
+
+/*
+ * "Highlight playoff field" in the game is drawn with a box-shadow ring (page gap + 2px accent edge,
+ * same geometry as the content pages' outline), so the keyboard focus ring can differ from it:
+ * focus is a 3px fg ring outside the field ring. Without this the focused in-field tile looked
+ * exactly like its neighbours (WCAG 2.4.7).
+ */
+.game-root .team-block[data-in-field] {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--team-edge),
+    0 0 0 2px var(--color-page),
+    0 0 0 4px var(--color-accent-edge);
+}
+.game-root .team-block:focus-visible {
+  outline: 3px solid var(--color-fg);
+  outline-offset: 4px;
+}

@@ -5,16 +5,20 @@
  *   1. builds the site into a scratch dist (npx astro build --outDir ...; skip with --skip-build)
  *   2. applies migrations/ to a fresh local D1 (wrangler d1 migrations apply --local)
  *   3. runs `wrangler pages dev <dist> --port 8788` and exercises every endpoint:
- *      votes (204 / 400 / 405 / 429 on the 31st in an hour), fans (null under 20 votes per pair,
- *      then a consensus; 60s caching), fans top 25 (null under 200 votes, then 25 pool teams),
- *      events (allowlisted counters), /r/{code} tags (per-code title, og:image, canonical) and
- *      /r/garbage (generic tags), /og/r/{code}.png (1200x630 PNG; default image for garbage)
+ *      votes (204 / 400 / 403 cross-site / 405 / 413 / 415; the rate limit drops the 121st vote in
+ *      an hour with a 202, also for 160 parallel votes and for one IPv6 /64), fans (null under 20
+ *      votes per pair, then a consensus; 60s caching), fans top 25 (null under 200 votes, then 25
+ *      pool teams), events (allowlisted counters, cross-site refused), /r/{code} tags (per-code
+ *      title, og:image, canonical, anti-framing headers) and /r/garbage (generic shell, canonical to /),
+ *      /og/r/{code}.png (1200x630 PNG, noindex; default image for garbage)
  *   4. checks D1 holds no IP address, saves a sample share image, prints a summary
  *
  * Usage: node scripts/fn-integration.mjs [--skip-build] [--keep] [--wait-cache]
  *   --keep        leave the dev server running at http://127.0.0.1:8788
  *   --wait-cache  also wait 61 s to see a cached fans answer refresh
- * Env: FN_SCRATCH (default: the session scratchpad), FN_PORT (8788).
+ * Env: FN_SCRATCH (default: the session scratchpad), FN_PORT (8788), FN_DIST (a prebuilt site to
+ *   use instead of building one), ASTRO_BUILD_LOCK (a lock file: the build runs under flock, for
+ *   checkouts where several builds may run at once).
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs';
@@ -24,7 +28,7 @@ import { inflateSync } from 'node:zlib';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRATCH = process.env.FN_SCRATCH ?? '/tmp/claude-0/-home-user/38da28a1-5927-5734-b75e-1321c36c6410/scratchpad';
-const DIST = join(SCRATCH, 'backend-dist');
+const DIST = process.env.FN_DIST ?? join(SCRATCH, 'backend-dist');
 const OUT = join(SCRATCH, 'backend');
 const STATE = join(OUT, 'wrangler-state');
 const PORT = Number(process.env.FN_PORT ?? 8788);
@@ -118,12 +122,24 @@ function stopServer(child) {
 
 const json = (r) => r.json();
 
-function vote(order, ip, gd) {
+function vote(order, ip, gd, headers = {}) {
   return fetch(`${BASE}/api/vote`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+    headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, ...headers },
     body: JSON.stringify({ season: gd.season, week: gd.week, order }),
   });
+}
+
+/** Votes from one client until the limit drops one; returns { accepted, firstDropped }. */
+async function untilDropped(gd, rounds, ip, max) {
+  let accepted = 0;
+  let firstDropped = null;
+  for (let i = 0; i < max; i++) {
+    const r = await vote(rounds[i % rounds.length], ip, gd);
+    if (r.status === 204) accepted++;
+    else if (firstDropped === null) firstDropped = { at: i + 1, status: r.status, retry: r.headers.get('retry-after'), dropped: r.headers.get('x-vote-dropped') };
+  }
+  return { accepted, firstDropped };
 }
 
 function pngSize(buf) {
@@ -157,7 +173,9 @@ async function main() {
   if (!args.has('--skip-build') || !existsSync(join(DIST, 'r.html'))) {
     console.log(`building site into ${DIST} ...`);
     rmSync(DIST, { recursive: true, force: true });
-    run('npx', ['astro', 'build', '--outDir', DIST]);
+    const lock = process.env.ASTRO_BUILD_LOCK;
+    if (lock) run('flock', [lock, 'npx', 'astro', 'build', '--outDir', DIST]);
+    else run('npx', ['astro', 'build', '--outDir', DIST]);
   }
   const gdFile = readdirSync(join(DIST, 'game-data')).filter((f) => /^\d{4}-\d+\.json$/.test(f)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true })).pop();
   const gd = JSON.parse(readFileSync(join(DIST, 'game-data', gdFile), 'utf8'));
@@ -166,7 +184,7 @@ async function main() {
   rmSync(STATE, { recursive: true, force: true });
   run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'cfbblindresume', '--local', '--persist-to', STATE]);
   const tables = sql("SELECT name FROM sqlite_master WHERE type = 'table'").map((r) => r.name);
-  check('migrations apply to a fresh local D1', ['votes', 'pair_counts', 'vote_totals', 'rate_limit', 'events'].every((t) => tables.includes(t)), tables.join(', '));
+  check('migrations apply to a fresh local D1', ['votes', 'pair_counts', 'rate_limit', 'events'].every((t) => tables.includes(t)) && !tables.includes('vote_totals'), tables.join(', '));
 
   const server = startServer();
   const cleanup = () => stopServer(server);
@@ -204,6 +222,25 @@ async function main() {
     check('POST /api/vote week without data -> 400', r.status === 400, String(r.status));
     r = await fetch(`${BASE}/api/vote`);
     check('GET /api/vote -> 405', r.status === 405 && r.headers.get('allow') === 'POST', String(r.status));
+    r = await fetch(`${BASE}/api/vote`, { method: 'OPTIONS' });
+    check('OPTIONS /api/vote -> 405 (no CORS preflight passes)', r.status === 405, String(r.status));
+    r = await fetch(`${BASE}/api/vote`, { method: 'POST', headers: { 'Content-Type': 'text/plain', 'CF-Connecting-IP': '203.0.113.11' }, body: JSON.stringify({ season: gd.season, week: gd.week, order: [p0, p1, p2] }) });
+    check('POST /api/vote as text/plain -> 415', r.status === 415, String(r.status));
+    r = await vote([p0, p1, p2], '203.0.113.12', gd, { Origin: 'http://localhost:8793', 'Sec-Fetch-Site': 'cross-site' });
+    check('POST /api/vote from another site -> 403', r.status === 403, String(r.status));
+    r = await vote([p0, p1, p2], '203.0.113.12', gd, { Origin: BASE, 'Sec-Fetch-Site': 'same-origin' });
+    check('POST /api/vote same-origin browser request -> 204', r.status === 204, String(r.status));
+    let chunks = 0;
+    r = await fetch(`${BASE}/api/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // 8 MB without a Content-Length (chunked): the Function stops reading at 2 KB.
+      body: new ReadableStream({ pull(c) { if (++chunks > 128) c.close(); else c.enqueue(new Uint8Array(64 * 1024).fill(32)); } }),
+      duplex: 'half',
+    }).catch((e) => ({ status: `error ${e.message}` }));
+    check('POST /api/vote 8 MB chunked body -> 413', r.status === 413, String(r.status));
+    r = await fetch(`${BASE}/api/fans?season=${gd.season}&week=${gd.week}&trio=${p0},${p1},${p2}`);
+    check('API responses carry X-Robots-Tag: noindex', r.headers.get('x-robots-tag') === 'noindex', r.headers.get('x-robots-tag'));
 
     /* ---------------- fans (trio T queried under the threshold; T2 never queried before) */
     const T = [p3, p4, p5];
@@ -226,19 +263,6 @@ async function main() {
       check('GET /api/fans after the cache expires -> consensus', JSON.stringify(body.consensus) === JSON.stringify([T[1], T[0], T[2]]), JSON.stringify(body.consensus));
     }
 
-    /* ---------------- rate limit: 30 per hour per client */
-    const ip = '192.0.2.200';
-    let accepted = 0;
-    let firstRefused = null;
-    for (let i = 0; i < 32; i++) {
-      r = await vote(rounds[i % rounds.length], ip, gd);
-      if (r.status === 204) accepted++;
-      else if (firstRefused === null) firstRefused = { at: i + 1, status: r.status, retry: r.headers.get('retry-after') };
-    }
-    check('rate limit: 30 votes accepted, the 31st -> 429 with Retry-After', accepted === 30 && firstRefused?.at === 31 && firstRefused.status === 429 && Number(firstRefused.retry) > 0, JSON.stringify({ accepted, firstRefused }));
-    r = await vote([p0, p1, p2], '192.0.2.201', gd);
-    check('rate limit is per client (another IP still 204)', r.status === 204, String(r.status));
-
     /* ---------------- fans top 25 */
     const topUrl = `${BASE}/api/fans/top25?season=${gd.season}&week=${gd.week}`;
     r = await fetch(topUrl);
@@ -246,7 +270,7 @@ async function main() {
     check('GET /api/fans/top25 under 200 votes -> null', body.top25 === null && body.votes < 200 && body.threshold === 200, `votes ${body.votes}`);
     check('GET /api/fans/top25 Cache-Control 300s', r.headers.get('cache-control') === 'public, max-age=300');
     const before = body.votes;
-    const need = 200 - before;
+    const need = Math.max(0, 200 - before);
     const pool = [];
     for (let s = 1; s <= 3; s++) {
       const rs = [];
@@ -262,11 +286,25 @@ async function main() {
       if (res.status === 204) seeded++;
     }
     check(`seeded ${need} more votes through the API from ${Math.ceil(need / 25)} clients`, seeded === need, `${seeded}/${need}`);
-    // The 300s cache still holds the earlier answer; the totals row proves the threshold is met.
-    const totals = sql(`SELECT n FROM vote_totals WHERE season = ${gd.season} AND week = ${gd.week}`)[0]?.n;
-    check('vote_totals counts every accepted vote', totals === before + need, `${totals}`);
+    // The 300s cache still holds the earlier answer; the pair counts prove the threshold is met
+    // (every vote adds exactly three).
+    const pairs = sql(`SELECT SUM(n) AS n FROM pair_counts WHERE season = ${gd.season} AND week = ${gd.week}`)[0]?.n;
+    check('pair_counts hold 3 per accepted vote (votes = sum / 3)', pairs / 3 >= 200 && pairs % 3 === 0, `${pairs / 3} votes`);
     // The answer above is cached for 300 s under a normalized key; the top 25 itself is checked on
     // a fresh server with an empty cache at the end.
+
+    /* ---------------- rate limit: 120 per hour per client, dropped with a 202 (no console error) */
+    const LIMIT = 120;
+    const rl = await untilDropped(gd, rounds, '192.0.2.200', LIMIT + 2);
+    check(`rate limit: ${LIMIT} votes accepted, the ${LIMIT + 1}st -> 202 dropped with Retry-After`, rl.accepted === LIMIT && rl.firstDropped?.at === LIMIT + 1 && rl.firstDropped.status === 202 && rl.firstDropped.dropped === 'rate-limit' && Number(rl.firstDropped.retry) > 0, JSON.stringify(rl));
+    r = await vote([p0, p1, p2], '192.0.2.201', gd);
+    check('rate limit is per client (another IP still 204)', r.status === 204, String(r.status));
+    const burst = await Promise.all(Array.from({ length: LIMIT + 40 }, () => vote(rounds[0], '198.51.100.77', gd).then((x) => x.status)));
+    const stored = burst.filter((x) => x === 204).length;
+    check(`rate limit holds under ${LIMIT + 40} parallel votes from one IP (exactly ${LIMIT} stored)`, stored === LIMIT && burst.filter((x) => x === 202).length === 40, JSON.stringify({ stored, other: burst.filter((x) => x !== 204).length }));
+    let v6 = 0;
+    for (let i = 1; i <= LIMIT + 10; i++) if ((await vote(rounds[i % rounds.length], `2001:db8:abcd:12::${i.toString(16)}`, gd)).status === 204) v6++;
+    check(`rate limit keys IPv6 by /64 (${LIMIT + 10} addresses in one /64 -> ${LIMIT} stored)`, v6 === LIMIT, String(v6));
 
     /* ---------------- events */
     for (const b of [
@@ -280,6 +318,8 @@ async function main() {
     }
     r = await fetch(`${BASE}/api/event`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: 'page_view', prop: '/' }) });
     check('POST /api/event unknown name -> 400', r.status === 400, String(r.status));
+    r = await fetch(`${BASE}/api/event`, { method: 'POST', headers: { 'Content-Type': 'text/plain', Origin: 'http://localhost:8793', 'Sec-Fetch-Site': 'cross-site' }, body: JSON.stringify({ name: 'run_completed', prop: '30' }) });
+    check('POST /api/event from another site -> 403', r.status === 403, String(r.status));
     const ev = sql('SELECT name, prop, n FROM events ORDER BY name, prop');
     check('event counters (day, name, prop) incremented', JSON.stringify(ev) === JSON.stringify([
       { name: 'results_shared', prop: 'copy', n: 1 },
@@ -302,11 +342,16 @@ async function main() {
     check('/r/{code} og:image:alt lists the top 12', decode(metaContent(html, 'property', 'og:image:alt')).includes(`12 ${gd.teams[expected.ranking.order[11]].name}`));
     check('/r/{code} keeps noindex', /<meta name="robots" content="noindex"/.test(html) && r.headers.get('x-robots-tag') === 'noindex');
     check('/r/{code} still mounts the island', html.includes('astro-island') || html.includes('Blind resume game'));
+    check('/r/{code} anti-framing headers', r.headers.get('x-frame-options') === 'DENY' && r.headers.get('content-security-policy') === "frame-ancestors 'none'", `${r.headers.get('x-frame-options')} / ${r.headers.get('content-security-policy')}`);
     writeFileSync(join(OUT, 'r-valid.html'), html);
 
     r = await fetch(`${BASE}/r/garbage`);
     html = await r.text();
-    check('/r/garbage -> 200 shell with generic tags', r.status === 200 && decode(titleOf(html)) === 'A Shared Blind Resume Ranking | CFB Blind Resume' && /og\/default\.png/.test(metaContent(html, 'property', 'og:image') ?? ''), decode(titleOf(html)));
+    const genericTitle = decode(titleOf(await (await fetch(`${BASE}/r`)).text()));
+    check('/r/garbage -> 200 shell (no console error), generic tags, canonical + og:url to the home page', r.status === 200 && decode(titleOf(html)) === genericTitle && /og\/default\.png/.test(metaContent(html, 'property', 'og:image') ?? '') && canonicalOf(html) === 'https://cfbblindresume.com/' && metaContent(html, 'property', 'og:url') === 'https://cfbblindresume.com/' && html.includes('astro-island'), `${r.status} ${canonicalOf(html)} ${decode(titleOf(html))}`);
+    r = await fetch(`${BASE}/r/${code.toLowerCase()}`);
+    html = await r.text();
+    check('/r/{lowercased code} -> generic shell, canonical to the home page', r.status === 200 && canonicalOf(html) === 'https://cfbblindresume.com/', `${r.status} ${canonicalOf(html)}`);
 
     /* ---------------- /og/r/{code}.png */
     const t0 = performance.now();
@@ -317,6 +362,7 @@ async function main() {
     check('/og/r/{code}.png -> image/png 1200x630', r.status === 200 && r.headers.get('content-type') === 'image/png' && size.sig && size.width === 1200 && size.height === 630, JSON.stringify(size));
     check('/og/r/{code}.png PNG inflates to 630 scanlines', pngInflates(png));
     check('/og/r/{code}.png long cache headers', (r.headers.get('cache-control') ?? '').includes('max-age=604800'), r.headers.get('cache-control'));
+    check('/og/r/{code}.png is noindex', r.headers.get('x-robots-tag') === 'noindex', r.headers.get('x-robots-tag'));
     writeFileSync(join(OUT, 'share-integration.png'), png);
     const t1 = performance.now();
     const again = new Uint8Array(await (await fetch(`${BASE}/og/r/${code}.png`)).arrayBuffer());
@@ -332,9 +378,9 @@ async function main() {
     }
 
     /* ---------------- privacy */
-    const rl = sql('SELECT hash, window_start, count FROM rate_limit');
-    const dump = JSON.stringify(rl) + JSON.stringify(sql('SELECT * FROM votes LIMIT 50'));
-    check('D1 stores no IP address (only 64-hex salted hashes)', rl.length > 0 && rl.every((x) => /^[0-9a-f]{64}$/.test(x.hash)) && !/\b(?:\d{1,3}\.){3}\d{1,3}\b/.test(dump), `${rl.length} rate-limit rows`);
+    const rlRows = sql('SELECT hash, window_start, count FROM rate_limit');
+    const dump = JSON.stringify(rlRows) + JSON.stringify(sql('SELECT * FROM votes LIMIT 50'));
+    check('D1 stores no IP address (only 64-hex salted hashes)', rlRows.length > 0 && rlRows.every((x) => /^[0-9a-f]{64}$/.test(x.hash)) && !/\b(?:\d{1,3}\.){3}\d{1,3}\b/.test(dump) && !/2001:db8/i.test(dump), `${rlRows.length} rate-limit rows`);
     const cols = sql("SELECT name FROM pragma_table_info('votes')").map((x) => x.name);
     check('votes columns are season, week, a, b, c, created_day only', JSON.stringify(cols) === JSON.stringify(['id', 'season', 'week', 'a', 'b', 'c', 'created_day']), cols.join(','));
   } finally {

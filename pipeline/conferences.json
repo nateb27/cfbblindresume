@@ -1,0 +1,16 @@
+{
+ "_readme": "FBS conference names per season, spelled exactly as CFBD /teams/fbs gives them. validate.py fails on any team whose conference is not listed, so a CFBD rename or a typo (which would silently create a one-team conference, crown it a champion and change the bracket) stops the pipeline instead. Add the new season's list each August, after checking realignment; the first week file of the season is also compared with nothing else, so check it by hand.",
+ "2026": [
+  "ACC",
+  "American Athletic",
+  "Big 12",
+  "Big Ten",
+  "Conference USA",
+  "FBS Independents",
+  "Mid-American",
+  "Mountain West",
+  "Pac-12",
+  "SEC",
+  "Sun Belt"
+ ]
+}

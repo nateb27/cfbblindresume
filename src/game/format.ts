@@ -54,14 +54,19 @@ export function emphasize(text: string, re: RegExp, wrap: (match: string, key: n
 /** Letters shown on the three blind cards, by display position. */
 export const LETTERS = ['A', 'B', 'C'] as const;
 
-/** Short labels for bracket rounds on the phone round picker. */
+/**
+ * Short labels for bracket rounds on the phone round picker. Five rounds (24 teams) must fit a
+ * 288px strip at 320px wide without scrolling: "Rd 1 · Rd 2 · QF · SF · Final".
+ */
 export function shortRoundLabel(label: string, roundCount: number): string {
-  if (label === 'First round') return roundCount > 4 ? 'Round 1' : 'First round';
-  if (label === 'Second round') return 'Round 2';
-  if (label === 'Quarterfinal') return 'Quarters';
-  if (label === 'Semifinal') return 'Semis';
+  const compact = roundCount > 4;
+  if (label === 'First round') return compact ? 'Rd 1' : 'First round';
+  if (label === 'Second round') return 'Rd 2';
+  if (label === 'Quarterfinal') return compact ? 'QF' : 'Quarters';
+  if (label === 'Semifinal') return compact ? 'SF' : 'Semis';
   return label;
 }
+
 
 /** Column headers for the desktop bracket: "Quarterfinals", "Semifinals", "Final". */
 export function columnRoundLabel(label: string): string {
@@ -86,4 +91,17 @@ export function prefersReducedMotion(): boolean {
 /** Scroll behavior that respects prefers-reduced-motion. */
 export function scrollBehavior(): ScrollBehavior {
   return prefersReducedMotion() ? 'auto' : 'smooth';
+}
+
+/**
+ * Scroll so the top of a game screen sits at the top of the viewport when it is not already there:
+ * when it starts above the viewport (scrolled past), or below the top and the screen would not fit
+ * under it (a tall hero above the game on a laptop, the fixed rank footer on phones). Screens that
+ * already fit where they are stay put, so a big monitor keeps the hero in view.
+ */
+export function bringIntoView(el: HTMLElement): void {
+  const top = el.getBoundingClientRect().top;
+  const footer = window.matchMedia('(min-width: 64rem)').matches ? 0 : 80;
+  const fits = top + el.offsetHeight <= window.innerHeight - footer;
+  if (top < -8 || (top > 16 && !fits)) el.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
 }

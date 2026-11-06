@@ -348,7 +348,10 @@ def run(args) -> int:
         "weeks": sorted([w for w in index["weeks"] if isinstance(w, dict) and w.get("week") != week] + [entry],
                         key=lambda w: w["week"]),
     }
-    problems = validator.validate_week(doc, index=new_index, label=str(week_path))
+    prev_path = validator.previous_week_path(week_path) if season_dir.is_dir() else None
+    previous = read_json(prev_path, "previous week file") if prev_path is not None else None
+    problems = validator.validate_week(doc, index=new_index, label=str(week_path), previous=previous,
+                                       config_dir=args.config_dir)
     if problems:
         log(f"FAILED validation ({len(problems)} problem(s)); nothing written:")
         for p in problems[:100]:

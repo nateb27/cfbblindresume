@@ -4,9 +4,15 @@
  *   node scripts/content-verify.mjs [outDir]
  * - one /teams page per team in the latest week file, C(n,2) /compare pages for the committee top n
  * - "ESPN", "FPI", "SP+", "Game Control" only in about.html (house rule 1), in any built text file
- * - every HTML page: exactly one <title>, meta description, canonical (absolute, no trailing slash),
- *   og:image; titles and descriptions unique across indexable pages
- * - content pages (everything except / and /r) ship no <script> other than JSON-LD
+ * - every HTML page: exactly one <title>, meta description, og:image (a versioned .png URL);
+ *   indexable pages: canonical (absolute, no trailing slash) and titles/descriptions that are unique
+ *   and fit search results (title <= 65 chars, description <= 160); noindex content pages carry no
+ *   canonical
+ * - the strength-of-record rank is never labeled bare "FEI N" (bare FEI = FEI overall)
+ * - content pages (everything except / and /r) ship no <script> other than JSON-LD (and, in an
+ *   ads-on build, the ad loader stub, which may appear only on pages with an ad slot)
+ * - every compare page has an internal link from another page, and /_redirects maps each pair's
+ *   reversed URL to it
  * - sitemap.xml lists every indexable page and nothing else; robots.txt points to it
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -52,9 +58,12 @@ for (const f of files.filter((x) => /\.(html|js|css|json|xml|txt|svg|webmanifest
 }
 
 // Head tags.
+const TITLE_MAX = 65;
+const DESC_MAX = 160;
 const titles = new Map();
 const descs = new Map();
 const indexable = [];
+const inbound = new Map(); // url -> Set of linking urls
 for (const f of html) {
   const t = readFileSync(f, 'utf8');
   const url = urlOf(f);
@@ -63,12 +72,33 @@ for (const f of html) {
   const desc = t.match(/<meta name="description" content="([^"]*)"/);
   const canon = t.match(/<link rel="canonical" href="([^"]*)"/);
   const noindex = /<meta name="robots" content="noindex"/.test(t);
+  const game = url === '/' || url === '/r';
   if (title.length !== 1) fail(`${url}: ${title.length} <title>`);
   if (!desc) fail(`${url}: no meta description`);
-  if (!canon) fail(`${url}: no canonical`);
-  else if (!noindex && canon[1] !== ORIGIN + (url === '/' ? '' : url)) fail(`${url}: canonical ${canon[1]}`);
+  if (!noindex || game) {
+    if (!canon) fail(`${url}: no canonical`);
+    else if (!noindex && canon[1] !== ORIGIN + (url === '/' ? '' : url)) fail(`${url}: canonical ${canon[1]}`);
+  } else if (canon) fail(`${url}: noindex content page carries a canonical`);
   if (canon && /\/$/.test(canon[1])) fail(`${url}: canonical has a trailing slash`);
-  if (!/<meta property="og:image" content="https:\/\/[^"]+\.png"/.test(t)) fail(`${url}: no og:image`);
+  if (!/<meta property="og:image" content="https:\/\/[^"]+\.png\?v=\d{4}-\d+"/.test(t)) fail(`${url}: no versioned og:image`);
+  const decode = (x) => x.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  if (!noindex) {
+    const tt = decode(title[0]?.[1] ?? '');
+    const dd = desc ? decode(desc[1]) : '';
+    if (tt.length > TITLE_MAX) fail(`${url}: title ${tt.length} chars (max ${TITLE_MAX}): ${tt}`);
+    if (dd.length > DESC_MAX) fail(`${url}: description ${dd.length} chars (max ${DESC_MAX}): ${dd}`);
+    if (tt.length < 20 || dd.length < 70) fail(`${url}: title or description too short`);
+  }
+  // Visible text: "FEI 16" style labels must not stand for the strength-of-record rank.
+  const body = t.slice(t.indexOf('<body')).replace(/<script\b[\s\S]*?<\/script>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const bare = body.match(/\bFEI (\d+)(?![\d+.-])/);
+  if (bare) fail(`${url}: bare "FEI ${bare[1]}" label (strength of record is "SoR")`);
+  for (const m of t.matchAll(/href="(\/[^"#?]*)/g)) {
+    const to = m[1] === '/' ? '/' : m[1].replace(/\/$/, '');
+    if (to === url) continue;
+    if (!inbound.has(to)) inbound.set(to, new Set());
+    inbound.get(to).add(url);
+  }
   if (!/application\/ld\+json/.test(t) && !noindex) fail(`${url}: no JSON-LD`);
   if (!noindex) {
     indexable.push(url);
@@ -80,13 +110,39 @@ for (const f of html) {
       descs.set(desc[1], url);
     }
   }
-  const game = url === '/' || url === '/r';
+  // The ad loader stub (PUBLIC_ADS=on builds) is the one allowed inline script, and only on pages
+  // that render an ad slot.
+  const adLoader = /cfb:ads-ready/.test(t);
+  const hasSlot = /class="ad-slot[\s"]/.test(t) || (game && /adsEnabled&quot;:\[0,true\]/.test(t));
+  if (adLoader && !hasSlot) fail(`${url}: ad loader on a page without an ad slot`);
   if (!game) {
-    const scripts = [...t.matchAll(/<script\b([^>]*)>/g)].filter((m) => !/application\/ld\+json/.test(m[1]));
+    const scripts = [...t.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter((m) => !/application\/ld\+json/.test(m[1]) && !/cfb:ads-ready/.test(m[2]));
     if (scripts.length) fail(`${url}: ${scripts.length} non-JSON-LD <script> on a content page`);
   }
   if (!/Ratings: <a[^>]*href="https:\/\/bcftoys\.com\/\d{4}-fei"[^>]*>FEI by Brian Fremeau<\/a>/.test(t)) fail(`${url}: no FEI attribution link`);
 }
+
+// Every compare page is linked from somewhere, and its reversed URL redirects to it.
+const redirectsFile = join(out, '_redirects');
+const redirects = existsSync(redirectsFile) ? readFileSync(redirectsFile, 'utf8') : '';
+if (!redirects) fail('missing _redirects');
+const rules = new Map(
+  redirects
+    .split('\n')
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split(/\s+/))
+    .map(([from, to, code]) => [from, `${to} ${code}`]),
+);
+let orphans = 0;
+for (const f of comparePages) {
+  const url = urlOf(f);
+  if (!(inbound.get(url)?.size > 0)) orphans++;
+  const [a, b] = url.replace('/compare/', '').split('-vs-');
+  const pairsOk = comparePages.length > 0 && rules.get(`/compare/${b}-vs-${a}`) === `${url} 301`;
+  if (!pairsOk && a && b && !url.includes('-vs-', url.indexOf('-vs-') + 4)) fail(`_redirects: no 301 from /compare/${b}-vs-${a} to ${url}`);
+}
+if (orphans) fail(`${orphans} compare pages have no internal link`);
+if (rules.size > 2000) fail(`_redirects: ${rules.size} rules (Pages allows 2,000)`);
 
 // Sitemap + robots.
 const sm = readFileSync(join(out, 'sitemap.xml'), 'utf8');
@@ -96,7 +152,11 @@ for (const u of indexable) if (!smSet.has(u)) fail(`sitemap missing ${u}`);
 for (const u of locs) if (!indexable.includes(u)) fail(`sitemap lists non-indexable or missing ${u}`);
 if (!/Sitemap: https:\/\/cfbblindresume\.com\/sitemap\.xml/.test(readFileSync(join(out, 'robots.txt'), 'utf8'))) fail('robots.txt has no sitemap');
 
-console.log(`html pages: ${html.length} (indexable ${indexable.length}) · teams ${teamPages.length}/${nTeams} · compares ${comparePages.length} · sitemap ${locs.length} URLs`);
+const lens = (m) => [...m.keys()].map((k) => k.length);
+console.log(
+  `html pages: ${html.length} (indexable ${indexable.length}) · teams ${teamPages.length}/${nTeams} · compares ${comparePages.length} (orphans ${orphans}) · sitemap ${locs.length} URLs · redirects ${rules.size}`,
+);
+console.log(`title length max ${Math.max(...lens(titles))} · description length max ${Math.max(...lens(descs))}`);
 if (errors.length) {
   console.error(errors.slice(0, 60).join('\n'));
   console.error(`${errors.length} problem(s)`);

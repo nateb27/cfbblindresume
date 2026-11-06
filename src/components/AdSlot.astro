@@ -1,8 +1,10 @@
 ---
 /**
  * Ad slot (SPEC "Ads", DESIGN §15). Renders nothing unless PUBLIC_ADS=on. When on: a labeled,
- * height-reserved container (CLS 0); the network loader stub in BaseLayout fills it later.
- * Never inside cards, modals or the game's play area.
+ * height-reserved container (CLS 0); the network loader stub in BaseLayout fills it later. A plain
+ * div with a visible "Advertisement" label, not a landmark (two slots on one page must not form two
+ * identically named landmarks). Pages that render one pass `ads` to BaseLayout so the loader is
+ * injected only where a slot exists. Never inside cards, modals or the game's play area.
  */
 import { ADS_ON } from './site';
 
@@ -15,9 +17,9 @@ const { kind, class: cls } = Astro.props;
 
 {
   ADS_ON && (
-    <aside class:list={['ad-slot', cls]} data-kind={kind} aria-label="Advertisement">
+    <div class:list={['ad-slot', cls]} data-kind={kind}>
       <span class="ad-label">Advertisement</span>
       <div class="ad-box" data-ad-slot={kind} />
-    </aside>
+    </div>
   )
 }

@@ -48,6 +48,16 @@ class BuildMini(unittest.TestCase):
         self.assertIn(900008, ids)
         self.assertNotIn(900009, ids)
 
+    def test_upcoming_lists_unplayed_later_games_only(self):
+        # 900009 (week 4, Notre Dame vs App State, not played) is upcoming for both teams;
+        # 900008 (week 4, already played midweek) is neither in the log nor upcoming.
+        self.assertEqual(self.t["notre-dame"]["upcoming"], [
+            {"week": 4, "date": "2026-09-26", "opp": "app-state", "oppFbs": True, "site": "home", "conf": False}])
+        self.assertEqual(self.t["app-state"]["upcoming"], [
+            {"week": 4, "date": "2026-09-26", "opp": "notre-dame", "oppFbs": True, "site": "away", "conf": False}])
+        self.assertEqual(self.t["miami-oh"]["upcoming"], [])
+        self.assertEqual(self.t["san-jose-state"]["upcoming"], [])
+
     def test_fcs_opponent(self):
         self.assertEqual(self.doc["opponents"], {
             "the-citadel": {"slug": "the-citadel", "name": "The Citadel", "classification": "fcs"}})

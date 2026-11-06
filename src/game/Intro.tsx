@@ -51,8 +51,10 @@ export function Intro(props: {
   busy?: boolean;
   error?: { title: string; message: string } | null;
   onRetry?: () => void;
+  /** This week has a committee ranking (the copy says what the picks move from). Default true. */
+  hasCommittee?: boolean;
 }) {
-  const { onPlay, onIntent, busy = false, error = null, onRetry } = props;
+  const { onPlay, onIntent, busy = false, error = null, onRetry, hasCommittee = true } = props;
   return (
     <div className="mx-auto w-full max-w-game px-gutter py-4 lg:px-gutter-lg lg:py-6">
       <div className="grid overflow-hidden rounded-panel border border-line bg-surface shadow-card lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -64,10 +66,14 @@ export function Intro(props: {
               Record, FEI ratings, schedule strength and every result. Names and logos stay hidden.
             </Step>
             <Step n={2} title="Rank them 1-2-3">
-              Each pick moves teams up or down from where the committee has them.
+              {hasCommittee
+                ? 'Each pick moves teams up or down from where the committee has them.'
+                : 'Each pick moves teams up or down from where FEI’s strength of record has them.'}
             </Step>
             <Step n={3} title="Get your top 25 and bracket">
-              Then see how you line up with the committee, FEI and other fans.
+              {hasCommittee
+                ? 'Then see how you line up with the committee and FEI (and with other fans, once enough people have played).'
+                : 'Then see how you line up with FEI (and with other fans, once enough people have played).'}
             </Step>
           </ol>
           <div className="order-2 mt-5 flex flex-col gap-2.5 sm:order-none sm:mt-7 sm:flex-row sm:items-center sm:gap-5">

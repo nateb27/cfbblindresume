@@ -2,13 +2,14 @@
  * "15 rankings in" (DESIGN.md §12): shown after round 15 and after every extra round, with
  * "Final results" and "Do another" (up to TRIO_RULES.maxRounds).
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import { agreement, runningLine } from '@lib/agreement';
 import { gameAgreementRefs } from '@lib/game-data';
 import { TRIO_RULES } from '@lib/trios';
 import { useGame, useGameApi, useGameData } from './context';
 import { emphasize } from './format';
 import { FeiCredit } from './ui';
+import { useFreshGuard } from './hooks';
 
 export function Done() {
   const api = useGameApi();
@@ -18,13 +19,21 @@ export function Done() {
   const line = useMemo(() => runningLine(agreement(rounds, gameAgreementRefs(gd))), [gd, rounds]);
   const n = rounds.length;
   const left = TRIO_RULES.maxRounds - n;
+  // It appears where the reveal's Continue was tapped: ignore the second half of a double tap.
+  const isStale = useFreshGuard(n);
+  const onClickCapture = (e: MouseEvent) => {
+    if (isStale(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
 
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
   }, [n]);
 
   return (
-    <div className="mx-auto w-full max-w-game px-gutter py-6 lg:px-gutter-lg lg:py-10">
+    <div className="mx-auto w-full max-w-game px-gutter py-6 lg:px-gutter-lg lg:py-10" onClickCapture={onClickCapture}>
       <section className="mx-auto max-w-[34rem] animate-rise rounded-panel border border-line bg-surface px-6 py-8 text-center shadow-card sm:px-10" aria-labelledby="done-h" data-testid="done">
         <p className="cond text-hero text-accent" aria-hidden="true">
           {n}

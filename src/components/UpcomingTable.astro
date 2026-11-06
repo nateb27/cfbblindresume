@@ -1,0 +1,88 @@
+---
+/**
+ * Remaining schedule (DESIGN §14 "Still to play"): a team's unplayed games after this week, in date
+ * order, from upcomingRows (opponent tier and committee rank use THIS week's ranks). Columns: Date |
+ * Opponent (linked when FBS, "CFP N" beside it) | Tier (stars + label) | Site. Under 640px, and
+ * always when `compact` (the half-width compare columns), the site and committee rank fold into a
+ * second line under the opponent and the tier label is dropped (stars keep their accessible name).
+ * Renders nothing when the week file carries no schedule (upcomingRows returns null); an empty
+ * schedule reads "No regular-season games left".
+ */
+import { upcomingRows } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import Stars from './Stars.astro';
+import TeamChip from './TeamChip.astro';
+import { SITE_LABELS, fmtShortDate } from './site';
+
+interface Props {
+  week: WeekFile;
+  slug: string;
+  caption: string;
+  compact?: boolean;
+  class?: string;
+}
+const { week, slug, caption, compact = false, class: cls } = Astro.props;
+const rows = upcomingRows(week, slug);
+const wide = compact ? 'hidden' : 'max-sm:hidden';
+const narrow = compact ? '' : 'sm:hidden';
+---
+
+{
+  rows !== null &&
+    (rows.length === 0 ? (
+      <p class:list={['text-fg-muted', cls]}>No regular-season games left.</p>
+    ) : (
+      <div class:list={['table-wrap', cls]}>
+        <table class="data-table max-sm:[&_:is(td,th)]:px-1.5 max-sm:[&_:is(td,th):first-child]:pl-0 max-sm:[&_:is(td,th):last-child]:pr-0">
+          <caption class="sr-only">{caption}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Opponent</th>
+              <th scope="col">
+                <span class={wide}>Opponent tier</span>
+                <span class={narrow}>Tier</span>
+              </th>
+              <th scope="col" class={wide}>
+                Site
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((g) => (
+              <tr>
+                <td class="whitespace-nowrap text-fg-muted">
+                  <time datetime={g.date}>{fmtShortDate(g.date)}</time>
+                </td>
+                <td>
+                  <span class="flex flex-col items-start">
+                    <span class="flex items-center gap-2">
+                      <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} tap />
+                      {g.oppCommittee !== null && <span class:list={['label-caps whitespace-nowrap text-fg-muted', wide]}>CFP {g.oppCommittee}</span>}
+                    </span>
+                    <span class:list={['pl-5 text-[0.8125rem] leading-4 whitespace-nowrap text-fg-muted', narrow]}>
+                      {g.oppCommittee !== null && `CFP ${g.oppCommittee} · `}
+                      {SITE_LABELS[g.site]}
+                      {g.conf && ' · Conf'}
+                    </span>
+                  </span>
+                </td>
+                <td>
+                  <span class="flex items-center gap-2">
+                    <Stars stars={g.tier.stars} label={g.tier.label} />
+                    <span class:list={['whitespace-nowrap text-fg-muted', wide]} aria-hidden="true">
+                      {g.tier.label}
+                    </span>
+                  </span>
+                </td>
+                <td class:list={['whitespace-nowrap text-fg-muted', wide]}>
+                  {SITE_LABELS[g.site]}
+                  {g.conf && <span class="text-fg-faint"> · Conf</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ))
+}

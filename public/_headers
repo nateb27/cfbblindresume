@@ -1,4 +1,13 @@
-# Cloudflare Pages response headers for static assets (Functions set their own).
+# Cloudflare Pages response headers for static assets (Functions set their own: see
+# functions/_lib/http.ts PAGE_SECURITY_HEADERS, kept in sync by tests/functions/headers.test.ts).
+
+# Every page: nobody may frame the site (clickjacking), and no page asks for device features.
+# frame-ancestors only limits who frames this site; ad iframes inside our pages are unaffected.
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+
 # Keep every *.pages.dev address (production alias and per-deploy previews) out of search
 # results; the canonical site is https://cfbblindresume.com.
 https://:project.pages.dev/*

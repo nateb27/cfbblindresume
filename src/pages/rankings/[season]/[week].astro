@@ -1,9 +1,9 @@
 ---
-/** /rankings/{season}/week-{N}: a frozen copy of the rankings page for every week file; canonical to itself. */
+/** /rankings/{season}/week-{N}: a frozen copy of the rankings page for every week file; canonical to itself (SPEC). */
 import { committeeOrder, gwdOrder, TOP_N } from '@lib/data';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import RankingsView from '../../../components/RankingsView.astro';
-import { allWeekRefs, archiveHref, getWeek, itemListLd, teamHref } from '../../../components/site';
+import { allWeekRefs, archiveHref, clampText, getWeek, itemListLd, teamHref } from '../../../components/site';
 
 export function getStaticPaths() {
   return allWeekRefs().map((r) => ({ params: { season: String(r.season), week: `week-${r.week}` }, props: { season: r.season, week: r.week } }));
@@ -15,18 +15,20 @@ const c = committeeOrder(week);
 const fei = gwdOrder(week);
 const n = c?.length ?? TOP_N;
 const top = (o: string[], k: number) => o.slice(0, k).map((s) => week.teams[s]!.name);
-const title = c
-  ? `College Football Playoff Rankings vs FEI, ${week.label} ${season} (Weekly Archive)`
-  : `FEI Strength of Record Top ${n}, ${week.label} ${season} (Weekly Archive)`;
+const when = `${week.label.replace(/^After/, 'after')}, ${season}`;
+const title = c ? `CFP Rankings ${week.label}, ${season}: Committee vs FEI (Archive)` : `FEI Strength of Record ${week.label}, ${season} (Archive)`;
 const description = c
-  ? `Archived ${week.label} ${season} rankings: the committee's top ${n} (${top(c, 3).join(', ')} on top) beside FEI's strength of record (${top(fei, 3).join(', ')}), with projected playoff fields as they stood that week.`
-  : `Archived ${week.label} ${season}: FEI's strength of record top ${n} (${top(fei, 3).join(', ')}) and the projected playoff fields as they stood that week.`;
+  ? clampText([
+      `The rankings as they stood ${when}: the committee's top ${n} (${top(c, 3).join(', ')} on top) beside FEI strength of record (${top(fei, 3).join(', ')}).`,
+      ' With that week’s fields.',
+    ])
+  : clampText([`FEI strength of record top ${n} as it stood ${when} (${top(fei, 3).join(', ')} on top).`, ' With that week’s projected fields.']);
 const ld = itemListLd(
   c ? `Committee top ${n}, ${week.label} ${season}` : `FEI strength of record top ${n}, ${week.label} ${season}`,
   (c ?? fei.slice(0, n)).map((s) => ({ name: week.teams[s]!.name, path: teamHref(s) })),
 );
 ---
 
-<BaseLayout title={title} description={description} path={archiveHref(season, wk)} jsonLd={ld} current="rankings" week={week}>
+<BaseLayout title={title} description={description} path={archiveHref(season, wk)} jsonLd={ld} ads current="rankings" week={week}>
   <RankingsView week={week} archive={true} />
 </BaseLayout>

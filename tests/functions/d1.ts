@@ -21,7 +21,8 @@ class Stmt implements D1PreparedStatement {
     return new Stmt(this.db, this.sql, values);
   }
 
-  private exec<T>(): T[] {
+  /** Run now (synchronously); `batch` uses this so a batch never yields mid-transaction. */
+  exec<T>(): T[] {
     const s = this.db.prepare(this.sql);
     const args = this.params as (string | number | null)[];
     return (/^\s*(select|with)|returning/i.test(this.sql) ? s.all(...args) : (s.run(...args), [])) as T[];
@@ -58,11 +59,15 @@ export class SqliteD1 implements D1Database {
     return new Stmt(this.db, query);
   }
 
+  /**
+   * Like D1: the statements run in order inside one transaction, and concurrent batches are
+   * serialized (the whole batch runs synchronously, so no other request interleaves with it).
+   */
   async batch<T>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
     this.db.exec('BEGIN');
     try {
       const out: D1Result<T>[] = [];
-      for (const s of statements) out.push(await s.all<T>());
+      for (const s of statements) out.push({ results: (s as Stmt).exec<Record<string, unknown>>().map((r) => ({ ...r }) as T), success: true });
       this.db.exec('COMMIT');
       return out;
     } catch (e) {

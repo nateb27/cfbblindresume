@@ -1,7 +1,11 @@
 /**
  * The reveal after each round (DESIGN.md §11): a native modal <dialog> (inert background, focus
  * inside, Esc handled), the three teams in the user's order with You / Committee / FEI (/ Fans),
- * match chips and the running line. Tap anywhere, Enter, Space or Esc continues.
+ * match chips and the running line. Tap anywhere, Esc, Enter or a letter key continues; arrow,
+ * Page, Home/End and Space keys scroll the panel instead (keyboard and zoomed-in users can read
+ * all of it). It opens scrolled to the top with Next round and the FEI credit pinned to its
+ * bottom edge, so short screens scroll the list, never the button. Taps in the first moments after
+ * it opens are ignored (a double tap on the last pick must not dismiss it unseen).
  */
 import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { agreement, runningLine } from '@lib/agreement';
@@ -10,6 +14,10 @@ import { TRIO_RULES } from '@lib/trios';
 import { useGame, useGameApi, useGameData } from './context';
 import { emphasize, LETTERS, ordinal, recordText } from './format';
 import { ArrowIcon, CheckIcon, CrossIcon, FeiCredit, Switch, TeamBlock } from './ui';
+import { GUARD_MS } from './hooks';
+
+/** Keys that move around or scroll inside the panel rather than continue. */
+const NAV_KEYS = new Set(['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
 
 /** Place of each trio team by a rank lookup (1 = best); null when the team is unranked there. */
 function placesBy(trio: readonly string[], rankOf: (s: string) => number | null): Record<string, number | null> {
@@ -25,11 +33,11 @@ function Cell(props: { label: string; place: number | null; you: number; sub?: s
   const { label, place, you, sub } = props;
   const same = place === you;
   return (
-    <div className="min-w-0 rounded-slab bg-raised px-2 py-1" data-testid={props.testid}>
-      <dt className="label-caps truncate text-fg-muted">{label}</dt>
-      <dd className="flex items-baseline gap-1.5">
-        <span className={`cond text-[1.25rem] leading-6 font-bold ${same ? 'text-accent' : 'text-fg'}`}>{place === null ? 'NR' : ordinal(place)}</span>
-        {sub && <span className="cond truncate text-[0.875rem] font-semibold text-fg-muted">{sub}</span>}
+    <div className="min-w-0 rounded-slab bg-raised px-2 py-0.5 sm:py-1" data-testid={props.testid}>
+      <dt className="label-caps whitespace-nowrap text-fg-muted max-[22rem]:tracking-[0.02em]">{label}</dt>
+      <dd className="flex flex-wrap items-baseline gap-x-1.5">
+        <span className={`cond text-[1.25rem] leading-5 font-bold sm:leading-6 ${same ? 'text-accent' : 'text-fg'}`}>{place === null ? 'NR' : ordinal(place)}</span>
+        {sub && <span className="cond text-[0.875rem] leading-5 font-semibold text-fg-muted">{sub}</span>}
       </dd>
     </div>
   );
@@ -63,17 +71,27 @@ export function Reveal() {
   const rounds = useGame((s) => s.rounds);
   const showReveals = useGame((s) => s.showReveals);
   const ref = useRef<HTMLDialogElement>(null);
+  const next = useRef<HTMLButtonElement>(null);
+  const openedAt = useRef(Infinity);
   const { last, line } = useRevealData(gd, rounds);
 
   useEffect(() => {
     const d = ref.current;
-    if (d && !d.open) d.showModal();
+    if (d && !d.open) {
+      d.showModal();
+      // showModal focuses (and scrolls to) the first control; start at the top with Next round
+      // focused instead (it is pinned to the bottom edge, so it is in view).
+      next.current?.focus({ preventScroll: true });
+      d.scrollTop = 0;
+    }
+    openedAt.current = performance.now();
     return () => {
       if (d?.open) d.close();
     };
   }, []);
 
   const close = () => api.getState().closeReveal();
+  const tooSoon = (timeStamp: number) => timeStamp - openedAt.current < GUARD_MS;
   const { order, display, fans, round } = reveal;
   const total = round > TRIO_RULES.baseRounds ? TRIO_RULES.maxRounds : TRIO_RULES.baseRounds;
   const committee = placesBy(order, (s) => gd.teams[s]?.committee ?? null);
@@ -82,15 +100,22 @@ export function Reveal() {
 
   const onClick = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest('a, [role="switch"]')) return;
+    if (e.detail !== 0 && tooSoon(e.timeStamp)) return;
     close();
   };
   const onKeyDown = (e: KeyboardEvent) => {
-    if (['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (NAV_KEYS.has(e.key) || e.key === 'Escape' || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement;
+    const onControl = !!t.closest('a, button, [role="switch"]');
+    // Space scrolls unless it presses a control; Enter/Space on a link or the switch do their own thing.
+    if (e.key === ' ' && !onControl) return;
     if ((e.key === 'Enter' || e.key === ' ') && t.closest('a, [role="switch"]')) return;
     e.preventDefault();
+    if (e.repeat || tooSoon(e.timeStamp)) return;
     close();
   };
+  const cells = 1 + (gd.hasCommittee ? 1 : 0) + 1 + (fans ? 1 : 0);
+  const cols = ['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][cells];
 
   return (
     <dialog
@@ -117,7 +142,7 @@ export function Reveal() {
             </h2>
           </div>
         </header>
-        <ol className="flex flex-col gap-3.5 px-5">
+        <ol className="flex flex-col gap-3 px-5 sm:gap-3.5">
           {order.map((slug, i) => {
             const team = gd.teams[slug]!;
             const you = i + 1;
@@ -125,12 +150,12 @@ export function Reveal() {
             return (
               <li key={slug} className="animate-rise" style={{ animationDelay: `${i * 60}ms` }}>
                 <div className="animate-wipe" style={{ animationDelay: `${i * 60}ms` }}>
-                  <TeamBlock slug={slug} team={team} seed={letter} size="reveal" meta={recordText(team.record)} link={false} label={`Team ${letter} was ${team.name}, ${recordText(team.record)}`} />
+                  <TeamBlock slug={slug} team={team} seed={letter} size="reveal" meta={recordText(team.record)} link={false} className="max-sm:h-12" label={`Team ${letter} was ${team.name}, ${recordText(team.record)}`} />
                 </div>
-                <dl className={`mt-1.5 grid gap-1 ${fans ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                <dl className={`mt-1.5 grid gap-1 ${cols}`}>
                   <Cell label="You" place={you} you={you} />
                   {gd.hasCommittee && <Cell label="Committee" place={committee[slug] ?? null} you={you} sub={team.committee ? `#${team.committee}` : undefined} />}
-                  <Cell label="FEI" place={fei[slug] ?? null} you={you} sub={`#${team.sor}`} />
+                  <Cell label="FEI SoR" place={fei[slug] ?? null} you={you} sub={`#${team.sor}`} />
                   {fans && <Cell label="Fans" place={fans.indexOf(slug) + 1 || null} you={you} testid="fans-cell" />}
                 </dl>
               </li>
@@ -138,7 +163,7 @@ export function Reveal() {
           })}
         </ol>
         {last && (
-          <div className="mt-4 flex flex-wrap gap-2 px-5">
+          <div className="mt-3 flex flex-wrap gap-2 px-5 sm:mt-4">
             {last.committee !== null && <MatchChip ok={last.committee} who="committee" />}
             {last.fei !== null && <MatchChip ok={last.fei} who="FEI" />}
           </div>
@@ -150,20 +175,25 @@ export function Reveal() {
             </b>
           ))}
         </p>
-        <p className="px-5 pt-1 text-[0.8125rem] leading-5 text-fg-faint">1st to 3rd: order among these three. #: rank in the full ranking.</p>
-        <div className="px-5 pt-4">
-          <button type="button" className="btn btn-primary w-full" autoFocus data-testid="reveal-next">
-            {isLast ? 'Continue' : 'Next round'}
-            <ArrowIcon />
-          </button>
-        </div>
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line px-5 py-2.5 text-[0.75rem] leading-4 text-fg-faint">
+        <p className="px-5 pt-1 text-[0.8125rem] leading-5 text-fg-faint">
+          1st–3rd: order among these three · #: rank in the full ranking · FEI SoR: FEI strength of record
+        </p>
+        <div className="px-5 pt-1">
           <Switch checked={showReveals} onChange={(v) => api.getState().setShowReveals(v)} className="min-h-10 text-[0.8125rem] text-fg-muted">
             Show after every round
           </Switch>
-          <span>
-            <FeiCredit url={gd.ratingsUrl} />
-          </span>
+        </div>
+        <footer className="sticky bottom-0 rounded-b-panel border-t border-line bg-surface px-5 pt-3 pb-2.5">
+          <button ref={next} type="button" className="btn btn-primary w-full" data-testid="reveal-next">
+            {isLast ? 'Continue' : 'Next round'}
+            <ArrowIcon />
+          </button>
+          <p className="mt-2 flex flex-wrap justify-between gap-x-4 text-[0.75rem] leading-4 text-fg-faint">
+            <span className="max-sm:hidden">Tap anywhere or press Enter to continue</span>
+            <span data-testid="reveal-credit">
+              <FeiCredit url={gd.ratingsUrl} />
+            </span>
+          </p>
         </footer>
       </div>
     </dialog>

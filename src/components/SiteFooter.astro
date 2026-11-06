@@ -5,7 +5,7 @@
  */
 import type { WeekFile } from '@lib/types';
 import Wordmark from './Wordmark.astro';
-import { SITE, fmtDate } from './site';
+import { SITE, compareHubHref, fmtDate } from './site';
 
 interface Props {
   week: WeekFile;
@@ -38,11 +38,12 @@ const s = week.sources;
       </p>
     </div>
     <nav aria-label="Footer">
-      <ul class="flex flex-wrap gap-x-5 gap-y-1 sm:flex-col sm:items-end">
-        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/how-it-works">How it works</a></li>
-        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/about">About</a></li>
-        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/privacy">Privacy</a></li>
-        <li><a class="inline-flex min-h-8 items-center hover:text-fg" href="/teams">All teams</a></li>
+      <ul class="flex flex-wrap gap-x-5 sm:flex-col sm:items-end">
+        <li><a class="inline-flex min-h-11 items-center hover:text-fg" href="/teams">All teams</a></li>
+        <li><a class="inline-flex min-h-11 items-center hover:text-fg" href={compareHubHref}>Compare teams</a></li>
+        <li><a class="inline-flex min-h-11 items-center hover:text-fg" href="/how-it-works">How it works</a></li>
+        <li><a class="inline-flex min-h-11 items-center hover:text-fg" href="/about">About</a></li>
+        <li><a class="inline-flex min-h-11 items-center hover:text-fg" href="/privacy">Privacy</a></li>
       </ul>
     </nav>
   </div>

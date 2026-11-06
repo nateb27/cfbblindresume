@@ -1,0 +1,90 @@
+---
+/**
+ * Compare-page links for the matchups each playoff format's cut line creates, by the committee's
+ * order: the last team in vs the first team out, and the first team out vs any team below it that
+ * takes an automatic bid. Only pairs inside the committee top 25 (every compare page) are listed.
+ */
+import { committeeOrder } from '@lib/data';
+import type { WeekFile } from '@lib/types';
+import { teamVars } from '../styles/tokens';
+import { compareHref, compareHubHref, contiguousCut, formatSizeLabel, playoffViews } from './site';
+
+interface Props {
+  week: WeekFile;
+  class?: string;
+  /** Heading text (omit the heading with `heading={null}`). */
+  heading?: string | null;
+  /** Link to the compare hub under the list (off on the hub itself). */
+  hubLink?: boolean;
+}
+const { week, class: cls, heading = 'Matchups on the cut line', hubLink = true } = Astro.props;
+const views = playoffViews(week);
+const order = committeeOrder(week) ?? [];
+const rank = new Map(order.map((s, i) => [s, i + 1]));
+const pairs: { a: string; b: string; note: string }[] = [];
+const add = (x: string, y: string, note: string) => {
+  if (!rank.has(x) || !rank.has(y) || x === y) return;
+  const [a, b] = rank.get(x)! < rank.get(y)! ? [x, y] : [y, x];
+  const dup = pairs.find((p) => p.a === a && p.b === b);
+  if (dup) dup.note += ` · ${note}`;
+  else pairs.push({ a, b, note });
+};
+if (views.committee) {
+  for (const f of views.formats) {
+    const p = views.committee[f.id];
+    if (!p) continue;
+    const k = contiguousCut(order, p);
+    if (k > 0 && k < order.length) add(order[k - 1]!, order[k]!, `${formatSizeLabel(f)} cut line`);
+    const out = p.firstFiveOut[0];
+    for (const s of p.field) if (out && s.bid !== 'at-large' && rank.has(s.slug) && rank.get(s.slug)! > k) add(out, s.slug, `${formatSizeLabel(f)} first out vs auto bid`);
+  }
+}
+---
+
+{
+  pairs.length > 0 && (
+    <section aria-labelledby="cut-pairs" class={cls}>
+      {heading && (
+        <h2 id="cut-pairs" class="cond text-heading uppercase">
+          {heading}
+        </h2>
+      )}
+      <ul class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {pairs.map((p) => {
+          const x = week.teams[p.a]!;
+          const y = week.teams[p.b]!;
+          return (
+            <li>
+              <a
+                href={compareHref(`${p.a}-vs-${p.b}`)}
+                class="flex min-h-12 flex-col justify-center gap-1 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface"
+              >
+                <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span class="team-chip" style={teamVars(x.colors)}>
+                    {x.name}
+                  </span>
+                  <span class="text-sm text-fg-muted">vs</span>
+                  <span class="team-chip" style={teamVars(y.colors)}>
+                    {y.name}
+                  </span>
+                </span>
+                <span class="text-[0.8125rem] leading-4 text-fg-muted">
+                  {`#${rank.get(p.a)} vs #${rank.get(p.b)} · ${p.note}`}
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+      {hubLink && (
+        <p class="mt-3 text-sm text-fg-muted">
+          Every pair in the committee's top {order.length}:{' '}
+          <a class="link text-fg" href={compareHubHref}>
+            compare any two teams
+          </a>
+          .
+        </p>
+      )}
+    </section>
+  )
+}

@@ -8,6 +8,9 @@
  *
  *   node scripts/fn-bench-og.mjs [--runs 300] [--cold 7]
  *
+ * Also times "1st request after warm-up": a fresh process that first runs warmShareRenderer() (what
+ * the deployed route does at module scope, i.e. at isolate startup) and then serves one request.
+ *
  * "cold" = the first request in a brand-new process (nothing JIT-compiled yet, like the first
  * share image in a fresh isolate); "warm" = steady state. Synchronous zlib is used for timing so
  * Node's thread-pool stream overhead (absent in workerd) does not distort the number.
@@ -37,7 +40,7 @@ import { nextTrio } from '@lib/trios';
 import { rngForRound, mulberry32 } from '@lib/rng';
 import { encodeRun, parseShareCode, resolveShareCode } from '@lib/sharecode';
 import { loadAtlas } from './functions/_lib/atlas';
-import { shareImageModel, paintShareImage } from './functions/_lib/share-image';
+import { shareImageModel, paintShareImage, warmShareRenderer } from './functions/_lib/share-image';
 import { crc32 } from './functions/_lib/png';
 
 const mode = process.argv[2];
@@ -67,7 +70,7 @@ function request(code) {
   if (!sr.ok || gameRunViolations(gd, sr.value.rounds).length) throw new Error('bad run');
   const res = computeRunResults(gd, sr.value.rounds);
   const t1 = performance.now();
-  const canvas = paintShareImage(shareImageModel(gd, res.ranking.order, res.playoff.byes.map((s) => s.slug)), atlas);
+  const canvas = paintShareImage(shareImageModel(gd, res.ranking.order, res.playoff.byes.map((s) => s.slug), res.agreement), atlas);
   const rawRows = canvas.finishScanlines();
   const t2 = performance.now();
   const idat = deflateSync(rawRows);
@@ -78,6 +81,13 @@ function request(code) {
 
 if (mode === 'cold') {
   console.log(JSON.stringify({ atlasMs, ...request(codes[0]) }));
+} else if (mode === 'cold-warmed') {
+  // What the deployed Function does: warmShareRenderer() runs at module scope (isolate startup),
+  // then the first request arrives.
+  const w0 = performance.now();
+  warmShareRenderer(atlas);
+  const warmupMs = performance.now() - w0;
+  console.log(JSON.stringify({ atlasMs, warmupMs, ...request(codes[0]) }));
 } else {
   for (let i = 0; i < 60; i++) request(codes[i % codes.length]);
   const out = [];
@@ -111,10 +121,12 @@ const stats = (xs) => {
 };
 
 const cold = Array.from({ length: opt('--cold', 7) }, () => node(['cold']));
+const coldWarmed = Array.from({ length: opt('--cold', 7) }, () => node(['cold-warmed']));
 const warm = node(['warm', String(opt('--runs', 300))]);
 const report = {
   node: process.version,
   cold: Object.fromEntries(['results', 'paint', 'encode', 'total', 'atlasMs'].map((k) => [k, stats(cold.map((c) => c[k]))])),
+  coldAfterStartupWarmup: Object.fromEntries(['results', 'paint', 'encode', 'total', 'warmupMs'].map((k) => [k, stats(coldWarmed.map((c) => c[k]))])),
   warm: Object.fromEntries(['results', 'paint', 'encode', 'total'].map((k) => [k, stats(warm.map((w) => w[k]))])),
   pngBytes: stats(warm.map((w) => w.bytes)).median,
   palette: warm[0].palette,
@@ -129,4 +141,6 @@ console.log(row('warm  deflate+crc', report.warm.encode));
 console.log(row('warm  TOTAL', report.warm.total));
 console.log(row('cold  TOTAL (1st request)', report.cold.total));
 console.log(row('cold  atlas index (once)', report.cold.atlasMs));
+console.log(row('startup warm-up (once)', report.coldAfterStartupWarmup.warmupMs));
+console.log(row('1st request after warm-up', report.coldAfterStartupWarmup.total));
 console.log(`PNG ~${(report.pngBytes / 1024).toFixed(1)} KiB, ${report.palette} palette entries, ${report.levels} coverage levels`);
