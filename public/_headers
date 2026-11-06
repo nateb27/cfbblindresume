@@ -1,0 +1,11 @@
+# Cloudflare Pages response headers for static assets (Functions set their own).
+# Keep every *.pages.dev address (production alias and per-deploy previews) out of search
+# results; the canonical site is https://cfbblindresume.com.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+https://:version.:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+# Fingerprinted build output never changes at a given URL.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
