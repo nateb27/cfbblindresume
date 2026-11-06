@@ -202,13 +202,13 @@ npx wrangler pages project create cfbblindresume --production-branch main   # if
 openssl rand -hex 32 | npx wrangler pages secret put IP_SALT --project-name cfbblindresume
 ```
 
-- **`database_id`:** `wrangler.toml` ships a placeholder (`00000000-0000-4000-8000-000000000000`).
-  Local dev and tests work with it; a deploy needs the real id.
-- **Preview deployments** use the same D1 binding unless you add an `[env.preview]` section with
-  its own `[[d1_databases]]`. Without one, preview votes land in production tables.
+- **Databases:** production uses `cfbblindresume`; every preview deployment (any branch other than
+  `main`, e.g. `staging`) uses `cfbblindresume-preview` via `[env.preview]`, so test votes never
+  reach the production fan consensus. Both ids are in `wrangler.toml`.
 - **Preview secrets:** add `IP_SALT` with `--env preview` as well.
-- **Migrations:** apply them before deploying code that needs them:
-  `npx wrangler d1 migrations apply cfbblindresume --remote`.
+- **Migrations:** apply them to both databases before deploying code that needs them:
+  `npx wrangler d1 migrations apply cfbblindresume --remote` and
+  `npx wrangler d1 migrations apply cfbblindresume-preview --remote --env preview`.
 
 ### Deploy
 

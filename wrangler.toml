@@ -15,7 +15,19 @@ PUBLIC_ADS = "off"
 [[d1_databases]]
 binding = "DB"
 database_name = "cfbblindresume"
-# Placeholder: replace with the id printed by `npx wrangler d1 create cfbblindresume` before the
-# first deploy (local dev and tests work with the placeholder).
-database_id = "00000000-0000-4000-8000-000000000000"
+database_id = "dc3a441c-74d4-45d2-aa64-0c475bf7b8e3"
+migrations_dir = "migrations"
+
+# Preview deployments (every branch other than main, e.g. staging) get their own database so test
+# votes never reach the production fan consensus. Same schema: apply migrations to both.
+[env.preview]
+compatibility_date = "2026-10-01"
+
+[env.preview.vars]
+PUBLIC_ADS = "off"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "cfbblindresume-preview"
+database_id = "66ece0b7-4fc3-4eda-9d19-b9a7a4a31b4e"
 migrations_dir = "migrations"
