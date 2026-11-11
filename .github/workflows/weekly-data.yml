@@ -55,6 +55,15 @@ jobs:
       - name: Pipeline tests
         run: python -m unittest discover -s pipeline/tests -p "test_*.py"
 
+      - name: Check secrets
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: |
+          if [ -z "$CFBD_API_KEY" ]; then
+            echo "::error::Set the repository secret CFBD_API_KEY (free key from CollegeFootballData.com) so this job can fetch schedules and results (README.md, Deploy)."
+            exit 1
+          fi
+
       - name: Build week file
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
