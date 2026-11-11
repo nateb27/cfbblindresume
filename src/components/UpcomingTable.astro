@@ -68,11 +68,9 @@ const narrow = compact ? '' : 'sm:hidden';
                   </span>
                 </td>
                 <td>
-                  <span class="flex items-center gap-2">
+                  <span class="tier-cell">
                     <Stars stars={g.tier.stars} label={g.tier.label} />
-                    <span class:list={['whitespace-nowrap text-fg-muted', wide]} aria-hidden="true">
-                      {g.tier.label}
-                    </span>
+                    <span class="tier-band" aria-hidden="true">{g.tier.label.replace(/ team$/, '')}</span>
                   </span>
                 </td>
                 <td class:list={['whitespace-nowrap text-fg-muted', wide]}>

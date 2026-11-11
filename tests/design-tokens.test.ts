@@ -1,78 +1,144 @@
 /**
- * Design tokens: src/styles/tokens.ts must mirror src/styles/tokens.css (and the dark copy in
- * global.css), and every documented text/background pair must meet WCAG AA (DESIGN.md lists them).
+ * Design tokens (DOSSIER, DESIGN.md "Tokens" and "Measured contrast").
+ * - src/styles/tokens.ts mirrors src/styles/tokens.css for all three sets: light-sheet (content
+ *   pages), light-board (game pages) and dark (photostat). tokens.css declares world tokens in
+ *   `@tokens <set>` ... `@end` blocks and maps the system tokens (`--color-*`) onto them in @theme
+ *   (and again on [data-surface="board"]); the test resolves that mapping.
+ * - Every documented token pair meets its WCAG minimum in every set: text 4.5:1; graphics,
+ *   control boundaries and focus 3:1. There are no exceptions.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { colors, contrast, teamInk, teamRule, teamVars, tierColor, tierKey, TIER_KEYS, type ThemeColors, type ThemeName } from '../src/styles/tokens';
+import {
+  colors,
+  contrast,
+  luminance,
+  teamInk,
+  teamPaint,
+  teamRule,
+  teamVars,
+  tierColor,
+  tierKey,
+  TIER_KEYS,
+  TIER_TICK_PX,
+  type ThemeColors,
+  type ThemeName,
+} from '../src/styles/tokens';
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
 const tokensCss = read('../src/styles/tokens.css');
 const globalCss = read('../src/styles/global.css');
 
-/** `--color-x: #hex;` declarations inside the block that starts at `marker`. */
-function block(css: string, marker: string): Record<string, string> {
-  const start = css.indexOf(marker);
+/** The text inside the `{ ... }` block that follows `marker` (first brace after it). */
+function braceBlock(css: string, marker: string, from = 0): string {
+  const start = css.indexOf(marker, from);
   expect(start, `marker ${marker}`).toBeGreaterThanOrEqual(0);
+  const open = css.indexOf('{', start);
   let depth = 0;
-  let end = start;
-  for (let i = css.indexOf('{', start); i < css.length; i++) {
+  for (let i = open; i < css.length; i++) {
     if (css[i] === '{') depth++;
-    if (css[i] === '}' && --depth === 0) { end = i; break; }
+    if (css[i] === '}' && --depth === 0) return css.slice(open + 1, i);
   }
+  throw new Error(`unclosed block at ${marker}`);
+}
+
+/** `--name: value;` declarations in a chunk of CSS. */
+function decls(css: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const m of css.slice(start, end).matchAll(/--color-([a-z0-9-]+):\s*(#[0-9a-f]{3,6})\s*;/gi)) out[m[1]!] = m[2]!.toLowerCase();
+  for (const m of css.matchAll(/--([a-z0-9-]+):\s*([^;]+);/gi)) out[m[1]!] = m[2]!.trim().toLowerCase();
   return out;
 }
 
-const cssDark = block(tokensCss, '@theme static');
-const cssLight = block(tokensCss, '@utility theme-light-values');
-const cssDarkCopy = block(globalCss, '@utility theme-dark-values');
+/** World tokens of one `@tokens <set>` ... `@end` block. */
+function world(set: string): Record<string, string> {
+  const start = tokensCss.indexOf(`@tokens ${set}`);
+  expect(start, `@tokens ${set}`).toBeGreaterThanOrEqual(0);
+  const end = tokensCss.indexOf('@end', start);
+  return decls(tokensCss.slice(start, end));
+}
 
-/** Text pairs need 4.5:1; graphics/control boundaries need 3:1. [fg, bg, min] by token key. */
-export const PAIRS: [keyof ThemeColors, keyof ThemeColors, number][] = [
-  ...(['page', 'surface', 'raised', 'raised-2'] as const).flatMap((bg) => [
-    ['fg', bg, 4.5] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['fg-muted', bg, 4.5] as [keyof ThemeColors, keyof ThemeColors, number],
-  ]),
-  ...(['page', 'surface', 'raised'] as const).flatMap((bg) => [
-    ['fg-faint', bg, 4.5] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['accent', bg, 4.5] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['win', bg, 4.5] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['loss', bg, 4.5] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['control', bg, 3] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['focus', bg, 3] as [keyof ThemeColors, keyof ThemeColors, number],
-    ['accent-edge', bg, 3] as [keyof ThemeColors, keyof ThemeColors, number],
-    ...TIER_KEYS.map((k) => [`tier-${k}`, bg, 3] as [keyof ThemeColors, keyof ThemeColors, number]),
-  ]),
+/** System token -> world token, from `--color-x: var(--y);` in @theme. */
+const themeBlock = braceBlock(tokensCss, '@theme static');
+const mapping: Record<string, string> = {};
+for (const [k, v] of Object.entries(decls(themeBlock))) {
+  const m = /^color-(.+)$/.exec(k);
+  const w = /^var\(--([a-z0-9-]+)\)$/.exec(v);
+  if (m && w) mapping[m[1]!] = w[1]!;
+}
+
+const SETS: Record<ThemeName, string> = { light: 'light-sheet', board: 'light-board', dark: 'dark' };
+const THEMES = Object.keys(SETS) as ThemeName[];
+
+/** The resolved hex of every system colour token in one set. */
+function resolved(theme: ThemeName): Record<string, string> {
+  const w = world(SETS[theme]);
+  return Object.fromEntries(Object.entries(mapping).map(([k, v]) => [k, w[v]!]));
+}
+
+type Pair = [keyof ThemeColors, keyof ThemeColors, number];
+const on = (fg: keyof ThemeColors, bgs: (keyof ThemeColors)[], min: number): Pair[] => bgs.map((bg) => [fg, bg, min]);
+
+/** DESIGN.md "Measured contrast": every pair at its minimum (81 per set). */
+export const PAIRS: Pair[] = [
+  // text >= 4.5
+  ...on('fg', ['page', 'surface', 'raised', 'raised-2', 'accent-tint', 'win-tint', 'loss-tint'], 4.5),
+  ...on('fg-muted', ['page', 'surface', 'raised', 'raised-2'], 4.5),
+  ...on('fg-faint', ['page', 'surface', 'raised'], 4.5),
+  ...on('accent', ['page', 'surface', 'raised', 'accent-tint'], 4.5),
   ['on-accent', 'accent-fill', 4.5],
-  ['accent', 'accent-tint', 4.5],
-  ['win', 'win-tint', 4.5],
-  ['loss', 'loss-tint', 4.5],
+  ...on('win', ['page', 'surface', 'raised', 'win-tint'], 4.5),
+  ...on('loss', ['page', 'surface', 'raised', 'loss-tint'], 4.5),
+  ['on-redaction', 'redaction', 4.5],
+  ['surface', 'fg', 4.5],
+  ['page', 'fg', 4.5],
   ['on-selection', 'selection', 4.5],
+  // graphics, control boundaries, focus >= 3
+  ...on('control', ['page', 'surface', 'raised'], 3),
+  ...on('focus', ['page', 'surface', 'raised'], 3),
+  ...on('fg', ['page', 'surface', 'raised'], 3),
+  ...on('accent-edge', ['page', 'surface', 'raised'], 3),
+  ...on('accent-fill', ['page', 'surface', 'raised'], 3),
+  ...on('redaction', ['page', 'surface', 'raised'], 3),
+  ...TIER_KEYS.flatMap((k) => on(`tier-${k}`, ['page', 'surface', 'raised', 'track'], 3)),
 ];
 
 describe('design tokens', () => {
-  it('tokens.ts mirrors tokens.css (dark @theme and light block)', () => {
-    for (const theme of ['dark', 'light'] as ThemeName[]) {
-      const css = theme === 'dark' ? cssDark : cssLight;
+  it('tokens.css maps every system colour onto a world token', () => {
+    const keys = Object.keys(colors.light);
+    for (const k of keys) expect(mapping[k], `--color-${k}`).toBeDefined();
+  });
+
+  it('the board surface re-declares the same mapping', () => {
+    const board = decls(braceBlock(tokensCss, 'The system tokens again on the board surface'));
+    for (const [k, w] of Object.entries(mapping)) expect(board[`color-${k}`], `--color-${k} on the board`).toBe(`var(--${w})`);
+  });
+
+  it('tokens.ts mirrors tokens.css in all three sets', () => {
+    for (const theme of THEMES) {
+      const css = resolved(theme);
       for (const [k, v] of Object.entries(colors[theme])) expect(css[k], `${theme} --color-${k}`).toBe(v);
     }
   });
 
-  it('global.css dark copy equals the @theme values', () => {
-    for (const [k, v] of Object.entries(cssDarkCopy)) expect(cssDark[k], `--color-${k}`).toBe(v);
-    for (const k of Object.keys(cssLight)) expect(cssDarkCopy[k], `dark copy has --color-${k}`).toBeDefined();
-  });
-
-  it('every documented pair meets WCAG AA in both themes', () => {
-    for (const theme of ['dark', 'light'] as ThemeName[]) {
+  it('every documented pair meets its minimum in every set', () => {
+    expect(PAIRS.length).toBe(81);
+    for (const theme of THEMES) {
       for (const [fg, bg, min] of PAIRS) {
         const r = contrast(colors[theme][fg], colors[theme][bg]);
         expect(r, `${theme}: ${fg} on ${bg} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(min);
       }
     }
+  });
+
+  it('the redaction bar is the blackest mark (lighter toner top step)', () => {
+    for (const theme of ['light', 'board'] as const) expect(luminance(colors[theme]['tier-50'])).toBeGreaterThan(luminance(colors[theme].redaction));
+    expect(luminance(colors.dark['tier-50'])).toBeGreaterThan(luminance(colors.dark.page));
+  });
+
+  it('no shadow tokens, no forced themes, no condensed face', () => {
+    expect(tokensCss).not.toMatch(/--shadow-/);
+    expect(tokensCss + globalCss).not.toMatch(/theme-(light|dark)-values|data-theme=|Barlow/);
   });
 
   it('teamInk is >= 4.5:1 on any primary color', () => {
@@ -88,12 +154,74 @@ describe('design tokens', () => {
     const v = teamVars({ primary: '#000000', secondary: '#FFCD00' });
     expect(v['--team-ink']).toBe('#ffffff');
     expect(v['--team-edge-dark']).not.toBe('transparent');
-    expect(v['--team-rule']).toBe('#ffcd00');
+    expect(v['--team-rule-light']).toBe('#ffcd00');
+    expect(v['--team-rule-dark']).toBe('#ffcd00');
   });
 
-  it('tier keys map star values to ramp colors', () => {
+  it('a rule that would vanish into the page is redrawn as a shade of the primary, per scheme (no edge)', () => {
+    const lightBgs = [colors.light.page, colors.light.surface, colors.board.page, colors.board.surface];
+    const darkBgs = [colors.dark.page, colors.dark.surface];
+    // Blue primary + white rule: white reads on the photostat, not on paper.
+    const kentucky = teamVars({ primary: '#0033a0', secondary: '#ffffff' });
+    expect(kentucky['--team-rule-dark']).toBe('#ffffff');
+    expect(kentucky['--team-rule-light']).not.toBe('#ffffff');
+    expect(kentucky['--team-edge-light']).toBe('transparent');
+    expect(kentucky['--team-edge-dark']).toBe('transparent');
+    const kPaint = teamPaint({ primary: '#0033a0', secondary: '#ffffff' });
+    expect(kPaint.edge).toBeNull();
+    expect(kPaint.rule).toBe(kentucky['--team-rule-light']);
+    for (const bg of lightBgs) expect(contrast(kentucky['--team-rule-light']!, bg)).toBeGreaterThanOrEqual(1.5);
+    // A saturated secondary keeps its colour even near 1.5:1 (black + gold: the gold reads on paper).
+    expect(contrast(kentucky['--team-rule-light']!, '#0033a0')).toBeGreaterThanOrEqual(1.5);
+    // Red primary + black rule: fine on paper, redrawn in dark mode, and no grey frame there.
+    const georgia = teamVars({ primary: '#ba0c2f', secondary: '#000000' });
+    expect(georgia['--team-rule-light']).toBe('#000000');
+    expect(georgia['--team-rule-dark']).not.toBe('#000000');
+    expect(georgia['--team-edge-light']).toBe('transparent');
+    expect(georgia['--team-edge-dark']).toBe('transparent');
+    for (const bg of darkBgs) expect(contrast(georgia['--team-rule-dark']!, bg)).toBeGreaterThanOrEqual(1.5);
+    expect(teamPaint({ primary: '#ba0c2f', secondary: '#000000' }).edge).toBeNull();
+    // The rule is never emitted unresolved: CSS picks --team-rule from the scheme's value.
+    expect(georgia['--team-rule']).toBeUndefined();
+  });
+
+  it('team redaction bar: the marker when it reads on the primary, else the team ink', () => {
+    // Marker black on a light primary; paper-white marker would not read on it in dark mode.
+    const gold = teamVars({ primary: '#ffcd00', secondary: '#000000' });
+    expect(gold['--team-redact-light']).toBe('var(--redaction)');
+    expect(gold['--team-redact-dark']).toBe(teamInk('#ffcd00'));
+    // Navy: marker black does not read; the paper-white bar does in dark mode.
+    const navy = teamVars({ primary: '#002244', secondary: '#ffffff' });
+    expect(navy['--team-redact-light']).toBe('#ffffff');
+    expect(navy['--team-redact-dark']).toBe('var(--redaction)');
+  });
+
+  it('tier keys map star values to the monochrome toner ramp (more ink = better opponent)', () => {
     expect([5, 4.5, 4, 3, 2, 1.5, 1, 0.5].map(tierKey)).toEqual([...TIER_KEYS]);
-    expect(tierColor(4.5)).toBe(colors.dark['tier-45']);
+    expect(tierColor(4.5)).toBe(colors.light['tier-45']);
+    expect(tierColor(4.5, 'dark')).toBe(colors.dark['tier-45']);
     expect(() => tierKey(2.5)).toThrow();
+    for (const theme of THEMES) {
+      const lum = TIER_KEYS.map((k) => luminance(colors[theme][`tier-${k}`]));
+      // grey: no hue (warm photostat greys allowed a few units)
+      for (const k of TIER_KEYS) {
+        const hex = colors[theme][`tier-${k}`];
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+        expect(Math.max(r!, g!, b!) - Math.min(r!, g!, b!), `${theme} tier-${k} ${hex} is grey`).toBeLessThanOrEqual(10);
+      }
+      // monotonic: darker on paper, lighter on the photostat
+      for (let i = 1; i < lum.length; i++) {
+        if (theme === 'dark') expect(lum[i]!, `${theme} ramp step ${i}`).toBeLessThan(lum[i - 1]!);
+        else expect(lum[i]!, `${theme} ramp step ${i}`).toBeGreaterThan(lum[i - 1]!);
+      }
+    }
+    expect(TIER_KEYS.map((k) => TIER_TICK_PX[k])).toEqual([14, 12, 10, 8, 6, 5, 4, 3]);
+  });
+
+  it('tier ticks in global.css match TIER_TICK_PX', () => {
+    for (const k of TIER_KEYS) {
+      const m = new RegExp(`\\[data-tier="${k}"\\][^}]*--tier-tick:\\s*(\\d+)px`).exec(globalCss);
+      expect(Number(m?.[1]), `tier ${k}`).toBe(TIER_TICK_PX[k]);
+    }
   });
 });

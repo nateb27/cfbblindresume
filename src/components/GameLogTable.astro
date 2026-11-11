@@ -1,8 +1,8 @@
 ---
 /**
- * Game log (DESIGN §14): toughest opponent first (gameRows), with date, opponent (linked when
- * FBS), opponent tier (stars + label, from the CURRENT week's FEI ranks), site, result + margin
- * and score. Under 640px the site (and committee rank) folds into a second line under the
+ * Game log (DESIGN §14): toughest opponent first (gameRows): opponent (linked when FBS), opponent
+ * tier (pips + band, from the CURRENT week's FEI ranks), site, result + margin, score, then the
+ * date (last: the rows are sorted by opponent, not by date). Under 640px the site (and committee rank) folds into a second line under the
  * opponent, the date moves under the score, and the tier label is dropped (stars keep their
  * accessible name), so the table fits 328px (a 360px phone) without scrolling.
  */
@@ -27,21 +27,18 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
     <caption class="sr-only">{caption}</caption>
     <thead>
       <tr>
-        <th scope="col" class="max-sm:hidden">Date</th>
         <th scope="col">Opponent</th>
         <th scope="col"><span class="max-sm:hidden">Opponent tier</span><span class="sm:hidden">Tier</span></th>
         <th scope="col" class="max-sm:hidden">Site</th>
         <th scope="col" data-num>Result</th>
         <th scope="col" data-num>Score</th>
+        <th scope="col" class="max-sm:hidden">Date</th>
       </tr>
     </thead>
     <tbody>
       {
         rows.map((g) => (
           <tr>
-            <td class="whitespace-nowrap text-fg-muted max-sm:hidden">
-              <time datetime={g.date}>{fmtShortDate(g.date)}</time>
-            </td>
             <td>
               <span class="flex flex-col items-start">
                 <span class="flex items-center gap-2">
@@ -55,11 +52,9 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
               </span>
             </td>
             <td>
-              <span class="flex items-center gap-2">
+              <span class="tier-cell">
                 <Stars stars={g.tier.stars} label={g.tier.label} />
-                <span class="whitespace-nowrap text-fg-muted max-sm:hidden" aria-hidden="true">
-                  {g.tier.label}
-                </span>
+                <span class="tier-band" aria-hidden="true">{g.tier.label.replace(/ team$/, '')}</span>
               </span>
             </td>
             <td class="text-fg-muted max-sm:hidden">{SITE_LABELS[g.site]}</td>
@@ -76,6 +71,9 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
               <time datetime={g.date} class="block font-sans text-[0.75rem] leading-4 font-normal text-fg-muted sm:hidden">
                 {fmtShortDate(g.date)}
               </time>
+            </td>
+            <td class="whitespace-nowrap text-fg-muted max-sm:hidden">
+              <time datetime={g.date}>{fmtShortDate(g.date)}</time>
             </td>
           </tr>
         ))

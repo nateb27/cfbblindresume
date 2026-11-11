@@ -4,6 +4,8 @@
 name = "cfbblindresume"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-10-01"
+# node:zlib (native, synchronous) for the share-image PNG: functions/_lib/png.ts.
+compatibility_flags = ["nodejs_compat"]
 
 # PUBLIC_ADS is read at build time by Astro (import.meta.env); listed here so Pages previews and
 # `wrangler pages dev` match production. Ads default off.
@@ -24,6 +26,7 @@ migrations_dir = "migrations"
 # votes never reach the production fan consensus. Same schema: apply migrations to both.
 [env.preview]
 compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
 
 [env.preview.vars]
 PUBLIC_ADS = "off"

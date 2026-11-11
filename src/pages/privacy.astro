@@ -61,18 +61,18 @@ const items = [
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <Breadcrumbs items={[{ name: 'Privacy', href: '/privacy' }]} />
     <article class="max-w-read">
-      <h1 class="cond mt-2 text-title uppercase lg:text-display">Privacy</h1>
+      <h1 class="cond mt-2 text-title lg:text-display">Privacy</h1>
       <p class="mt-4 text-lg leading-8">The short version: we do not know who you are, and we would like to keep it that way.</p>
       {
         items.map((it) => (
           <section class="mt-10">
-            <h2 class="cond text-heading uppercase">{it.h}</h2>
+            <h2 class="cond text-heading">{it.h}</h2>
             <p class="mt-2 leading-7">{it.p}</p>
           </section>
         ))
       }
       <section class="mt-10">
-        <h2 class="cond text-heading uppercase">Questions</h2>
+        <h2 class="cond text-heading">Questions</h2>
         <p class="mt-2 leading-7">
           Email <a class="link" href={`mailto:${SITE.email}`}>{SITE.email}</a>. Last updated{' '}
           <time datetime={PRIVACY_UPDATED}>{fmtLongDate(PRIVACY_UPDATED)}</time>.

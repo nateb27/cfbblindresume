@@ -7,7 +7,11 @@
  * Input safety: every control that appears or changes under the pointer ignores pointer
  * activations for GUARD_MS (hooks.ts), so a double tap or double click never undoes, locks, or
  * picks in the next round by accident. Phones rank in two deliberate taps: "Rank B 1st" for the card
- * in view, then one of two "Rank X 2nd" buttons for the cards left, with Undo always on the left.
+ * in view, then one of two "Rank X 2nd" buttons for the cards left, with Undo always on the left;
+ * after the 1st pick the carousel moves on to the first card still open, so the next candidate is in
+ * view when the 2nd-place buttons appear. On desktop a picked card's button takes the card's picked
+ * look (violet wash and rule, the 1st stamp) and reads Undo: the solid violet fill stays for the
+ * actions that move forward (Play, Lock in, Next round).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type RefObject } from 'react';
 import { headToHeadFlags, type GameData } from '@lib/game-data';
@@ -20,7 +24,7 @@ import { GUARD_MS, useFreshGuard, useIsDesktop } from './hooks';
 
 /** How long a pointer pick waits before locking (the undo window). Off entirely via the "Lock in automatically" switch. */
 const LOCK_MS = 1400;
-/** Rounds before "Skip to results" unlocks (SPEC: after round 5). */
+/** Rounds before "Finish now" (skip to results) unlocks (SPEC: after round 5). */
 const SKIP_AFTER = 5;
 
 type Guard = (e: { detail: number; timeStamp: number }) => boolean;
@@ -136,7 +140,8 @@ export function Play() {
     setActive(i);
   }, []);
 
-  // Picks, announced politely for screen readers.
+  // Picks, announced politely for screen readers. Phones: after the 1st pick the carousel moves to
+  // the first card still open (the next candidate), so it is in view with the 2nd-place buttons.
   const doPick = useCallback(
     (slug: string, via: 'pointer' | 'keyboard') => {
       const before = api.getState().picks;
@@ -148,10 +153,16 @@ export function Play() {
           const third = trio.find((s) => !after.includes(s))!;
           const auto = api.getState().confirm?.auto;
           setAnnounce(`Team ${L} ranked 2nd, so Team ${letterOf(third)} is 3rd. ${auto ? 'Locking in. Undo to change it.' : 'Lock in, or undo.'}`);
-        } else setAnnounce(`Team ${L} ranked 1st.`);
+        } else {
+          setAnnounce(`Team ${L} ranked 1st.`);
+          if (!desktop) {
+            const nextOpen = trio.findIndex((s) => !after.includes(s));
+            if (nextOpen >= 0) showCard(nextOpen);
+          }
+        }
       } else if (after.length < before.length) setAnnounce(`Undid Team ${L}.`);
     },
-    [api, letterOf, trio],
+    [api, letterOf, trio, desktop, showCard],
   );
   const doUndo = useCallback(() => {
     const p = api.getState().picks;
@@ -185,7 +196,7 @@ export function Play() {
     prevPicks.current = picks.length;
   }, [confirm, picks, trio, desktop]);
 
-  // Keyboard: A/B/C rank that card next, Backspace undoes, Enter locks in. Only while focus is in
+  // Keyboard: A/B/C rank that card next, Backspace or Esc undoes, Enter locks in. Only while focus is in
   // the game (or nowhere): elsewhere on the page the letters are just letters (WCAG 2.1.4).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -200,7 +211,7 @@ export function Play() {
       if (i >= 0 && k.length === 1) {
         e.preventDefault();
         if (!s.confirm) doPick(trio[i]!, 'keyboard');
-      } else if (k === 'backspace') {
+      } else if (k === 'backspace' || (k === 'escape' && s.picks.length > 0)) {
         e.preventDefault();
         doUndo();
       } else if (k === 'enter' && s.confirm && !t?.closest('button, a')) {
@@ -237,24 +248,26 @@ export function Play() {
         <h2 ref={heading} tabIndex={-1} className="label-caps whitespace-nowrap text-fg outline-none" data-testid="round-label">
           <span className="text-fg-muted">Round</span> {round} <span className="text-fg-muted">of {total}</span>
         </h2>
-        <ol className="col-span-2 row-start-2 flex gap-1 lg:col-span-1 lg:col-start-2 lg:row-start-1" aria-hidden="true">
+        <ol className="round-ticks col-span-2 row-start-2 lg:col-span-1 lg:col-start-2 lg:row-start-1" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => (
-            <li
-              key={i}
-              className={`h-1.5 flex-1 rounded-slab transition-colors duration-(--duration-base) ${
-                i < roundsDone ? 'bg-accent-fill' : i === roundsDone && !lockedIn ? 'bg-fg' : 'bg-track'
-              }`}
-            />
+            <li key={i} className="round-tick" data-state={i < roundsDone ? 'done' : i === roundsDone && !lockedIn ? 'current' : 'todo'} />
           ))}
         </ol>
+        {/* Locked: a quiet note, never louder than the round label. Unlocked: a small ruled button, so
+            the moment it unlocks is visible. Same 32px box either way (no shift at round 6); the
+            button's hit area reaches 44px tall. */}
         <button
           type="button"
-          className={`btn -mr-3 text-label-lg ${extra ? 'btn-secondary mr-0 min-h-10 px-4' : 'btn-ghost'}`}
+          className={
+            skipEnabled
+              ? "btn btn-secondary relative min-h-8 px-3 text-label after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']"
+              : 'inline-flex min-h-8 items-center text-[0.8125rem] leading-4 text-fg-faint'
+          }
           disabled={!skipEnabled}
           onClick={() => api.getState().skipToResults()}
           data-testid="skip"
         >
-          {extra ? 'Final results' : skipEnabled ? 'Skip to results' : `Skip after round ${SKIP_AFTER}`}
+          {extra ? 'Final results' : skipEnabled ? 'Finish now' : `Finish early after round ${SKIP_AFTER}`}
         </button>
       </div>
 
@@ -262,10 +275,10 @@ export function Play() {
       {flags.length > 0 && (
         <ul className="mb-3 flex flex-col items-center gap-1.5" aria-label="Head-to-head">
           {flags.map((f) => (
-            <li key={`${f.winner}-${f.loser}-${f.week}`} className="inline-flex max-w-full items-center gap-2.5 rounded-chip border border-line bg-surface py-1.5 pr-3 pl-2">
-              <span className="label-caps flex-none rounded-slab bg-raised-2 px-1.5 py-0.5 text-fg">H2H</span>
-              <span className="cond text-[1.0625rem] leading-5 font-semibold">
-                {letterOf(f.winner)} beat {letterOf(f.loser)} head-to-head · +{f.margin}
+            <li key={`${f.winner}-${f.loser}-${f.week}`} className="inline-flex max-w-full items-center gap-2.5 rounded-chip border border-line-strong bg-surface py-1.5 pr-3 pl-2">
+              <span className="h2h-tag">H2H</span>
+              <span className="text-[0.9375rem] leading-5 font-semibold">
+                {letterOf(f.winner)} over {letterOf(f.loser)} by {f.margin}
                 <span className="sr-only"> points, week {f.week}</span>
               </span>
             </li>
@@ -286,7 +299,7 @@ export function Play() {
         >
           {trio.map((slug, i) => (
             <div key={`${trioKey}-${slug}`} className="w-[88%] max-w-[26rem] flex-none snap-center animate-rise lg:w-auto lg:max-w-none" style={{ animationDelay: `${i * 50}ms` }}>
-              <BlindCard letter={LETTERS[i]!} card={gd.cards[slug]!} tiers={gd.tiers} fbsCount={gd.fbsCount} place={placeOf(slug)} ratingsUrl={gd.ratingsUrl} />
+              <BlindCard letter={LETTERS[i]!} card={gd.cards[slug]!} tiers={gd.tiers} fbsCount={gd.fbsCount} place={placeOf(slug)} ratingsUrl={gd.ratingsUrl} compact={!desktop} />
             </div>
           ))}
         </div>
@@ -317,7 +330,11 @@ export function Play() {
                     >
                       {placed ? (
                         <>
-                          1st · undo<span className="sr-only">, Team {LETTERS[i]}</span>
+                          <span className="pick-stamp" data-place={1}>
+                            1st
+                          </span>
+                          <UndoIcon />
+                          Undo<span className="sr-only">, Team {LETTERS[i]}</span>
                         </>
                       ) : (
                         `Rank ${LETTERS[i]} ${nextOrdinal}`
@@ -328,9 +345,9 @@ export function Play() {
               </div>
             )}
             <p className="mt-2 text-center text-[0.8125rem] leading-5 text-fg-faint">
-              Keys: <kbd className="cond font-semibold text-fg-muted">A</kbd> <kbd className="cond font-semibold text-fg-muted">B</kbd>{' '}
-              <kbd className="cond font-semibold text-fg-muted">C</kbd> rank a card · <kbd className="cond font-semibold text-fg-muted">Backspace</kbd> undo ·{' '}
-              <kbd className="cond font-semibold text-fg-muted">Enter</kbd> lock in
+              Keys: <kbd className="font-sans font-semibold text-fg-muted">A</kbd> <kbd className="font-sans font-semibold text-fg-muted">B</kbd>{' '}
+              <kbd className="font-sans font-semibold text-fg-muted">C</kbd> rank a card · <kbd className="font-sans font-semibold text-fg-muted">Backspace</kbd> or <kbd className="font-sans font-semibold text-fg-muted">Esc</kbd> undo ·{' '}
+              <kbd className="font-sans font-semibold text-fg-muted">Enter</kbd> lock in
             </p>
           </div>
         )}
@@ -339,7 +356,7 @@ export function Play() {
       <div className="mt-3 flex flex-col items-center gap-1 text-center lg:mt-2">
         <p className="flex flex-col items-center text-[0.8125rem] leading-5 text-fg-muted lg:flex-row lg:flex-wrap lg:justify-center" data-testid="card-note">
           <span>#1 = best of {gd.fbsCount} FBS teams</span>
-          <span className="lg:before:px-1.5 lg:before:content-['·']">Tap or click a stat name to see what it measures</span>
+          <span className="lg:before:px-1.5 lg:before:content-['·']">Tap a label for its definition</span>
           <span className="lg:before:px-1.5 lg:before:content-['·']">
             <FeiCredit url={gd.ratingsUrl} />
           </span>
@@ -357,7 +374,7 @@ export function Play() {
       {/* Phone footer: one fixed height for every state, so swapping its contents never moves it. */}
       {!desktop && (
         <div
-          className={`fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-footer transition-transform duration-(--duration-base) ${
+          className={`fixed inset-x-0 bottom-0 z-20 border-t border-line-strong bg-surface pb-[env(safe-area-inset-bottom)] transition-transform duration-(--duration-base) ${
             inView || confirm ? 'translate-y-0' : 'translate-y-full'
           }`}
           data-rank-controls
@@ -401,20 +418,13 @@ export function Play() {
                         className="relative grid h-12 w-11 place-items-center"
                         data-testid={`dot-${LETTERS[i]}`}
                       >
-                        <span
-                          className={`cond flex h-10 w-10 flex-col items-center justify-center rounded-chip leading-none font-bold transition-colors duration-(--duration-fast) ${
-                            current ? 'bg-fg text-page' : 'bg-raised-2 text-fg-muted'
-                          }`}
-                        >
+                        <span className="file-letter file-letter-rec" data-current={current ? '' : undefined}>
                           <span className="sr-only">Show Team </span>
                           <span className="text-[1.0625rem]">{LETTERS[i]}</span>
                           <span className="sr-only">, </span>
-                          <span className="mt-0.5 text-[0.75rem] font-semibold">{rec}</span>
+                          <span className="mt-0.5 text-[0.6875rem] font-semibold">{rec}</span>
                         </span>
-                        <span
-                          className={`absolute bottom-0 h-0.5 w-5 rounded-full transition-opacity duration-(--duration-fast) ${current ? 'bg-fg opacity-100' : 'opacity-0'}`}
-                          aria-hidden="true"
-                        />
+                        <span className="file-letter-tick" data-current={current ? '' : undefined} aria-hidden="true" />
                       </button>
                     );
                   })}
@@ -452,8 +462,9 @@ function UndoButton({ onClick, label, compact, disabled }: { onClick: (e: { deta
 
 /**
  * Phones: one row per card with the numbers a fan compares first (record, the four FEI ranks, record
- * against the top 25), so A vs B vs C does not need memorizing while swiping. Tapping a row shows
- * that card. The best value in each column is in full white; picks show as the card letter plates.
+ * against the top 25), so A vs B vs C does not need memorizing while swiping. Tapping a row (44px
+ * tall, a chevron at its end) shows that card. The best value in each column is in ink 800; picks
+ * show as the card letter plates.
  */
 function Glance({ gd, trio, placeOf, onShow }: { gd: GameData; trio: readonly string[]; placeOf: (slug: string) => Place; onShow: (i: number) => void }) {
   const rows = trio.map((slug) => {
@@ -469,14 +480,14 @@ function Glance({ gd, trio, placeOf, onShow }: { gd: GameData; trio: readonly st
     sos: Math.min(...rows.map((r) => r.c.ranks.sos)),
     t25: Math.max(...rows.map((r) => r.t25[0])),
   };
-  const cell = (isBest: boolean) => `py-1 text-right ${isBest ? 'text-fg' : 'text-fg-muted'}`;
-  const th = 'label-caps py-1 text-right font-semibold text-fg-muted';
+  const cell = (isBest: boolean) => `text-right ${isBest ? 'text-fg' : 'font-normal text-fg-muted'}`;
+  const th = 'label-caps py-1 text-right text-[0.75rem] text-fg-muted';
   return (
-    <div className="mb-3 rounded-card border border-line bg-surface px-2.5 py-1.5" data-testid="glance">
-      <table className="cond w-full border-collapse text-[0.9375rem] leading-5 font-bold">
+    <div className="mb-3 rounded-card border border-line-strong bg-surface px-2.5 py-1.5" data-testid="glance">
+      <table className="w-full border-collapse text-[0.875rem] leading-5 font-bold">
         <caption className="sr-only">The three resumes at a glance (ranks among {gd.fbsCount} FBS teams)</caption>
         <thead>
-          <tr className="border-b border-line">
+          <tr className="border-b border-fg">
             <th scope="col" className="label-caps w-9 py-1 text-left font-semibold text-fg-muted">
               <span className="sr-only">Team</span>
             </th>
@@ -502,23 +513,19 @@ function Glance({ gd, trio, placeOf, onShow }: { gd: GameData; trio: readonly st
                 v Top 25
               </abbr>
             </th>
+            <th scope="col" className="w-4">
+              <span className="sr-only">Show card</span>
+            </th>
           </tr>
         </thead>
         <tbody>
           {rows.map(({ slug, c, t25, pct }, i) => {
             const place = placeOf(slug);
-            const plate =
-              place === 1
-                ? 'bg-accent-fill text-on-accent'
-                : place === 2
-                  ? 'bg-accent-tint text-accent shadow-[inset_0_0_0_1px_var(--color-accent-edge)]'
-                  : place === 3
-                    ? 'bg-raised-2 text-fg-muted'
-                    : 'bg-fg text-page';
             return (
-              <tr key={slug} className="cursor-pointer border-t border-line first:border-t-0" onClick={() => onShow(i)}>
-                <th scope="row" className="py-1 text-left">
-                  <button type="button" className={`grid h-6 w-7 place-items-center rounded-slab text-[0.9375rem] ${plate}`} onClick={(e) => (e.stopPropagation(), onShow(i))} aria-label={`Team ${LETTERS[i]}${place ? `, ranked ${ordinal(place)}` : ''}: show card`}>
+              // 44px rows: the whole row is the tap target (the letter button is its keyboard twin).
+              <tr key={slug} className="h-11 cursor-pointer border-t border-line first:border-t-0" onClick={() => onShow(i)}>
+                <th scope="row" className="text-left">
+                  <button type="button" className="file-letter file-letter-sm" data-place={place} onClick={(e) => (e.stopPropagation(), onShow(i))} aria-label={`Team ${LETTERS[i]}${place ? `, ranked ${ordinal(place)}` : ''}: show card`}>
                     {LETTERS[i]}
                   </button>
                 </th>
@@ -529,6 +536,11 @@ function Glance({ gd, trio, placeOf, onShow }: { gd: GameData; trio: readonly st
                 <td className={cell(c.ranks.sos === best.sos)}>{c.ranks.sos}</td>
                 <td className={cell(t25[0] === best.t25 && t25[0] > 0)}>
                   {t25[0]}-{t25[1]}
+                </td>
+                <td className="pl-1 text-right text-fg-faint" aria-hidden="true">
+                  <svg viewBox="0 0 12 12" width="12" height="12" className="ml-auto block">
+                    <path d="M4.5 2.5L8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.75" />
+                  </svg>
                 </td>
               </tr>
             );
@@ -596,7 +608,7 @@ function ConfirmBar(props: {
       )}
       <span className="relative">
         {locked ? 'Locked in' : auto ? 'Locking in' : 'Lock in'}
-        {layout === 'phone' && <span className="ml-2 tracking-[0.12em]">{order.map(letterOf).join(' · ')}</span>}
+        {layout === 'phone' && <span className="ml-2">{order.map(letterOf).join(' · ')}</span>}
         {auto && !locked && layout !== 'phone' && '…'}
       </span>
     </button>
@@ -610,16 +622,12 @@ function ConfirmBar(props: {
     );
   }
   return (
-    <div className="flex animate-fade flex-wrap items-center justify-center gap-x-6 gap-y-3 rounded-card border border-line bg-surface px-4 py-2.5">
+    <div className="flex animate-fade flex-wrap items-center justify-center gap-x-6 gap-y-3 rounded-card border border-line-strong bg-surface px-4 py-2.5">
       <p className="flex items-center gap-2" aria-label={`Your order: ${order.map((s, i) => `Team ${letterOf(s)} ${ordinal(i + 1)}`).join(', ')}`}>
         <span className="label-caps mr-1 text-fg-muted">Your order</span>
         {order.map((s, i) => (
           <span key={s} className="flex items-center gap-1.5" aria-hidden="true">
-            <span
-              className={`cond grid size-8 place-items-center rounded-chip text-[1.125rem] leading-none font-bold ${
-                i === 0 ? 'bg-accent-fill text-on-accent' : i === 1 ? 'bg-accent-tint text-accent shadow-[inset_0_0_0_1px_var(--color-accent-edge)]' : 'bg-raised-2 text-fg-muted'
-              }`}
-            >
+            <span className="file-letter file-letter-md" data-place={i + 1}>
               {letterOf(s)}
             </span>
             {i < 2 && <span className="text-fg-faint">›</span>}

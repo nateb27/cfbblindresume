@@ -278,8 +278,8 @@ export async function handleSharedPage(request: Request, env: Env, code: string)
 
 /* ------------------------------------------------------------------ GET /og/r/{code}.png */
 
-/** Bump when the image layout changes, so cached renders are replaced. */
-export const SHARE_IMAGE_VERSION = 2;
+/** Bump when the image layout changes, so cached renders are replaced (3: DOSSIER paper + Archivo). */
+export const SHARE_IMAGE_VERSION = 3;
 /** Static fallback image (src/pages/og/default.png.ts). Never wrapped for HEAD here (callers do). */
 export const DEFAULT_IMAGE_PATH = '/og/default.png';
 

@@ -43,9 +43,9 @@ const ld = {
         { name: 'Compare', href: compareHubHref },
       ]}
     />
-    <h1 class="cond mt-2 text-title uppercase lg:text-display">
+    <h1 class="cond mt-2 text-title lg:text-display">
       Compare teams{' '}
-      <span class="block text-fg-muted">{n ? `Every pair in the committee's top ${n}` : week.label}</span>
+      <span class="title-sub">{n ? `Every pair in the committee's top ${n}` : week.label}</span>
     </h1>
     <p class="mt-4 max-w-read text-lg leading-7">
       {
@@ -59,7 +59,7 @@ const ld = {
       n > 0 && (
         <>
           <section aria-labelledby="neighbors" class="mt-10">
-            <h2 id="neighbors" class="cond text-heading uppercase">
+            <h2 id="neighbors" class="cond text-heading">
               Side by side in the ranking
             </h2>
             <p class="mt-1 text-sm text-fg-muted">
@@ -74,7 +74,7 @@ const ld = {
                   <li>
                     <a
                       href={compareHref(p.slug)}
-                      class="flex min-h-12 flex-col justify-center gap-1 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface"
+                      class="flex min-h-12 flex-col justify-center gap-1 rounded-chip border border-line-strong px-3 py-2 transition-colors hover:border-control hover:bg-surface"
                     >
                       <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span class="team-chip" style={teamVars(x.colors)}>
@@ -99,7 +99,7 @@ const ld = {
           <CutPairs week={week} class="mt-12" heading="On the cut line" hubLink={false} />
 
           <section aria-labelledby="by-team" class="mt-12">
-            <h2 id="by-team" class="cond text-heading uppercase">
+            <h2 id="by-team" class="cond text-heading">
               Every matchup, by team
             </h2>
             <p class="mt-1 text-sm text-fg-muted">Open a team to see all {n - 1} of its compares.</p>
@@ -109,7 +109,7 @@ const ld = {
                 const mine = pairs.filter((p) => p.a === slug || p.b === slug);
                 return (
                   <li>
-                    <details class="group rounded-chip border border-line open:bg-surface">
+                    <details class="group rounded-chip border border-line-strong open:bg-surface">
                       <summary class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-3 py-2 hover:bg-surface [&::-webkit-details-marker]:hidden">
                         <span class="cond w-7 flex-none text-[1.125rem] font-bold">{i + 1}</span>
                         <span class="team-chip" style={teamVars(t.colors)}>

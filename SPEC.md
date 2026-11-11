@@ -19,13 +19,13 @@ raw scores. Tagline: "Same game. Different numbers."
    F+, ESPN efficiency or win probability. The strings "ESPN", "FPI", "SP+", "Game Control"
    may appear in built output ONLY on /about, in its single statement of what the site does
    not use. Not in code comments that ship, not in alt text, not in JSON shipped to the client.
-2. **No logos, no ESPN-hosted images.** Team identity = school name in condensed caps + a color
-   block in the team's primary color + a 4px rule in its secondary color. Never load
-   `logos` URLs from CFBD.
+2. **No logos, no ESPN-hosted images.** Team identity = school name + a color block or tab in
+   the team's primary color + a rule in its secondary color (DESIGN.md: covers and index tabs).
+   Never load `logos` URLs from CFBD.
 3. **Do not copy ESPN's visual design.** Structure (three blind cards, rank, reveal, results with
    bracket) is shared; the look is ours: no red slanted badges, no sunburst/ray backgrounds, no
    "?" badge in a red square, no dashed card borders, no Graduate/Rye/Oswald fonts, no red
-   accent. Our palette and type are below.
+   accent. Our palette and type are below and in DESIGN.md.
 4. **Content pages are complete static HTML** readable with JavaScript disabled. The game
    (home `/` and `/r/*`) is the only interactive island.
 5. **Ads** live only in fixed, height-reserved slots on content pages (plus one below the game
@@ -180,7 +180,7 @@ Worked example: prior A,B,C,D; pick D>A only → B, D, A, C.
 
 ### Trio selection (`trios.ts`)
 
-- 15 rounds by default. After round 15 the user may "Do another" up to round 30.
+- 15 rounds by default. After round 15 the user may play "One more round" up to round 30.
 - Hard: a trio (as a set) never repeats; in rounds 1-15 no team appears more than 3 times
   (rounds 16-30: at most 6); every pool team appears at least once by round 15 when
   pool size ≤ 45 (plan coverage so this cannot become impossible late).
@@ -251,58 +251,72 @@ lastmod = the week's `asOf` (archive pages: their own week's asOf; static pages:
 OG images: one per team (1200×630 PNG generated at build with @resvg/resvg-js into
 `public/og/teams/` or emitted via an endpoint), plus a default site image.
 
-## Design (game dark; content pages light + dark via prefers-color-scheme)
+## Design: DOSSIER (every page follows prefers-color-scheme; DESIGN.md is binding)
 
-- Palette tokens in `src/styles/tokens.css`: bg `#0E0F12`, surface one step lighter (`#16181D`),
-  raised `#1E2128`, text off-white `#ECEDEE`, muted `#9BA1AB`, accent electric green-gold
-  (e.g. `#C8F135`, adjust for contrast), win green, loss red, tier ramp gold (5★) → grey (0.5★).
-  Light theme tokens for content pages. All text ≥ 4.5:1 contrast (Lighthouse a11y = 100).
-- Type: Barlow Condensed (self-hosted via @fontsource, 600/700 only, `font-display: swap`,
-  preload the one used above the fold) for records, ranks, team names in caps; system UI sans for
-  body. Numbers `font-variant-numeric: tabular-nums`.
-- Team identity block: color block in primary, name in condensed caps, 4px secondary rule;
-  text color on the block chosen by contrast at build/render.
-- Motion < 300ms, respects `prefers-reduced-motion`.
+- A redacted committee file: paper sheets on a grey board (game pages) or the sheet itself
+  (content pages), ink type, toner bar charts; dark mode is a photostat negative. Tokens in
+  `src/styles/tokens.css` (light-sheet, light-board, dark), mirrored in `src/styles/tokens.ts`.
+  One violet stamp ink (`#4B2C92`, dark `#B9A7F1`) means "you" (picks, your numbers, the field you
+  turned on, the primary action, focus); one marker bar (`#121317`, dark `#E6E3D8`) hides what the
+  fan may not know yet (team names before lock-in) and lifts on reveal. Win green / loss red only
+  for W/L. Opponent tiers on a monochrome toner ramp (more ink = better), drawn as five square pips
+  and season ticks, with the tier band in text on every row. All text ≥ 4.5:1, graphics ≥ 3:1
+  (Lighthouse a11y = 100).
+- Type: Archivo 400/600/800 (self-hosted woff2 from @fontsource/archivo, latin, `font-display:
+  swap`, all three preloaded, metric-matched fallbacks), sentence case everywhere, no tracking.
+  Numbers 800 and `font-variant-numeric: tabular-nums`.
+- Team identity: a cover (primary in full, name in the contrast ink, secondary rule) for the
+  reveal, team hero and compare cards; an index tab (rank on a team-color tab, name in ink on paper)
+  in lists; text color on team colors chosen by contrast at build/render.
+- Borders-only depth (no shadows), 2-6px corners, motion < 300ms, respects
+  `prefers-reduced-motion` (the reveal bar is then not drawn).
 - Content pages are typographic: tables, not cards.
 
 ## Game (owner: game) — `/` and `/r/{code}`
 
 - Intro panel (our own words) explaining: three resumes, no names; rank them; your picks move
   teams from the committee's ranking; compare with the committee, FEI and fans. "Play".
-- Progress: "Round 3 of 15", skip-to-results enabled after round 5 (marks result partial).
+- Progress: "Round 3 of 15", "Finish now" (skip to results) enabled after round 5 (marks result partial).
 - Card: letter + record; bars for Strength of Record (GWD), Offense (OFEI) and Defense (DFEI)
   side by side, Strength of Schedule (ELS); rank number "#N" beside each bar; a tap/click on a
-  metric name shows a one-line definition; resume strip (dot per game, size by tier, green W /
-  red L, chronological); quality-win counts; game log toughest first: stars, tier label, site,
+  metric name shows a one-line definition; resume strip (tick per game, height by tier, green W /
+  red L, chronological); quality-win counts; game log toughest first: pips, tier label, site,
   result with margin ("W +16"). Head-to-head flag above the cards when trio teams played
-  ("B beat A head-to-head · +16"; multiple flags when all three played).
-- Ranking: "Rank 1st" on each card; after the first pick that card shows "1st" and the other two
-  show "Rank 2nd"; the third is implied. Undo before the round locks. The second pick locks the
+  ("[H2H] B over A by 16"; multiple flags when all three played). Phones (where the at-a-glance
+  table lists the ranks) fold the four bars into one compact row so the game log starts higher.
+- Ranking: "Rank 1st" on each card; after the first pick that card's button shows the "1st" stamp
+  and "Undo" (the card's picked look, not the primary fill) and the other two show "Rank 2nd"; the
+  third is implied. Phones move the carousel to the next open card after the first pick. Undo before the round locks. The second pick locks the
   round after a short countdown ("Lock in automatically", a saved setting that can be turned off,
   WCAG 2.2.1); a real mouse move or keyboard focus on Undo stops the countdown. Controls that appear
   under the finger ignore taps for 400 ms (keyboard and screen-reader activation never blocked).
   Every blind card ends with "Ratings: FEI by Brian Fremeau" (linked).
 - Reveal modal after each round (skippable via settings): teams in the user's order, name,
   record, color block; under each: You / Committee / FEI / Fans (Fans hidden until data exists);
-  running line "You've matched the committee in 4 of 6 rounds, FEI in 5 of 6." Tap, Esc, Enter or a
+  one line with this round's verdict per source (check / cross) and the running counts ("You've
+  matched the committee in 4 of 6 rounds, FEI in 5 of 6."); the key to the cells shows on the first
+  reveal only. Tap, Esc, Enter or a
   letter key continues; arrows, Page, Home/End and Space scroll it; Next round and the FEI credit
   stay pinned to the bottom edge. Focus-trapped, announced to screen readers. Its FEI column is
   labeled "FEI SoR".
-- After round 15: "15 rankings in" panel — "Do another" (up to 30) or "Final results".
+- After round 15: the done panel ("Round 15 of 15") — "One more round" (up to 30) or "Final results".
 - Results: tabs Your ranking / Committee / FEI / Fans (when ≥ threshold); the selected list as
-  a 5×5 grid of numbered team tiles (color block + condensed name, no logos; single column list
-  on phones) with a "First 5 out" column (26-30); two toggles: "Compare with committee" (each
-  tile shows the committee rank and an up/down delta) and "Highlight playoff field" (the teams
-  in the selected format's field are outlined). A segmented control "12 teams · 2026 format" |
-  "24 teams · proposed" (default 12) switches the bracket, bid lists, highlight and first five out;
+  a 5×5 grid of numbered team tiles (index tabs: rank on a team-color tab + name, no logos; single column list
+  on phones) with a "Next five" column (26-30); two toggles: "Compare to committee" (each
+  tile shows the committee rank and an up/down delta) and "Show playoff field" (an ink dashed cut
+  line with scissors under the unbroken run of field teams at the top, as on the rankings tables,
+  plus AQ tags on automatic bids). A segmented control "12 teams · 2026 format" |
+  "24 teams (2027 proposal)" (default 12) switches the bracket, bid lists, cut line and the teams
+  just outside;
   the 24 view shows the one-line rules + "Proposed for 2027 — not final" + source link. Unseen teams marked. Below: the bracket for the selected format
   (12: first round 5v12, 6v11, 7v10, 8v9, quarterfinals vs byes 1-4; 24: first round 9-24, byes 1-8),
   readable on a phone (horizontal scroll by round or stacked rounds), automatic bids and
   at-large lists; agreement sentence; share (copy link, Web Share API, image); play again.
   A headline stat under the title ("Matched the committee on 43% of your head-to-head calls"), a
-  legend for the marks (triangles, field outline, AQ, Unseen / Not shown) and AQ tags on automatic
-  bids. One ad slot just above the share module (when ads on). Below 360px the format segments read
-  "12 · 2026 format" | "24 · proposed"; phone bracket tabs read Rd 1 · Rd 2 · QF · SF · Final.
+  key for the marks right under the controls (cut line, AQ, triangles, Unseen / Not shown) and AQ
+  tags on automatic bids. One ad slot just above the share module (when ads on). Below 360px the
+  format segments read "12 · 2026 format" | "24 (2027 proposal)"; phone bracket tabs read Rd 1 · Rd
+  2 · QF · SF · Final.
 - Mobile (390px): cards in a horizontal snap-scroll row at 88% width with a sticky footer holding
   the rank button for the card in view, plus dots showing which card is in view. One-thumb, two
   deliberate taps: "Rank B 1st" for the card in view, then two buttons "Rank A 2nd" / "Rank C 2nd"
@@ -346,7 +360,7 @@ on pages.dev previews). Binding `DB` (D1). `wrangler.toml` with `pages_build_out
   long cache headers + Cache API so each code renders once; invalid code → default image.
   HARD CONSTRAINT: Cloudflare Workers/Pages Functions FREE plan = 10 ms CPU per request and 3 MiB
   compressed bundle. satori/resvg are likely too slow/heavy. Design for it (e.g. build-time glyph
-  atlas of the condensed font + palette PNG + native CompressionStream) and measure render CPU in
+  atlas of the site font + palette PNG + native deflate) and measure render CPU in
   Node (target < 8 ms) — report the number. If it truly cannot fit, report and propose the
   Workers Paid plan ($5/mo) as the human's decision; keep the default-image fallback working.
 - `GET /r/{code}` → serves the static results shell with per-code `<title>`, description,
@@ -389,7 +403,7 @@ purge Action). Document all in README.
 6. Fans consensus uses pairwise counts (≥ 20 per pair) rather than exact-trio counts, which would
    almost never reach 20.
 7. Event analytics stored in D1 by our own endpoint instead of Plausible (free, cookie-free, first-party).
-8. "Do another" rounds after 15 (up to 30) and full brackets on results: the 12-team 2026
+8. "One more round" after 15 (up to 30) and full brackets on results: the 12-team 2026
    format by default and the proposed 24-team format behind a toggle.
 9. Automatic bids: the five highest-ranked conference champions plus Notre Dame if ranked in the top 12 (2026 format), from data config.
 10. Ratings come from FEI by Brian Fremeau (bcftoys.com) plus raw scores (CollegeFootballData.com);

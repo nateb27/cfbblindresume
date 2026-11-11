@@ -138,12 +138,16 @@ which Pages does not apply to Functions.
 
 ### `GET /og/r/{code}.png`
 
-The share image is computed from the code and the week's game data only. It shows the run's top
-12 as lower-third rows: seed plate (accent for the first-round byes), team color block, condensed
-caps name and record, and secondary rule, plus a one-line hook under the kicker computed from the
-run ("Matched the committee on 43% · Biggest call: Kentucky ▲4"; the triangle is drawn, the font
-has none). Layout is DESIGN.md §16, and the reference render matches. `SHARE_IMAGE_VERSION`
-(handlers.ts) is part of the cache key: bump it when the layout changes (2 since the hook).
+The share image is computed from the code and the week's game data only. It is a page of the
+committee file on paper. The header leads with the fan's number, computed from the run: "43%" in
+violet at 76px, "matched the committee" beside it and the call line under that ("Biggest call:
+Kentucky ▲4"; the triangle is drawn, the font has none; the wording shortens to "Call: …" or the
+NR forms, never to short codes), with the week and a small "My top 12" on the right. Without an
+agreement number, "My top 12" leads at 76px. Then two columns of six index tabs (seed numeral on
+the team colour plate with its secondary rule, the name in ink on a sheet row, "Bye · 8-0" or the
+record as quiet meta), and the footer band with the wordmark and the FEI credit. Layout is
+DESIGN.md "OG and share images" (Share image). `SHARE_IMAGE_VERSION` (handlers.ts) is part of the
+cache key: bump it when the layout changes after launch (3 since the paper design).
 
 - **Valid code:** `image/png`, `Cache-Control: public, max-age=604800, immutable`. The Cache API
   key is `code + render version + the week asset's ETag`, so each code renders once per colo and
@@ -161,46 +165,55 @@ satori and resvg are far too slow and heavy for a Worker, so the image is built 
 and pre-rasterized glyphs.
 
 - **`scripts/fn-build-atlas.mjs`** (`npm run fn:atlas`, output committed):
-  - Rasterizes Barlow Condensed 600/700 from `src/assets/fonts/*.ttf`. Outlines and GPOS kerning
-    come from opentype.js; anti-aliasing comes from @resvg/resvg-js, the same rasterizer as the
-    build-time team OG images.
-  - Covers exactly the strikes DESIGN.md §16 needs: 700 at 76/40/34-26 and 600 at 30/28/26.
+  - Rasterizes Archivo 600/800 from `src/assets/fonts/Archivo-{600,800}.ttf` (the paths come from
+    `fonts.ttf` in `src/styles/tokens.ts`; the build stops if a file's weight class does not
+    match). Outlines and GPOS kerning come from opentype.js; anti-aliasing comes from
+    @resvg/resvg-js, the same rasterizer as the build-time OG images.
+  - Covers exactly the strikes the share image needs: 800 at 76, 36, 32, 30, 28, 26, 24 and 600 at
+    28, 26, 24 (76 carries the digits, "%" and letters for the fan's number and the title). Name
+    sizes carry Latin-1 letters in mixed case; Archivo has no okina, so `drawable()` maps it to ‘.
   - Small sizes are rendered at 4 horizontal sub-pixel phases, so letter spacing stays even.
   - Masks are run-length encoded: interiors become native `fill()` calls and only edge pixels
     are blended. This keeps the first, un-JITted request fast.
-  - Output is `functions/_lib/atlas.bin` (393 KiB of masks, imported as a wrangler Data module)
-    plus `atlas.json` (metrics).
+  - Output is `functions/_lib/atlas.bin` (690 KiB of masks, imported as a wrangler Data module)
+    plus `atlas.json` (metrics, 89 KiB). `node scripts/fn-build-atlas.mjs --check` fails when the
+    committed atlas is stale.
 - **Request time** (`_lib/share-image.ts`, `_lib/raster.ts`, `_lib/png.ts`):
   - Layout uses advance widths, kerning and tracking from the atlas, then glyphs are composited
     into an 8-bit palette canvas.
-  - Coverage is quantized so that every blend fits in 256 colors (249 used, 16 levels).
+  - Coverage is quantized so that every blend fits in 256 colors (242 used, 13 levels).
   - Rows identical to the row above become PNG "Up" rows of zeros.
-  - The PNG is deflated with native `CompressionStream('deflate')`, so no JS deflate runs.
-- **Output:** about 23.5 KiB per PNG, byte-identical across runs. All 138 FBS names fit at 34 px.
-  The renderer shrinks to 26 px and then falls back to the short name if a future name needs it.
+  - The PNG is deflated with native zlib (`node:zlib` `deflateSync`, workerd's C++ zlib under the
+    `nodejs_compat` flag in wrangler.toml) using the Z_RLE strategy: run-length matches only, which
+    suits a flat-colour palette image. It is about 3.5x faster than the default level-6 search for
+    a ~30% larger PNG, and it is synchronous, so the startup warm-up can pay its first call. No JS
+    deflate runs.
+- **Output:** about 37 KiB per PNG, byte-identical across runs. Every FBS name is drawable as
+  printed at every name size (tested). Names shrink from 32 to 24 px and then fall back to the
+  short name if a future name needs it.
 
 ### Measured CPU
 
-From `npm run fn:bench` (Node 22, the same V8 as workerd; 2026-11-06, with the hook line). The
-numbers cover one request after the asset fetch:
+From `npm run fn:bench` (Node 22, the same V8 as workerd; 2026-11-11, paper design, Z_RLE
+deflate). The numbers cover one request after the asset fetch:
 
 | Phase | Warm, median | Warm, p90 |
 | --- | --- | --- |
-| Decode + `computeRunResults` | 0.58 ms | 0.93 ms |
-| Paint | 0.81 ms | 1.05 ms |
-| Deflate + CRC | 3.97 ms | 4.43 ms |
-| **Total** | **5.5 ms** | **6.0 ms** |
+| Decode + `computeRunResults` | 0.53 ms | 0.85 ms |
+| Paint | 0.78 ms | 1.18 ms |
+| Deflate + CRC | 1.09 ms | 1.24 ms |
+| **Total** | **2.4 ms** | **3.2 ms** |
 
-- **Cold** (the first request in a brand-new process, nothing JIT-compiled): 13-15 ms median of 9
-  (results 2.7, paint 4.7, deflate 5.7 ms before the hook; the hook adds about 0.1 ms warm).
+- **Cold** (the first request in a brand-new process, nothing JIT-compiled): 11.7 ms median
+  (p90 13.4).
 - **Startup warm-up:** the `/og/r` route runs `warmShareRenderer()` at module scope, i.e. when the
   isolate starts (Workers start isolates during the TLS handshake and limit startup separately
-  from request CPU). It indexes the atlas and paints one synthetic image: about 8 ms, once. The
-  first request after it measures 10.5 ms median (paint drops from 4.7 to 1.7 ms).
-- **In practice** the first image request in an isolate is usually below 10 ms: crawlers fetch
-  `/r/{code}` first, which JIT-compiles the same `src/lib` results code (2.7 -> about 0.6 ms), and
-  each code renders once per colo (Cache API; a no-op on `*.pages.dev`). The remaining cold cost
-  is the native deflate's first call, which no module-scope code can warm (streams are async).
+  from request CPU). It indexes the atlas, paints one synthetic image (with a call line and its
+  drawn triangle, the common case) and deflates it in full: about 10 ms, once. The first request
+  after it measures 5.1 ms median (p90 6.1).
+- **In practice** the first image request in an isolate is below 10 ms: the warm-up covers paint
+  and deflate, crawlers fetch `/r/{code}` first, which JIT-compiles the same `src/lib` results
+  code, and each code renders once per colo (Cache API; a no-op on `*.pages.dev`).
 - **CPU cannot be timed from inside workerd** (timers do not advance during computation), so
   there is no Server-Timing header. If `wrangler pages deployment tail` shows 1102 errors
   ("exceeded resource limits") on `/og/r/*`, cold renders are failing and the share preview falls
@@ -209,8 +222,8 @@ numbers cover one request after the asset fetch:
 
 ### Bundle size
 
-`npx wrangler pages functions build --outdir <dir>`: `index.js` is 172 KB and `atlas.bin` is
-402 KB, about **160 KB gzipped together**, roughly 5% of the 3 MiB free-plan limit.
+`npx wrangler pages functions build --outdir <dir>`: `index.js` is 230 KB and `atlas.bin` is
+707 KB, about **291 KB gzipped together**, roughly 9% of the 3 MiB free-plan limit.
 
 ## D1
 

@@ -3,7 +3,7 @@
 import { committeeOrder, gwdOrder, TOP_N } from '@lib/data';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import RankingsView from '../components/RankingsView.astro';
-import { clampText, formatsPhrase, itemListLd, latestWeek, playoffViews, teamHref } from '../components/site';
+import { RANKINGS_OG, SITE, clampText, formatsPhrase, itemListLd, latestWeek, playoffViews, teamHref } from '../components/site';
 
 const week = latestWeek();
 const views = playoffViews(week);
@@ -29,6 +29,6 @@ const ld = itemListLd(
 );
 ---
 
-<BaseLayout title={title} description={description} path="/rankings" jsonLd={ld} ads current="rankings" week={week}>
+<BaseLayout title={title} description={description} path="/rankings" ogImage={RANKINGS_OG} ogImageAlt={`${SITE.name}: the committee's top 5 beside FEI's strength of record top 5, ${week.label}`} jsonLd={ld} ads current="rankings" week={week}>
   <RankingsView week={week} archive={false} />
 </BaseLayout>

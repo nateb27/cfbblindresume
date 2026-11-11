@@ -16,18 +16,19 @@
  * Usage: node scripts/fn-integration.mjs [--skip-build] [--keep] [--wait-cache]
  *   --keep        leave the dev server running at http://127.0.0.1:8788
  *   --wait-cache  also wait 61 s to see a cached fans answer refresh
- * Env: FN_SCRATCH (default: the session scratchpad), FN_PORT (8788), FN_DIST (a prebuilt site to
+ * Env: FN_SCRATCH (default: <tmpdir>/cfbblindresume-fn), FN_PORT (8788), FN_DIST (a prebuilt site to
  *   use instead of building one), ASTRO_BUILD_LOCK (a lock file: the build runs under flock, for
  *   checkouts where several builds may run at once).
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SCRATCH = process.env.FN_SCRATCH ?? '/tmp/claude-0/-home-user/38da28a1-5927-5734-b75e-1321c36c6410/scratchpad';
+const SCRATCH = process.env.FN_SCRATCH ?? join(tmpdir(), 'cfbblindresume-fn');
 const DIST = process.env.FN_DIST ?? join(SCRATCH, 'backend-dist');
 const OUT = join(SCRATCH, 'backend');
 const STATE = join(OUT, 'wrangler-state');

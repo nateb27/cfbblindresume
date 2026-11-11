@@ -30,7 +30,7 @@ export type Trio = [string, string, string];
 export const TRIO_RULES = Object.freeze({
   /** Standard run length. */
   baseRounds: 15,
-  /** "Do another" may extend a run to this many rounds. */
+  /** "One more round" may extend a run to this many rounds. */
   maxRounds: 30,
   /** Max appearances per team through round `baseRounds`. */
   capBase: 3,

@@ -25,11 +25,19 @@ const items: { key: NavKey; href: string; label: string }[] = [
     <a href="/" class="flex h-12 items-center sm:h-14" aria-label="CFB Blind Resume home">
       <Wordmark />
     </a>
-    <a
-      href="/#play"
-      class="btn btn-primary min-h-11 px-4 text-[0.9375rem] sm:hidden"
-      aria-current={current === 'play' ? 'page' : undefined}>Play</a
-    >
+    {/* Phones: Play is a violet button everywhere except on the game page itself, where the intro's
+        Play is the one call to action and this becomes the current-page mark (an ink rule). */}
+    {
+      current === 'play' ? (
+        <a href="/#play" class="flex h-12 items-center px-2.5 text-sm font-bold text-fg shadow-[inset_0_-3px_0_var(--color-fg)] sm:hidden" aria-current="page">
+          Play
+        </a>
+      ) : (
+        <a href="/#play" class="btn btn-primary min-h-11 px-4 text-[0.9375rem] sm:hidden">
+          Play
+        </a>
+      )
+    }
     <nav aria-label="Main" class="col-span-2 -mx-gutter overflow-x-auto border-t border-line sm:mx-0 sm:self-stretch sm:overflow-visible sm:border-0">
       <ul class="flex h-11 items-stretch justify-between px-1.5 sm:h-full sm:justify-end sm:gap-1 sm:px-0">
         {
@@ -40,7 +48,7 @@ const items: { key: NavKey; href: string; label: string }[] = [
                 aria-current={current === it.key ? 'page' : undefined}
                 class:list={[
                   'flex items-center px-2.5 text-sm whitespace-nowrap transition-colors hover:text-fg sm:px-3',
-                  current === it.key ? 'font-semibold text-fg shadow-[inset_0_-2px_0_var(--color-accent-edge)]' : 'text-fg-muted',
+                  current === it.key ? 'font-bold text-fg shadow-[inset_0_-3px_0_var(--color-fg)]' : 'text-fg-muted',
                 ]}
               >
                 {it.label}

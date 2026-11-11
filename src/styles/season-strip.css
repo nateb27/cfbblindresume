@@ -1,0 +1,131 @@
+/*
+ * Season strip (src/components/ResumeStrip.astro): imported by that component only, so it ships
+ * with the team and compare pages. The layer order statement repeats Tailwind's (as game.css
+ * does), so the order holds whichever stylesheet the browser sees first.
+ *
+ * The strip never scrolls sideways. Each instance carries --n (games, or reserved slots), --col
+ * (the narrowest column its labels allow, px), --half / --third (games per row in two / three
+ * rows) and two width buckets from resume-strip.ts stripFit(): data-fit-1 = n x col and
+ * data-fit-2 = half x col, rounded up to the next 40px. When the strip's box is narrower than the
+ * bucket, it wraps into two balanced rows, then three (the rules at the end; three wins over two).
+ */
+@layer theme, base, components, utilities;
+
+@layer components {
+  .season-strip-wrap {
+    container: season / inline-size;
+  }
+  .season-strip,
+  .season-legend {
+    --tick-k: 1.2;
+  }
+  .season-strip {
+    --cols: var(--n);
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    row-gap: 0.75rem;
+    max-width: calc(var(--cols) * 5rem);
+    font-variant-numeric: tabular-nums;
+  }
+  /* One game: opponent, the tick standing on the baseline, result, margin. Neighbouring games
+     touch, so their pieces of the baseline join into one ruled line per row. */
+  .season-game {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+  }
+  .season-opp,
+  .season-margin {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--color-fg-muted);
+  }
+  .season-tick {
+    display: grid;
+    align-self: stretch;
+    align-items: end;
+    justify-items: center;
+    height: calc(14px * var(--tick-k) + 3px);
+    border-bottom: 1px solid var(--color-line-strong);
+  }
+  .season-result {
+    margin-top: 0.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.125rem;
+    font-weight: 800;
+  }
+  .season-result[data-result="W"] {
+    color: var(--color-win);
+  }
+  .season-result[data-result="L"] {
+    color: var(--color-loss);
+  }
+  /* Room to spare (desktop columns): ticks at 2x, so the tiers read apart. */
+  @container season (width >= 30rem) {
+    .season-strip,
+    .season-legend {
+      --tick-k: 2;
+    }
+    .season-tick .tier-dot,
+    .season-legend .tier-dot {
+      width: 12px;
+    }
+  }
+
+  /* Wrap rules (generated: 160-1040px in 40px steps). */
+  @container season (width < 160px) { .season-strip[data-fit-1="160"] { --cols: var(--half); } }
+  @container season (width < 200px) { .season-strip[data-fit-1="200"] { --cols: var(--half); } }
+  @container season (width < 240px) { .season-strip[data-fit-1="240"] { --cols: var(--half); } }
+  @container season (width < 280px) { .season-strip[data-fit-1="280"] { --cols: var(--half); } }
+  @container season (width < 320px) { .season-strip[data-fit-1="320"] { --cols: var(--half); } }
+  @container season (width < 360px) { .season-strip[data-fit-1="360"] { --cols: var(--half); } }
+  @container season (width < 400px) { .season-strip[data-fit-1="400"] { --cols: var(--half); } }
+  @container season (width < 440px) { .season-strip[data-fit-1="440"] { --cols: var(--half); } }
+  @container season (width < 480px) { .season-strip[data-fit-1="480"] { --cols: var(--half); } }
+  @container season (width < 520px) { .season-strip[data-fit-1="520"] { --cols: var(--half); } }
+  @container season (width < 560px) { .season-strip[data-fit-1="560"] { --cols: var(--half); } }
+  @container season (width < 600px) { .season-strip[data-fit-1="600"] { --cols: var(--half); } }
+  @container season (width < 640px) { .season-strip[data-fit-1="640"] { --cols: var(--half); } }
+  @container season (width < 680px) { .season-strip[data-fit-1="680"] { --cols: var(--half); } }
+  @container season (width < 720px) { .season-strip[data-fit-1="720"] { --cols: var(--half); } }
+  @container season (width < 760px) { .season-strip[data-fit-1="760"] { --cols: var(--half); } }
+  @container season (width < 800px) { .season-strip[data-fit-1="800"] { --cols: var(--half); } }
+  @container season (width < 840px) { .season-strip[data-fit-1="840"] { --cols: var(--half); } }
+  @container season (width < 880px) { .season-strip[data-fit-1="880"] { --cols: var(--half); } }
+  @container season (width < 920px) { .season-strip[data-fit-1="920"] { --cols: var(--half); } }
+  @container season (width < 960px) { .season-strip[data-fit-1="960"] { --cols: var(--half); } }
+  @container season (width < 1000px) { .season-strip[data-fit-1="1000"] { --cols: var(--half); } }
+  @container season (width < 1040px) { .season-strip[data-fit-1="1040"] { --cols: var(--half); } }
+  @container season (width < 160px) { .season-strip[data-fit-2="160"] { --cols: var(--third); } }
+  @container season (width < 200px) { .season-strip[data-fit-2="200"] { --cols: var(--third); } }
+  @container season (width < 240px) { .season-strip[data-fit-2="240"] { --cols: var(--third); } }
+  @container season (width < 280px) { .season-strip[data-fit-2="280"] { --cols: var(--third); } }
+  @container season (width < 320px) { .season-strip[data-fit-2="320"] { --cols: var(--third); } }
+  @container season (width < 360px) { .season-strip[data-fit-2="360"] { --cols: var(--third); } }
+  @container season (width < 400px) { .season-strip[data-fit-2="400"] { --cols: var(--third); } }
+  @container season (width < 440px) { .season-strip[data-fit-2="440"] { --cols: var(--third); } }
+  @container season (width < 480px) { .season-strip[data-fit-2="480"] { --cols: var(--third); } }
+  @container season (width < 520px) { .season-strip[data-fit-2="520"] { --cols: var(--third); } }
+  @container season (width < 560px) { .season-strip[data-fit-2="560"] { --cols: var(--third); } }
+  @container season (width < 600px) { .season-strip[data-fit-2="600"] { --cols: var(--third); } }
+  @container season (width < 640px) { .season-strip[data-fit-2="640"] { --cols: var(--third); } }
+  @container season (width < 680px) { .season-strip[data-fit-2="680"] { --cols: var(--third); } }
+  @container season (width < 720px) { .season-strip[data-fit-2="720"] { --cols: var(--third); } }
+  @container season (width < 760px) { .season-strip[data-fit-2="760"] { --cols: var(--third); } }
+  @container season (width < 800px) { .season-strip[data-fit-2="800"] { --cols: var(--third); } }
+  @container season (width < 840px) { .season-strip[data-fit-2="840"] { --cols: var(--third); } }
+  @container season (width < 880px) { .season-strip[data-fit-2="880"] { --cols: var(--third); } }
+  @container season (width < 920px) { .season-strip[data-fit-2="920"] { --cols: var(--third); } }
+  @container season (width < 960px) { .season-strip[data-fit-2="960"] { --cols: var(--third); } }
+  @container season (width < 1000px) { .season-strip[data-fit-2="1000"] { --cols: var(--third); } }
+  @container season (width < 1040px) { .season-strip[data-fit-2="1040"] { --cols: var(--third); } }
+}
+
+@media (forced-colors: active) {
+  .season-tick {
+    border-bottom-color: CanvasText;
+  }
+}

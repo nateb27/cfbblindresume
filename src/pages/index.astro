@@ -1,9 +1,10 @@
 ---
 /**
- * / (dark): H1 + one indexable paragraph above the fold, the game island (the only JS on the
- * site), the leaderboard ad below the game container, then a static "This week" section:
- * committee top 12 vs FEI strength-of-record top 12 and the projected fields. Without JavaScript
- * the Play button is hidden and a note points to the static pages.
+ * / (game page: white sheets on the grey board): H1 + one indexable paragraph above the fold, the
+ * game island (the only JS on the site), the leaderboard ad below the game container, then a static "This week" section:
+ * committee top 12 vs FEI strength-of-record top 12, each row marked with its place in that
+ * ranking's projected field (Bye / AQ / Out); the full field tables live on /rankings. Without
+ * JavaScript the Play button is hidden and a note points to the static pages.
  */
 import { committeeOrder, gwdOrder } from '@lib/data';
 import { TRIO_RULES } from '@lib/trios';
@@ -11,9 +12,9 @@ import GameApp from '../game/GameApp.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AdSlot from '../components/AdSlot.astro';
 import Delta from '../components/Delta.astro';
-import PlayoffBlock from '../components/PlayoffBlock.astro';
 import TeamBlock from '../components/TeamBlock.astro';
-import { ADS_ON, SITE, SOR, absUrl, clampText, fmtLongDate, formatKicker, latestWeek, playoffViews, record } from '../components/site';
+import TeamLink from '../components/TeamLink.astro';
+import { ADS_ON, SITE, SOR, absUrl, clampText, fmtLongDate, formatKicker, formatSizeLabel, latestWeek, playoffViews, record } from '../components/site';
 
 const week = latestWeek();
 const views = playoffViews(week);
@@ -47,26 +48,38 @@ const ld = [
 // Each list shows the other ranking's number with a delta from that ranking's side, so the
 // triangle always agrees with the label beside it ("SoR 16 ▼5": strength of record has them five
 // lower; "CFP 1 ▲2": the committee has them two higher).
+// Each list also carries that ranking's projected field in the default format: a tag per row
+// (Bye, AQ, or Out when a lower-ranked champion takes the spot) and the champions from below.
 const lists = [
-  ...(committee ? [{ id: 'cmte', title: `Committee top ${TOP}`, order: committee, other: 'cmte-sor' as const }] : []),
-  { id: 'fei', title: `FEI strength of record top ${TOP}`, order: fei, other: 'sor-cmte' as const },
+  ...(committee && views.committee ? [{ id: 'cmte', title: `Committee top ${TOP}`, order: committee, other: 'cmte-sor' as const, res: views.committee[def.id]! }] : []),
+  { id: 'fei', title: `FEI strength of record top ${TOP}`, order: fei, other: 'sor-cmte' as const, res: views.fei[def.id]! },
 ];
+const fieldTag = (res: (typeof lists)[number]['res'], slug: string) =>
+  res.byes.some((b) => b.slug === slug)
+    ? { text: 'Bye', title: 'First-round bye', quiet: false }
+    : res.autoBids.some((b) => b.slug === slug)
+      ? { text: 'AQ', title: 'Automatic bid', quiet: false }
+      : res.field.some((b) => b.slug === slug)
+        ? null
+        : { text: 'Out', title: `Not in the projected ${def.size}-team field`, quiet: true };
+const fromBelow = (res: (typeof lists)[number]['res'], order: string[]) => res.field.filter((s) => !order.slice(0, TOP).includes(s.slug));
 ---
 
 <BaseLayout title={title} description={description} path="/" jsonLd={ld} game ads current="play" week={week}>
-  <noscript slot="head"><style>.game-root [data-testid="play"], .game-root [data-testid="play"] + p { display: none !important; }</style></noscript>
+  <noscript slot="head"><style>.game-root [data-play-row] { display: none !important; }</style></noscript>
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <section class="pt-6 lg:pt-10" aria-labelledby="hero">
       <p class="label-caps text-fg-muted">
         {week.label}, {week.season}{release && <span class="max-sm:hidden">{` · committee ranking of ${fmtLongDate(release)}`}</span>}
       </p>
-      <h1 id="hero" class="cond mt-2 text-title uppercase lg:text-display">
-        Rank the resumes.{' '}<span class="text-fg-muted">Names hidden.</span>
+      {/* Phones: the redacted phrase always starts its own line, its bar hanging into the margin so the
+          glyphs align with the line above (as on og/default.png). */}
+      <h1 id="hero" class="cond mt-2 text-title lg:text-display">
+        Rank the resumes.{' '}<br class="sm:hidden" /><span class="hero-redacted">Names hidden.</span>
       </h1>
+      {/* One short paragraph: the intro panel right below carries the steps and Play. */}
       <p class="mt-3 max-w-read text-[0.9375rem] leading-6 sm:text-lg sm:leading-7">
-        {
-          `Three college football resumes a round, names and logos hidden. Rank them 1-2-3 for ${rounds} rounds and get your own top 25 and ${def.size}-team bracket, side by side with the committee's and FEI's. ${SITE.tagline}`
-        }
+        {`Three college football resumes a round. Your top 25 and ${def.size}-team bracket, next to the committee's and FEI's.`}
       </p>
     </section>
   </div>
@@ -92,7 +105,7 @@ const lists = [
 
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <section aria-labelledby="this-week" class="mt-16 border-t border-line pt-10">
-      <h2 id="this-week" class="cond text-title uppercase lg:text-display">This week</h2>
+      <h2 id="this-week" class="cond text-title lg:text-display">This week</h2>
       <p class="mt-2 max-w-read text-fg-muted">
         {
           committee
@@ -121,9 +134,16 @@ const lists = [
                   const c = t.ranks.committee;
                   const g = t.ranks.sor;
                   const label = l.other === 'cmte-sor' ? `${SOR} ${g}` : `CFP ${c ?? 'NR'}`;
+                  const tag = fieldTag(l.res, slug);
                   return (
                     <li class="flex items-center gap-3">
-                      <TeamBlock team={t} size="row" seed={i + 1} meta={record(t)} class="min-w-0 flex-1" />
+                      <TeamBlock team={t} size="row" seed={i + 1} meta={record(t)} class="min-w-0 flex-1">
+                        {tag && (
+                          <span class="file-tag ml-2" data-tone={tag.quiet ? 'quiet' : undefined} title={tag.title}>
+                            {tag.text}
+                          </span>
+                        )}
+                      </TeamBlock>
                       <span class="flex w-[4.75rem] flex-none flex-col items-start gap-1">
                         <span class="label-caps text-fg-muted">{label}</span>
                         {committee &&
@@ -137,6 +157,16 @@ const lists = [
                   );
                 })}
               </ol>
+              {fromBelow(l.res, l.order).length > 0 && (
+                <p class="mt-2 text-[0.8125rem] leading-5 text-fg-muted">
+                  Also in the {formatSizeLabel(def)} field:{' '}
+                  {fromBelow(l.res, l.order).map((s, k, all) => (
+                    <>
+                      <TeamLink team={week.teams[s.slug]!} class="text-fg" /> (#{s.rank}, AQ){k < all.length - 1 ? ', ' : '.'}
+                    </>
+                  ))}
+                </p>
+              )}
             </section>
           ))
         }
@@ -145,12 +175,12 @@ const lists = [
         committee && (
           <p class="mt-4 text-[0.8125rem] text-fg-muted">
             {SOR} = FEI strength of record rank. Triangles: how many spots higher (up) or lower (down) the other ranking puts the team. No
-            triangle: they agree.
+            triangle: they agree. Bye, AQ (automatic bid) and Out: where that ranking puts the team in the projected {formatSizeLabel(def)} field
+            ({def.status === 'current' ? `${week.season} format` : 'proposed'}); seeds and games are on the{' '}
+            <a class="link text-fg" href="/rankings">rankings page</a>.
           </p>
         )
       }
-
-      <PlayoffBlock week={week} format={def} headingLevel="h3" class="mt-14" />
 
       {
         others.map((f) => (
@@ -176,20 +206,20 @@ const lists = [
       <nav aria-label="More" class="mt-12">
         <ul class="grid gap-3 sm:grid-cols-3">
           <li>
-            <a href="/rankings" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
-              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">Full rankings</span>
+            <a href="/rankings" class="flex min-h-16 flex-col justify-center rounded-card border border-line-strong bg-surface px-4 py-3 transition-colors hover:border-control hover:bg-raised">
+              <span class="cond text-[1.25rem] leading-6 font-bold">Full rankings</span>
               <span class="text-sm text-fg-muted">Top 25 both ways, cut lines, every field</span>
             </a>
           </li>
           <li>
-            <a href="/bubble" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
-              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">Bubble watch</span>
+            <a href="/bubble" class="flex min-h-16 flex-col justify-center rounded-card border border-line-strong bg-surface px-4 py-3 transition-colors hover:border-control hover:bg-raised">
+              <span class="cond text-[1.25rem] leading-6 font-bold">Bubble watch</span>
               <span class="text-sm text-fg-muted">Who is in, who is out, and who changes sides</span>
             </a>
           </li>
           <li>
-            <a href="/teams" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
-              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">All {Object.keys(week.teams).length} teams</span>
+            <a href="/teams" class="flex min-h-16 flex-col justify-center rounded-card border border-line-strong bg-surface px-4 py-3 transition-colors hover:border-control hover:bg-raised">
+              <span class="cond text-[1.25rem] leading-6 font-bold">All {Object.keys(week.teams).length} teams</span>
               <span class="text-sm text-fg-muted">Every FBS resume, by conference</span>
             </a>
           </li>

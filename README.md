@@ -129,6 +129,10 @@ Cloudflare builds from GitHub on every push: `npm clean-install`, `npm run build
 `functions/` compiled automatically. `wrangler.toml` is the source of truth for bindings: the
 `DB` D1 binding (`cfbblindresume`) for production and `[env.preview]` with the separate
 `cfbblindresume-preview` database for every other branch, so test votes never reach production.
+It also sets `compatibility_flags = ["nodejs_compat"]` (both environments): the share image
+(`/og/r/{code}.png`) deflates its PNG with `node:zlib`. If the project's compatibility settings are
+ever managed in the dashboard instead (Settings > Runtime), turn `nodejs_compat` on there for
+production and preview, or the share image errors.
 
 One-time setup:
 

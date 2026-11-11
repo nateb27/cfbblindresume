@@ -1,11 +1,17 @@
 /**
  * Results (DESIGN.md §13): tabs (your ranking / committee / FEI / fans), the top 25 as a 5x5 grid
- * (a list on phones) plus the next five, "Compare with committee" and "Highlight playoff field",
- * the playoff-format control driving the bracket, bids, highlight and first five out, the agreement
- * sentence, sharing and play again. Every computation is src/lib (computeRunResults, gamePlayoffs).
+ * (a list on phones) plus the next five, "Compare to committee" and "Show playoff field", the key
+ * to the marks right under those controls, the playoff-format control driving the bracket, bids,
+ * the field's cut line and the teams just outside, the agreement sentence, sharing and play again.
+ * Every computation is src/lib (computeRunResults, gamePlayoffs).
+ *
+ * The playoff field is selection chrome, drawn in ink like the content rankings tables: a dashed
+ * cut line with scissors under the last team of the unbroken run at the top that is in the field
+ * (a staircase through the 5x5 grid), and an AQ tag on every automatic bid, so a team that comes in
+ * from below the line is marked. Violet stays the fan's own marks.
  *
  * Pointer activations in the first moments after the screen appears are ignored (a double tap on
- * "Skip to results" or "Final results" must not land on Play again or a team tile). On phones the
+ * "Finish now" or "Final results" must not land on Play again or a team tile). On phones the
  * top Play again is gone (it sat exactly where Skip was); a jump row leads to the bracket and share.
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
@@ -33,8 +39,6 @@ interface TabView {
   title: string;
   /** Who the seeds come from, for the bracket subtitle. */
   source: string;
-  /** Who "ranks them" in the legend ("you rank", "FEI ranks"). */
-  subject: string;
   /** Ordered teams, at least the top 25 (+ next five when the source ranks them). */
   order: string[];
   /** How many positions of `order` the source itself ranked (the rest is filled in FEI order). */
@@ -56,22 +60,20 @@ function rulesText(f: PlayoffFormat): string {
     .join(' + ');
 }
 
-function formatLabel(f: PlayoffFormat, season: number): string {
-  return `${f.label} · ${formatSuffix(f, season)}`;
-}
-
-const formatSuffix = (f: PlayoffFormat, season: number): string => (f.status === 'current' ? `${season} format` : 'proposed');
+/** Automatic bids a format reserves for champions (guarantees like Notre Dame's come out of at-large). */
+const autoCount = (f: PlayoffFormat): number => f.autoBids.rules.reduce((n, r) => n + r.count, 0);
 
 /**
- * Segment label: "12 teams · 2026 format" / "24 teams · proposed"; under 360px (a 320px phone has
- * 288px for both segments) the size alone ("24 · proposed"). The hidden variant is display:none,
- * so the accessible name always equals the visible text.
+ * Segment label: "12 teams · 2026 format" / "24 teams (2027 proposal)"; on phones (under 640px the
+ * two segments share the width) the size alone: "12 · 2026 format" / "24 · 2027 proposal", so each
+ * fits one line from 360px. The hidden variant is display:none, so the accessible name always
+ * equals the visible text.
  */
 function FormatSegmentLabel({ f, season }: { f: PlayoffFormat; season: number }) {
   return (
     <>
-      <span className="max-[359px]:hidden">{formatLabel(f, season)}</span>
-      <span className="hidden max-[359px]:inline">{`${f.size} · ${formatSuffix(f, season)}`}</span>
+      <span className="max-sm:hidden">{f.status === 'current' ? `${f.label} · ${season} format` : `${f.label} (${season + 1} proposal)`}</span>
+      <span className="hidden max-sm:inline">{f.status === 'current' ? `${f.size} · ${season} format` : `${f.size} · ${season + 1} proposal`}</span>
     </>
   );
 }
@@ -104,7 +106,7 @@ function Delta({ value }: { value: number }) {
 
 function Tag({ children, title, tone = 'plain' }: { children: ReactNode; title: string; tone?: 'plain' | 'quiet' }) {
   return (
-    <span className={`label-caps flex-none rounded-slab px-1 ${tone === 'plain' ? 'bg-raised-2 text-fg' : 'border border-line-strong text-fg-muted'}`} title={title}>
+    <span className="file-tag" data-tone={tone} title={title}>
       {children}
     </span>
   );
@@ -117,6 +119,9 @@ const NotShownTag = () => (
   </Tag>
 );
 const AqTag = () => <Tag title="Automatic bid">AQ</Tag>;
+
+/** The cut line's note: the content rankings tables' device (scissors, ink). */
+const cutText = (f: PlayoffFormat) => `Above the line: the ${f.size}-team field`;
 
 export function Results() {
   const api = useGameApi();
@@ -164,7 +169,6 @@ export function Results() {
         make: () => ({
           title: shared ? 'Shared top 25' : 'Your top 25',
           source: shared ? 'this ranking' : 'your ranking',
-          subject: shared ? 'this ranking has' : 'you rank',
           order: extendTo(results.ranking.order, gd, GRID + NEXT),
           ranked: results.ranking.order.length,
           hasNext: true,
@@ -180,7 +184,6 @@ export function Results() {
         make: () => ({
           title: 'Committee top 25',
           source: 'the committee',
-          subject: 'the committee ranks',
           order: committee.slice(),
           ranked: committee.length,
           hasNext: false,
@@ -194,7 +197,6 @@ export function Results() {
       make: () => ({
         title: 'FEI strength of record top 25',
         source: 'FEI strength of record',
-        subject: 'FEI ranks',
         order: extendTo(gd.feiOrder, gd, GRID + NEXT),
         ranked: gd.gwdOrder.length,
         hasNext: true,
@@ -208,7 +210,6 @@ export function Results() {
         make: () => ({
           title: 'Fans’ top 25',
           source: 'the fans',
-          subject: 'fans rank',
           order: extendTo(fans, gd, GRID + NEXT),
           ranked: fans.length,
           // The server sends every voted team (the pool, about 27-35): show the fans' own teams past
@@ -235,9 +236,16 @@ export function Results() {
 
   const playoff: PlayoffResult = view.playoffs[formatId] ?? Object.values(view.playoffs)[0]!;
   const format = playoff.format;
-  const field = useMemo(() => new Set(playoff.field.map((s) => s.slug)), [playoff]);
   const auto = useMemo(() => new Set(playoff.autoBids.map((s) => s.slug)), [playoff]);
   const top = view.order.slice(0, GRID);
+  // The cut: positions 1..cut are all in the field; every field team below it is an automatic bid.
+  const cut = useMemo(() => {
+    if (!highlight) return 0;
+    const field = new Set(playoff.field.map((s) => s.slug));
+    let k = 0;
+    while (k < view.order.length && field.has(view.order[k]!)) k++;
+    return k;
+  }, [highlight, playoff, view.order]);
   // The fans' next five stops where their list does; other tabs always show five.
   const next = view.hasNext ? view.order.slice(GRID, view.id === 'fans' ? Math.min(GRID + NEXT, view.ranked) : GRID + NEXT) : [];
   const nextShort = view.id === 'fans' && next.length < NEXT;
@@ -252,6 +260,13 @@ export function Results() {
   const shownSlugs = [...top, ...next];
   const anyUnseen = shownSlugs.some((s) => unseen.has(s));
   const anyNotShown = shownSlugs.some(notShown);
+  const anyAq = highlight && shownSlugs.some((s) => auto.has(s));
+  /** Grid staircase: a dashed rule under tile p when the tile below it is past the cut, and right of the last tile in. */
+  const cutMarks = (p: number) => ({
+    below: cut > 0 && p <= cut && p + 5 > cut && p + 5 <= GRID,
+    right: cut > 0 && cut < GRID && p === cut && p % 5 !== 0,
+    last: p === cut,
+  });
 
   const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') return;
@@ -285,6 +300,8 @@ export function Results() {
   const cPct = gd.hasCommittee ? pctText(cMatch.share) : null;
   const fPct = pctText(fMatch.share);
   const whose = shared ? 'its' : 'your';
+  // Violet means you: the player's own numbers. In a shared view they are the sharer's, so ink.
+  const mine = shared ? 'text-fg' : 'text-accent';
   const headline = cPct
     ? (['Matched the committee on ', cPct, ` of ${whose} head-to-head calls`, fPct ? ', FEI on ' : '', fPct ?? '', '.'] as const)
     : fPct
@@ -296,24 +313,24 @@ export function Results() {
       {/* Header */}
       <div className="flex flex-col gap-x-4 gap-y-3 pt-6 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="label-caps text-accent">
+          <p className="label-caps text-fg-muted">
             {shared ? 'Shared ranking · ' : ''}
             {gd.label} · {plural(rounds.length, 'round')}
             {partial ? ' · partial' : ''}
           </p>
-          <h2 ref={heading} tabIndex={-1} className="cond text-title uppercase outline-none lg:text-display" data-testid="results-title">
+          <h2 ref={heading} tabIndex={-1} className="cond text-title outline-none lg:text-display" data-testid="results-title">
             {view.title}
           </h2>
           {headline && (
             <p className="mt-1 text-[0.9375rem] leading-6 text-fg-muted" data-testid="headline">
               {shared ? 'This ranking ' : ''}
               {shared ? headline[0].charAt(0).toLowerCase() + headline[0].slice(1) : headline[0]}
-              <b className="cond text-[1.125rem] font-bold text-accent">{headline[1]}</b>
+              <b className={`cond text-[1.125rem] font-bold ${mine}`}>{headline[1]}</b>
               {headline[2]}
               {headline.length > 3 && (
                 <>
                   {headline[3]}
-                  {headline[4] && <b className="cond text-[1.125rem] font-bold text-accent">{headline[4]}</b>}
+                  {headline[4] && <b className={`cond text-[1.125rem] font-bold ${mine}`}>{headline[4]}</b>}
                   {headline[5]}
                 </>
               )}
@@ -332,15 +349,16 @@ export function Results() {
       </div>
 
       {/* Phones: the bracket and share module are far below the list */}
-      <nav className="-mt-1 mb-4 flex items-center gap-2 sm:hidden" aria-label="Jump to">
+      {/* 36px buttons whose hit areas reach 44px, so the list starts higher. */}
+      <nav className="-mt-1 mb-3 flex items-center gap-2 sm:hidden [&>button]:relative [&>button]:min-h-9 [&>button]:px-3.5 [&>button]:after:absolute [&>button]:after:inset-x-0 [&>button]:after:-inset-y-1 [&>button]:after:content-['']" aria-label="Jump to">
         <span className="label-caps text-fg-muted">Jump to</span>
-        <button type="button" className="btn btn-secondary min-h-10 px-3.5 text-label-lg" onClick={() => jump('bracket-h')}>
+        <button type="button" className="btn btn-secondary text-label-lg" onClick={() => jump('bracket-h')}>
           Bracket
         </button>
-        <button type="button" className="btn btn-secondary min-h-10 px-3.5 text-label-lg" onClick={() => jump('bids-h')}>
+        <button type="button" className="btn btn-secondary text-label-lg" onClick={() => jump('bids-h')}>
           Bids
         </button>
-        <button type="button" className="btn btn-secondary min-h-10 px-3.5 text-label-lg" onClick={() => jump('share-h')}>
+        <button type="button" className="btn btn-secondary text-label-lg" onClick={() => jump('share-h')}>
           Share
         </button>
       </nav>
@@ -350,13 +368,9 @@ export function Results() {
           <p className="text-[0.9375rem] leading-6">
             {shared ? 'This run stopped' : 'You stopped'} after {rounds.length} of {TRIO_RULES.baseRounds} rounds.{' '}
             <span className="text-fg-muted">
-              {plural(unseenCount, 'team')} never came up, so {unseenCount === 1 ? 'it stays' : 'they stay'}{' '}
-              {!gd.hasCommittee
-                ? `where FEI has ${unseenCount === 1 ? 'it' : 'them'}`
-                : unseenOffCommittee
-                  ? 'at the starting spot (committee order, then FEI)'
-                  : `where the committee has ${unseenCount === 1 ? 'it' : 'them'}`}{' '}
-              (marked Unseen).
+              {plural(unseenCount, 'team')} never came up; {unseenCount === 1 ? 'it holds its' : 'they hold their'} starting spot
+              {!gd.hasCommittee ? ' (FEI order)' : unseenOffCommittee ? ' (committee order, then FEI)' : ' (committee order)'} and{' '}
+              {unseenCount === 1 ? 'is' : 'are'} marked Unseen.
             </span>
           </p>
           {!shared && (
@@ -368,7 +382,7 @@ export function Results() {
       )}
 
       {/* Tabs */}
-      <div className="tabs max-[359px]:[&>.tab]:px-2" role="tablist" aria-label="Whose top 25" onKeyDown={onTabKey}>
+      <div className="tabs" role="tablist" aria-label="Whose top 25" onKeyDown={onTabKey}>
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -389,17 +403,23 @@ export function Results() {
 
       <div id="results-panel" role="tabpanel" aria-labelledby={`tab-${view.id}`}>
         {/* Controls */}
-        <div className="grid grid-cols-2 items-center gap-x-3 py-2 sm:flex sm:flex-wrap sm:gap-x-6 [&_.switch]:max-sm:text-[0.875rem] [&_.switch]:max-sm:leading-[1.125rem]">
+        <div className="grid grid-cols-[auto_auto] items-center justify-between gap-x-3 py-1 sm:flex sm:py-2 sm:flex-wrap sm:justify-start sm:gap-x-6 [&_.switch]:max-sm:text-[0.875rem] [&_.switch]:max-sm:leading-[1.125rem]">
+          {/* From 640px each switch carries a sample of the mark it turns on (the key line below says
+              what it means); phones keep both switches on one line and rely on the key. */}
           {gd.hasCommittee && view.id !== 'committee' && (
             <Switch checked={compare} onChange={setCompare}>
-              Compare with committee
+              Compare to committee
+              <span className="delta ml-0.5 max-sm:hidden" data-dir="up" aria-hidden="true">
+                2
+              </span>
             </Switch>
           )}
           <Switch checked={highlight} onChange={setHighlight}>
-            Highlight playoff field
+            Show playoff field
+            <span className="cut-swatch ml-0.5 max-sm:hidden" aria-hidden="true" />
           </Switch>
           {formats.length > 1 && (
-            <div className="segmented col-span-2 my-1 ml-auto max-w-full min-w-0 max-sm:ml-0 max-sm:w-full max-sm:[&>*]:min-w-0 max-sm:[&>*]:flex-1 max-sm:[&>*]:px-2" role="group" aria-label="Playoff format">
+            <div className="segmented col-span-2 my-0.5 ml-auto sm:my-1 max-w-full min-w-0 max-sm:ml-0 max-sm:w-full max-sm:[&>*]:min-w-0 max-sm:[&>*]:flex-1 max-sm:[&>*]:px-2" role="group" aria-label="Playoff format">
               {formats.map((f) => (
                 <button key={f.id} type="button" aria-pressed={f.id === format.id} onClick={() => setFormatId(f.id)} data-testid={`format-${f.id}`}>
                   <FormatSegmentLabel f={f} season={gd.season} />
@@ -410,39 +430,36 @@ export function Results() {
         </div>
         <FormatNote format={format} season={gd.season} />
 
-        {/* What the marks mean */}
+        {/* What the marks mean: one line right under the controls, before the first mark. */}
         {(showCompare || highlight || anyUnseen || anyNotShown) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] leading-5 text-fg-muted" data-testid="legend">
+            {highlight && <span className="cut-note">{cutText(format)}</span>}
+            {anyAq && (
+              <span className="inline-flex items-center gap-1.5">
+                <AqTag />
+                <span>automatic bid</span>
+              </span>
+            )}
             {showCompare && (
               <span className="inline-flex items-center gap-1.5">
                 <span className="delta" data-dir="up" aria-hidden="true">
                   4
                 </span>
-                <span>= {view.subject} them 4 spots above the committee</span>
-              </span>
-            )}
-            {highlight && (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-3 w-4 rounded-[1px] shadow-[0_0_0_2px_var(--color-page),0_0_0_4px_var(--color-accent-edge)]" aria-hidden="true" />
-                <span>= in the {format.size}-team field</span>
-              </span>
-            )}
-            {highlight && (
-              <span className="inline-flex items-center gap-1.5">
-                <AqTag />
-                <span>= automatic bid</span>
+                <span>
+                  <span className="sr-only">Up triangle and a number: that many </span>spots above the committee
+                </span>
               </span>
             )}
             {anyUnseen && (
               <span className="inline-flex items-center gap-1.5">
                 <UnseenTag />
-                <span>= never came up in your rounds</span>
+                <span>never came up in your rounds</span>
               </span>
             )}
             {anyNotShown && (
               <span className="inline-flex items-center gap-1.5">
                 <NotShownTag />
-                <span>= not in this week’s game (FEI order)</span>
+                <span>not in the game (FEI order)</span>
               </span>
             )}
           </p>
@@ -452,7 +469,7 @@ export function Results() {
         <div className="mt-3 hidden gap-6 sm:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,1fr)]">
           <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5" aria-label={view.title} data-testid="top25-grid">
             {top.map((slug, i) => (
-              <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} />
+              <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} cut={cutMarks(i + 1)} cutLabel={cutText(format)} />
             ))}
           </ol>
           <section className="lg:border-l lg:border-line lg:pl-6" aria-labelledby="next-h">
@@ -460,9 +477,9 @@ export function Results() {
               Next five
             </h3>
             {next.length > 0 && (
-              <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 lg:grid-cols-1">
+              <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 lg:grid-cols-1 [&_.seed-plate]:text-[1.125rem] [&_.team-name]:text-[0.875rem] [&_.team-name]:leading-4 [&_.team-name]:[overflow-wrap:normal]">
                 {next.map((slug, i) => (
-                  <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} />
+                  <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} />
                 ))}
               </ol>
             )}
@@ -478,7 +495,7 @@ export function Results() {
         <div className="mt-3 sm:hidden">
           <ol className="flex flex-col gap-2" aria-label={view.title} data-testid="top25-list">
             {top.map((slug, i) => (
-              <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} />
+              <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cutAfter={cut === i + 1 ? cutText(format) : undefined} />
             ))}
           </ol>
           {next.length > 0 && (
@@ -486,11 +503,16 @@ export function Results() {
               <h3 className="label-caps mt-5 mb-2 text-fg-muted">Next five</h3>
               <ol className="flex flex-col gap-2">
                 {next.map((slug, i) => (
-                  <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} />
+                  <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} />
                 ))}
               </ol>
               {nextShort && <p className="mt-2 text-[0.875rem] leading-5 text-fg-muted">{`The fans’ ranking stops at ${view.ranked} teams so far.`}</p>}
             </>
+          )}
+          {next.length === 0 && (
+            <p className="mt-3 text-[0.875rem] leading-5 text-fg-muted">
+              {view.id === 'committee' ? 'The committee ranks only 25 teams.' : `The fans’ ranking stops at ${view.ranked} teams so far.`}
+            </p>
           )}
         </div>
 
@@ -505,11 +527,12 @@ export function Results() {
 
       <p className="mt-8 max-w-[48rem] text-lg leading-7" data-testid="agreement">
         {emphasize(shared ? sentence.replace(/^Of your /, 'Of the ') : sentence, /\d+%?(?: it ranks)?/g, (m, k) =>
-          // Accent marks the user's own counts; percentages and the committee's own count stay plain.
+          // Accent marks the user's own counts (ink in a shared view: they are the sharer's);
+          // percentages and the committee's own count stay plain.
           m.endsWith('%') || m.endsWith('it ranks') ? (
             <span key={k}>{m}</span>
           ) : (
-            <b key={k} className="cond text-[1.25rem] font-bold text-accent">
+            <b key={k} className={`cond text-[1.25rem] font-bold ${mine}`}>
               {m}
             </b>
           ),
@@ -531,7 +554,8 @@ export function Results() {
             Play it yourself
           </a>
         ) : (
-          <button type="button" className="btn btn-primary min-w-56" onClick={() => api.getState().playAgain()} data-testid="play-again">
+          // The share module above holds this screen's primary action; Play again is the quiet next step.
+          <button type="button" className="btn btn-secondary min-w-56" onClick={() => api.getState().playAgain()} data-testid="play-again">
             Play again
           </button>
         )}
@@ -547,19 +571,18 @@ interface RowProps {
   slug: string;
   team: GameTeam;
   rank: number;
-  inField: boolean;
   aq: boolean;
   compare: boolean;
   unseen: boolean;
   notShown: boolean;
 }
 
-function Tile(props: RowProps & { cfp: (t: GameTeam) => string }) {
-  const { slug, team, rank, inField, aq, compare, unseen, notShown, cfp } = props;
+function Tile(props: RowProps & { cfp: (t: GameTeam) => string; cut?: { below: boolean; right: boolean; last: boolean }; cutLabel?: string }) {
+  const { slug, team, rank, aq, compare, unseen, notShown, cfp, cut, cutLabel } = props;
   const d = team.committee === null ? 0 : team.committee - rank;
   return (
-    <li className="min-w-0">
-      <TeamBlock slug={slug} team={team} seed={rank} size="tile" inField={inField} />
+    <li className="field-cut-tile min-w-0" data-cut-below={cut?.below ? '' : undefined} data-cut-right={cut?.right ? '' : undefined}>
+      <TeamBlock slug={slug} team={team} seed={rank} size="tile" meta={recordText(team.record)} unseen={unseen} />
       <div className="mt-1.5 flex h-4 items-center justify-between gap-1 px-0.5">
         <span className="label-caps whitespace-nowrap text-fg-muted">{compare ? cfp(team) : ''}</span>
         <span className="flex items-center gap-1">
@@ -567,32 +590,45 @@ function Tile(props: RowProps & { cfp: (t: GameTeam) => string }) {
           {unseen ? <UnseenTag /> : notShown ? <NotShownTag /> : compare ? <Delta value={d} /> : null}
         </span>
       </div>
+      {cut?.last && cutLabel && <span className="sr-only">{cutLabel}: the field's unbroken run ends here.</span>}
     </li>
   );
 }
 
-function ListRow(props: RowProps) {
-  const { slug, team, rank, inField, aq, compare, unseen, notShown } = props;
+/**
+ * Phone row. A fixed side column right next to the row (its width never depends on state): "CFP 12"
+ * with the delta, then the tags (Unseen / Not shown, AQ) stacked under it. The cut line, when it
+ * falls under this row, spans the row and the column.
+ */
+function ListRow(props: RowProps & { cutAfter?: string }) {
+  const { slug, team, rank, aq, compare, unseen, notShown, cutAfter } = props;
   const d = team.committee === null ? 0 : team.committee - rank;
   return (
-    <li className="flex items-stretch gap-2">
-      <div className="min-w-0 flex-1">
-        <TeamBlock slug={slug} team={team} seed={rank} size="row" meta={recordText(team.record)} inField={inField} />
+    <li>
+      <div className="flex items-stretch gap-2">
+        <div className="min-w-0 flex-1">
+          <TeamBlock slug={slug} team={team} seed={rank} size="row" meta={recordText(team.record)} unseen={unseen} />
+        </div>
+        <div className="flex w-[4.75rem] flex-none flex-col items-start justify-center gap-0.5">
+          {compare && (
+            <span className="flex items-center gap-1">
+              <span className="label-caps whitespace-nowrap text-fg-muted">CFP {team.committee ?? 'NR'}</span>
+              {!unseen && <Delta value={d} />}
+            </span>
+          )}
+          {(unseen || notShown || aq) && (
+            <span className="flex flex-wrap items-center gap-1">
+              {unseen ? <UnseenTag /> : notShown ? <NotShownTag /> : null}
+              {aq && <AqTag />}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex w-[4.75rem] flex-none flex-col items-end justify-center gap-0.5">
-        {compare && (
-          <span className="flex items-center gap-1.5">
-            <span className="label-caps whitespace-nowrap text-fg-muted">CFP {team.committee ?? 'NR'}</span>
-            <Delta value={d} />
-          </span>
-        )}
-        {(aq || unseen || notShown) && (
-          <span className="flex flex-wrap items-center justify-end gap-1">
-            {aq && <AqTag />}
-            {unseen ? <UnseenTag /> : notShown ? <NotShownTag /> : null}
-          </span>
-        )}
-      </div>
+      {cutAfter && (
+        <p className="field-cut">
+          <span className="cut-note">{cutAfter}</span>
+        </p>
+      )}
     </li>
   );
 }
@@ -604,7 +640,7 @@ function ListRow(props: RowProps) {
  */
 function FormatNote({ format, season }: { format: PlayoffFormat; season: number }) {
   const body = (
-    <p className="text-[0.8125rem] leading-5 text-fg-muted sm:text-[0.875rem]">
+    <p className="max-w-[70ch] text-[0.8125rem] leading-5 text-fg-muted sm:text-[0.875rem]">
       {format.note}{' '}
       <a className="link whitespace-nowrap" href={format.sourceUrl} target="_blank" rel="noopener">
         Source: {format.sourceName}
@@ -624,7 +660,8 @@ function FormatNote({ format, season }: { format: PlayoffFormat; season: number 
       <details className="group sm:hidden">
         <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 py-1 text-[0.8125rem] leading-5 text-fg-muted [&::-webkit-details-marker]:hidden">
           <span className="min-w-0">
-            <b className="font-semibold text-fg">{format.size}-team field:</b> {rulesText(format)}, the rest at-large. <span className="link">Rules</span>
+            <b className="font-semibold text-fg">{format.size}-team field:</b> {autoCount(format)} champions, {format.size - autoCount(format)} at-large.{' '}
+            <span className="link">Rules</span>
           </span>
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" className="ml-auto flex-none transition-transform group-open:rotate-180">
             <path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" />
@@ -644,11 +681,12 @@ function BidList({ title, sub, seeds, gd, meta, id }: { title: string; sub?: str
         {title}
       </h4>
       {sub && <p className="mt-0.5 text-[0.8125rem] leading-5 text-fg-muted">{sub}</p>}
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+      {/* Phones: one column, ranks right-aligned so they line up; wider screens: an inline flow. */}
+      <ul className="mt-2 flex flex-col sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-2">
         {seeds.map((s) => (
-          <li key={s.slug} className="flex items-center gap-1.5">
+          <li key={s.slug} className="flex min-h-9 items-center justify-between gap-3 border-b border-line max-sm:first:border-t sm:min-h-0 sm:justify-start sm:gap-1.5 sm:border-0">
             <TeamChip slug={s.slug} team={gd.teams[s.slug]!} />
-            <span className="cond text-[0.875rem] font-semibold text-fg-muted">{meta(s)}</span>
+            <span className="cond text-right text-[0.875rem] font-semibold whitespace-nowrap text-fg-muted">{meta(s)}</span>
           </li>
         ))}
       </ul>
@@ -684,7 +722,7 @@ function Bids({ playoff, gd, ranked, sourceName }: { playoff: PlayoffResult; gd:
           meta={(s) => (s.bid === 'guaranteed' ? `${rankText(s)} · top-${guaranteed(s.slug)?.ifRankedAtOrAbove ?? ''} guarantee` : `${rankText(s)} · ${s.conference ?? ''}`)}
         />
         <BidList title={`At-large · ${playoff.atLarge.length}`} seeds={playoff.atLarge} gd={gd} meta={rankText} />
-        <BidList title="First five out" seeds={out} gd={gd} meta={rankText} />
+        <BidList title="Just outside" seeds={out} gd={gd} meta={rankText} />
       </div>
       {anyNr && <p className="mt-4 text-[0.8125rem] leading-5 text-fg-faint">NR: not ranked by {sourceName}; the field is filled out in FEI strength of record order.</p>}
       {standIn && (

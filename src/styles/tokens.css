@@ -1,122 +1,125 @@
 /*
- * cfbblindresume design tokens (Tailwind 4).
+ * cfbblindresume design tokens (Tailwind 4). Visual language: DOSSIER (DESIGN.md).
  *
- * One source of truth for color, type, space, radius, shadow and motion. DESIGN.md explains
- * every token and lists the measured contrast ratios; src/styles/tokens.ts mirrors the color
- * values for renderers that cannot read CSS (build-time OG images, the share-image Function).
- * Keep the three in sync: tests/design-tokens.test.ts fails if tokens.ts drifts from this file
- * or if a text/background pair drops below WCAG AA.
+ * One source of truth for colour, type, space, radius and motion. DESIGN.md explains every token
+ * and lists the measured contrast ratios; src/styles/tokens.ts mirrors the colour values for
+ * renderers that cannot read CSS (build-time OG images, the share-image Function). Keep the two in
+ * sync: tests/design-tokens.test.ts fails if tokens.ts drifts from this file or if a token pair
+ * drops below its WCAG minimum.
  *
- * Themes
- * - The @theme block holds the DARK theme. It is the default and the game's theme.
- * - Content pages follow the OS: global.css switches to the LIGHT values under
- *   prefers-color-scheme: light unless <html data-theme="dark"> (game pages set that).
- * - data-theme="light" | "dark" on any element forces that theme for its subtree.
+ * Two layers of colour tokens:
+ * - WORLD tokens (what the room contains: board, sheet, field, ink, stamp, redaction, toner ...)
+ *   are plain custom properties, declared in three sets below:
+ *     light-sheet  :root                         content pages: the page IS the sheet
+ *     light-board  [data-surface="board"]        game pages (/ and /r/*) and the island root:
+ *                                                white sheets on a grey board
+ *     dark         prefers-color-scheme: dark     photostat negative, for both surfaces
+ * - SYSTEM tokens (`--color-page`, `--color-fg`, ... what the markup and the utilities use) map
+ *   onto the world tokens in @theme. Custom properties resolve where they are declared, so the
+ *   mapping is declared again on [data-surface="board"].
+ *
+ * Every page follows prefers-color-scheme (light paper is the default). There is no forced-theme
+ * attribute.
  *
  * `static` emits every variable on :root even when no utility uses it, so plain CSS
  * (style="background: var(--color-surface)") and non-Tailwind consumers can rely on them.
+ * tests/design-tokens.test.ts parses the `@tokens <name>` ... `@end` blocks: keep one
+ * `--name: value;` per line inside them.
  */
 
 @theme static {
-  /* ---------------------------------------------------------------- color: surfaces (dark) */
-  --color-page: #0e0f12;        /* page background */
-  --color-surface: #16181d;     /* cards, panels, tables on content pages */
-  --color-raised: #1e2128;      /* card header slab, game-log rows, chips, inputs */
-  --color-raised-2: #272b33;    /* hover/pressed, seed plates */
-  --color-line: #2a2e36;        /* hairline dividers (decorative) */
-  --color-line-strong: #3a3f49; /* stronger dividers, the blind card's neutral 4px rule */
-  --color-control: #7a808a;     /* boundary of interactive controls: >= 3:1 on page/surface/raised */
-  --color-track: #2b2f37;       /* empty part of metric bars and stars */
-
-  /* ---------------------------------------------------------------- color: text (dark) */
-  --color-fg: #ecedee;          /* primary text */
-  --color-fg-muted: #9ba1ab;    /* labels, secondary text */
-  --color-fg-faint: #878d97;    /* meta, disabled text; on page/surface/raised only */
-
-  /* ---------------------------------------------------------------- color: accent (dark) */
-  /* Accent means "you": the user's picks, the current selection, the primary action, focus. */
-  --color-accent: #c8f135;      /* accent as text/icon on page, surface, raised */
-  --color-accent-fill: #c8f135; /* filled buttons, picked state, highlight plates */
-  --color-on-accent: #0e0f12;   /* text on accent-fill */
-  --color-accent-tint: #333f22; /* selected background (accent 14% over surface) */
-  --color-accent-edge: #c8f135; /* accent rules/outlines that must stay visible */
-  --color-focus: #c8f135;       /* focus-visible ring */
-
-  /* ---------------------------------------------------------------- color: results (dark) */
-  --color-win: #3dd68c;
-  --color-loss: #ff6b6b;
-  --color-win-tint: #1b3a2f;    /* W chip background (solid) */
-  --color-loss-tint: #3e2329;   /* L chip background (solid) */
-
-  /* ---------------------------------------------------------------- color: opponent-tier ramp (dark) */
-  /* Keyed by stars x 10. Bars (by rank band), stars and resume-strip dots all use this ramp.
-     Every step is >= 3:1 against page, surface and raised (graphics contrast). */
-  --color-tier-50: #ffcd34;     /* 5    stars  FEI 1-5      gold   */
-  --color-tier-45: #f8b23d;     /* 4.5  stars  FEI 6-10     amber  */
-  --color-tier-40: #d9a461;     /* 4    stars  FEI 11-25    bronze */
-  --color-tier-30: #77abd7;     /* 3    stars  FEI 26-50    steel  */
-  --color-tier-20: #7f96af;     /* 2    stars  FEI 51-75    slate  */
-  --color-tier-15: #7c8999;     /* 1.5  stars  FEI 76-100          */
-  --color-tier-10: #777e87;     /* 1    star   FEI 101+            */
-  --color-tier-05: #717579;     /* 0.5  star   FCS / non-FBS       */
-
-  /* ---------------------------------------------------------------- color: misc */
-  --color-scrim: rgb(6 7 9 / 0.8);     /* modal backdrop */
-  --color-selection: #c8f135;
-  --color-on-selection: #0e0f12;
-  --color-ink: #0e0f12;                /* constant: dark ink on team blocks / OG images */
-  --color-paper: #ffffff;              /* constant: light ink on team blocks */
+  /* ---------------------------------------------------------------- colour: system -> world */
+  --color-page: var(--board);              /* page; on game pages the desk under the sheets */
+  --color-surface: var(--sheet);           /* cards, panels, reveal, footer bar, index-tab labels */
+  --color-raised: var(--field);            /* form-field shading: quality wins, reveal cells, hover */
+  --color-raised-2: var(--field-2);        /* pressed, quiet fills */
+  --color-line: var(--rule);               /* hairline rules (decorative) */
+  --color-line-strong: var(--rule-strong); /* card/panel/table frames, index-tab outline, empty pips */
+  --color-control: var(--edge);            /* boundary of interactive controls: >= 3:1 */
+  --color-track: var(--track);             /* empty part of rank bars */
+  --color-fg: var(--ink);                  /* type, ink plates, header rules, selection chrome */
+  --color-fg-muted: var(--carbon);         /* labels, secondary text */
+  --color-fg-faint: var(--graphite);       /* meta, captions, disabled */
+  /* Violet stamp ink means YOU: picks, your numbers, the field you turned on, the primary action,
+     focus. Never data about teams, links, kickers or decoration. */
+  --color-accent: var(--stamp);
+  --color-accent-fill: var(--stamp-fill);
+  --color-on-accent: var(--on-stamp);
+  --color-accent-tint: var(--stamp-wash);
+  --color-accent-edge: var(--stamp-edge);
+  --color-focus: var(--stamp);
+  /* The redaction bar: everything the fan is not allowed to know yet. */
+  --color-redaction: var(--redaction);
+  --color-on-redaction: var(--on-redaction);
+  /* Green and red only mean W and L (and up/down deltas). */
+  --color-win: var(--won);
+  --color-loss: var(--lost);
+  --color-win-tint: var(--won-wash);
+  --color-loss-tint: var(--lost-wash);
+  /* Opponent tiers: one monochrome toner ramp, keyed by stars x 10. More ink = better opponent. */
+  --color-tier-50: var(--toner-50);        /* 5    FEI 1-5    */
+  --color-tier-45: var(--toner-45);        /* 4.5  FEI 6-10   */
+  --color-tier-40: var(--toner-40);        /* 4    FEI 11-25  */
+  --color-tier-30: var(--toner-30);        /* 3    FEI 26-50  */
+  --color-tier-20: var(--toner-20);        /* 2    FEI 51-75  */
+  --color-tier-15: var(--toner-15);        /* 1.5  FEI 76-100 */
+  --color-tier-10: var(--toner-10);        /* 1    FEI 101+   */
+  --color-tier-05: var(--toner-05);        /* 0.5  FCS / non-FBS */
+  --color-selection: var(--selection);
+  --color-on-selection: var(--on-selection);
+  --color-scrim: rgb(24 25 29 / 0.5);      /* modal backdrop (dark: below) */
+  --color-ink: #0e0f12;                    /* constant: team names on light primaries (teamInk) */
+  --color-paper: #ffffff;                  /* constant: team names on dark primaries (teamInk) */
   --color-white: #ffffff;
   --color-black: #000000;
 
   /* ---------------------------------------------------------------- type */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans", sans-serif;
-  --font-condensed: "Barlow Condensed", "Barlow Condensed Fallback", "Arial Narrow",
-    "Roboto Condensed", sans-serif;
+  /* One grotesque. The old "condensed" role is an alias so `font-condensed` keeps compiling. */
+  --font-sans: "Archivo", "Archivo Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-condensed: var(--font-sans);
 
-  /* Role sizes (utility = text-<role>; sets size, line-height, tracking, weight).
-     Pair the condensed roles with `font-condensed`; body copy uses Tailwind's text-sm/base/lg. */
-  --text-label: 0.75rem;                 /* 12px condensed caps labels */
+  /* Role sizes (utility = text-<role>; sets size, line-height, tracking, weight). Ratio 1.25 from
+     16: 13 · 16 · 20 · 25 · 31 · 38 · 52 · 88. Sentence case everywhere: no caps, no tracking. */
+  --text-label: 0.8125rem;               /* 13px form-field labels, column heads, kickers, tags */
   --text-label--line-height: 1rem;
-  --text-label--letter-spacing: 0.08em;
+  --text-label--letter-spacing: 0;
   --text-label--font-weight: 600;
-  --text-label-lg: 0.9375rem;            /* 15px tabs, buttons, table team names */
+  --text-label-lg: 0.9375rem;            /* 15px tabs, secondary buttons, table team names */
   --text-label-lg--line-height: 1.25rem;
-  --text-label-lg--letter-spacing: 0.06em;
+  --text-label-lg--letter-spacing: 0;
   --text-label-lg--font-weight: 600;
-  --text-team: 1rem;                     /* 16px team name on tiles / bracket slots */
-  --text-team--line-height: 1.0625rem;
-  --text-team--letter-spacing: 0.02em;
-  --text-team--font-weight: 700;
-  --text-stat: 1.375rem;                 /* 22px "#N" beside card bars */
+  --text-team: 1rem;                     /* 16px team names on tiles / slots */
+  --text-team--line-height: 1.125rem;
+  --text-team--letter-spacing: -0.005em;
+  --text-team--font-weight: 800;
+  --text-stat: 1.375rem;                 /* 22px card ranks "#18" */
   --text-stat--line-height: 1.5rem;
-  --text-stat--letter-spacing: 0;
-  --text-stat--font-weight: 700;
-  --text-heading: 1.5rem;                /* 24px h2, panel titles, reveal names */
-  --text-heading--line-height: 1.625rem;
-  --text-heading--letter-spacing: 0.01em;
-  --text-heading--font-weight: 700;
-  --text-title: 2rem;                    /* 32px h1 on phones, section titles */
-  --text-title--line-height: 2rem;
-  --text-title--letter-spacing: 0.005em;
-  --text-title--font-weight: 700;
-  --text-stat-lg: 2.25rem;               /* 36px stat row numerals on content pages */
-  --text-stat-lg--line-height: 2.25rem;
-  --text-stat-lg--letter-spacing: 0;
-  --text-stat-lg--font-weight: 700;
-  --text-record: 2.75rem;                /* 44px card letter + record */
-  --text-record--line-height: 2.5rem;
-  --text-record--letter-spacing: -0.005em;
-  --text-record--font-weight: 700;
-  --text-display: 3.5rem;                /* 56px h1 on desktop, team hero name */
-  --text-display--line-height: 3.25rem;
-  --text-display--letter-spacing: 0;
-  --text-display--font-weight: 700;
-  --text-hero: 6rem;                     /* 96px the "15" numeral */
+  --text-stat--letter-spacing: -0.01em;
+  --text-stat--font-weight: 800;
+  --text-heading: 1.5625rem;             /* 25px h2, panel titles, reveal names */
+  --text-heading--line-height: 1.75rem;
+  --text-heading--letter-spacing: -0.015em;
+  --text-heading--font-weight: 800;
+  --text-title: 1.9375rem;               /* 31px h1 on phones, results title */
+  --text-title--line-height: 2.125rem;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 800;
+  --text-stat-lg: 2.25rem;               /* 36px stat-row numerals on content pages */
+  --text-stat-lg--line-height: 2.5rem;
+  --text-stat-lg--letter-spacing: -0.02em;
+  --text-stat-lg--font-weight: 800;
+  --text-record: 2.375rem;               /* 38px blind-card record */
+  --text-record--line-height: 2.375rem;
+  --text-record--letter-spacing: -0.025em;
+  --text-record--font-weight: 800;
+  --text-display: 3.25rem;               /* 52px h1 on desktop, team hero max */
+  --text-display--line-height: 3.375rem;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 800;
+  --text-hero: 5.5rem;                   /* 88px the "15" numeral */
   --text-hero--line-height: 5.5rem;
-  --text-hero--letter-spacing: -0.01em;
-  --text-hero--font-weight: 700;
+  --text-hero--letter-spacing: -0.04em;
+  --text-hero--font-weight: 800;
 
   /* ---------------------------------------------------------------- space & layout */
   --spacing: 0.25rem;            /* Tailwind base unit: p-4 = 16px */
@@ -126,27 +129,31 @@
   --container-page: 76rem;       /* content pages (max-w-page) */
   --container-game: 76rem;       /* game + results (max-w-game): = page, so home shares one left edge */
 
-  /* ---------------------------------------------------------------- radius */
-  --radius-slab: 2px;            /* team blocks, seed plates, bars */
-  --radius-chip: 4px;            /* chips, buttons, inputs, tiles */
-  --radius-card: 8px;            /* cards, panels, table wrappers */
-  --radius-panel: 12px;          /* modal / reveal panel */
+  /* ---------------------------------------------------------------- radius (2-6px, no pills) */
+  --radius-slab: 2px;            /* team plates, bars, stamps, tags */
+  --radius-chip: 3px;            /* buttons, chips, inputs, bracket boxes */
+  --radius-card: 4px;            /* cards, table frames, segmented */
+  --radius-panel: 6px;           /* reveal, intro, done, error panels */
 
-  /* ---------------------------------------------------------------- shadow (dark) */
-  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.04), 0 18px 36px -18px rgb(0 0 0 / 0.75);
-  --shadow-panel: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 28px 72px -16px rgb(0 0 0 / 0.8);
-  --shadow-footer: 0 -14px 28px -14px rgb(0 0 0 / 0.7);
+  /* Depth is borders only: there are no shadow tokens. */
 
   /* ---------------------------------------------------------------- motion (< 300ms) */
   --duration-instant: 90ms;      /* press feedback, color changes */
   --duration-fast: 140ms;        /* hover, toggles, chip state */
   --duration-base: 200ms;        /* card pick, panel fade, tab switch */
-  --duration-slow: 280ms;        /* reveal wipe, bar fill, modal enter (max) */
+  --duration-slow: 280ms;        /* bar fill, modal enter (max) */
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
   --ease-snap: cubic-bezier(0.3, 1.3, 0.5, 1); /* tiny overshoot for the pick press */
   --default-transition-duration: var(--duration-fast);
   --default-transition-timing-function: var(--ease-out);
+
+  /* The declassify (reveal): fallbacks only. The timeline (sheet in by 120ms, bars at 120 / 200 /
+     280ms, 240ms each, all three by 520ms) lives in src/game/Reveal.tsx TIMING / PANEL / BAR,
+     handed in as custom properties. */
+  --declassify-duration: 240ms;
+  --declassify-start: 120ms;
+  --ease-declassify: cubic-bezier(0.77, 0, 0.175, 1);
 
   --animate-wipe: wipe var(--duration-slow) var(--ease-out) both;
   --animate-rise: rise var(--duration-base) var(--ease-out) both;
@@ -171,46 +178,161 @@
   }
 }
 
-/*
- * LIGHT theme values. global.css applies this block under prefers-color-scheme: light
- * (content pages) and for [data-theme="light"]. Same token names, so every utility follows.
- * Parsed by tests/design-tokens.test.ts: keep one `--name: value;` per line.
- */
-@utility theme-light-values {
-  --color-page: #ffffff;
-  --color-surface: #f5f6f8;
-  --color-raised: #ebedf0;
-  --color-raised-2: #e1e4e8;
-  --color-line: #e1e4e8;
-  --color-line-strong: #c5cad1;
-  --color-control: #6e7581;
-  --color-track: #e1e4e8;
-  --color-fg: #121317;
-  --color-fg-muted: #555b66;
-  --color-fg-faint: #5f6570;
-  --color-accent: #4a6b00;
-  --color-accent-fill: #c8f135;
-  --color-on-accent: #0e0f12;
-  --color-accent-tint: #eef8d4;
-  --color-accent-edge: #5f8700;
-  --color-focus: #4a6b00;
-  --color-win: #087040;
-  --color-loss: #b91e2a;
-  --color-win-tint: #e3f3e9;
-  --color-loss-tint: #fbe7e8;
-  --color-tier-50: #937900;
-  --color-tier-45: #b65a00;
-  --color-tier-40: #8c6b56;
-  --color-tier-30: #4479a9;
-  --color-tier-20: #698098;
-  --color-tier-15: #768392;
-  --color-tier-10: #7e858e;
-  --color-tier-05: #84888c;
-  --color-scrim: rgb(14 15 18 / 0.55);
-  --color-selection: #d9f27a;
-  --color-on-selection: #0e0f12;
-  --shadow-card: 0 1px 2px rgb(18 19 23 / 0.06), 0 12px 28px -18px rgb(18 19 23 / 0.28);
-  --shadow-panel: 0 28px 72px -18px rgb(18 19 23 / 0.35);
-  --shadow-footer: 0 -10px 24px -14px rgb(18 19 23 / 0.25);
-  color-scheme: light;
+@layer theme {
+  /* @tokens light-sheet: content pages, the page IS the sheet */
+  :root {
+    --board: #fdfdfa;
+    --sheet: #f4f4ef;
+    --field: #ecece6;
+    --field-2: #e2e2db;
+    --rule: #d9d9d1;
+    --rule-strong: #b2b3aa;
+    --edge: #74756d;
+    --track: #e2e2db;
+    --ink: #18191d;
+    --carbon: #50524b;
+    --graphite: #5f615a;
+    --stamp: #4b2c92;
+    --stamp-fill: #4b2c92;
+    --on-stamp: #fdfdfa;
+    --stamp-wash: #e9e3f5;
+    --stamp-edge: #5a3aa3;
+    --redaction: #121317;
+    --on-redaction: #fdfdfa;
+    --won: #17683a;
+    --won-wash: #e0eee3;
+    --lost: #a3262b;
+    --lost-wash: #f6e0dd;
+    --toner-50: #25262b;
+    --toner-45: #34363a;
+    --toner-40: #43454a;
+    --toner-30: #505257;
+    --toner-20: #5c5e63;
+    --toner-15: #66686c;
+    --toner-10: #6f7175;
+    --toner-05: #76787c;
+    --selection: #d9cdf3;
+    --on-selection: #18191d;
+  }
+  /* @end */
+
+  /* @tokens light-board: game pages (/ and /r/*) and the island, white sheets on a grey board */
+  [data-surface="board"] {
+    --board: #e8e8e3;
+    --sheet: #fdfdfa;
+    --field: #f1f1ec;
+    --field-2: #e6e6e0;
+    --rule: #dadad3;
+    --rule-strong: #b4b5ad;
+    --edge: #74756d;
+    --track: #e3e3dd;
+    --ink: #18191d;
+    --carbon: #50524b;
+    --graphite: #5d5f58;
+    --stamp: #4b2c92;
+    --stamp-fill: #4b2c92;
+    --on-stamp: #fdfdfa;
+    --stamp-wash: #ebe5f6;
+    --stamp-edge: #5a3aa3;
+    --redaction: #121317;
+    --on-redaction: #fdfdfa;
+    --won: #17683a;
+    --won-wash: #e2efe5;
+    --lost: #a3262b;
+    --lost-wash: #f7e2df;
+    --toner-50: #25262b;
+    --toner-45: #34363a;
+    --toner-40: #43454a;
+    --toner-30: #505257;
+    --toner-20: #5f6166;
+    --toner-15: #686a6e;
+    --toner-10: #707276;
+    --toner-05: #77797d;
+    --selection: #d9cdf3;
+    --on-selection: #18191d;
+  }
+  /* @end */
+
+  @media (prefers-color-scheme: dark) {
+    /* @tokens dark: photostat negative, the copier flips ink and paper; redactions print white */
+    :root,
+    [data-surface="board"] {
+      --board: #161615;
+      --sheet: #1f1f1d;
+      --field: #282826;
+      --field-2: #32322f;
+      --rule: #34342f;
+      --rule-strong: #4c4c46;
+      --edge: #8a8a82;
+      --track: #33332f;
+      --ink: #ecebe4;
+      --carbon: #aeada4;
+      --graphite: #9d9c93;
+      --stamp: #b9a7f1;
+      --stamp-fill: #b9a7f1;
+      --on-stamp: #161615;
+      --stamp-wash: #2d2742;
+      --stamp-edge: #b9a7f1;
+      --redaction: #e6e3d8;
+      --on-redaction: #161615;
+      --won: #78d39c;
+      --won-wash: #1d3326;
+      --lost: #f3968c;
+      --lost-wash: #3f2523;
+      --toner-50: #f3f2ec;
+      --toner-45: #dad9d2;
+      --toner-40: #c3c2bb;
+      --toner-30: #acaba4;
+      --toner-20: #9a9991;
+      --toner-15: #8e8d86;
+      --toner-10: #8a8982;
+      --toner-05: #82817b;
+      --selection: #4a3d78;
+      --on-selection: #ecebe4;
+    }
+    /* @end */
+    :root,
+    [data-surface="board"] {
+      --color-scrim: rgb(0 0 0 / 0.62);
+    }
+  }
+
+  /* The system tokens again on the board surface: a custom property resolves where it is
+     declared, so `--color-page: var(--board)` on :root alone would keep the sheet values inside
+     a board subtree. Same list as the @theme block (tests/design-tokens.test.ts checks). */
+  [data-surface="board"] {
+    --color-page: var(--board);
+    --color-surface: var(--sheet);
+    --color-raised: var(--field);
+    --color-raised-2: var(--field-2);
+    --color-line: var(--rule);
+    --color-line-strong: var(--rule-strong);
+    --color-control: var(--edge);
+    --color-track: var(--track);
+    --color-fg: var(--ink);
+    --color-fg-muted: var(--carbon);
+    --color-fg-faint: var(--graphite);
+    --color-accent: var(--stamp);
+    --color-accent-fill: var(--stamp-fill);
+    --color-on-accent: var(--on-stamp);
+    --color-accent-tint: var(--stamp-wash);
+    --color-accent-edge: var(--stamp-edge);
+    --color-focus: var(--stamp);
+    --color-redaction: var(--redaction);
+    --color-on-redaction: var(--on-redaction);
+    --color-win: var(--won);
+    --color-loss: var(--lost);
+    --color-win-tint: var(--won-wash);
+    --color-loss-tint: var(--lost-wash);
+    --color-tier-50: var(--toner-50);
+    --color-tier-45: var(--toner-45);
+    --color-tier-40: var(--toner-40);
+    --color-tier-30: var(--toner-30);
+    --color-tier-20: var(--toner-20);
+    --color-tier-15: var(--toner-15);
+    --color-tier-10: var(--toner-10);
+    --color-tier-05: var(--toner-05);
+    --color-selection: var(--selection);
+    --color-on-selection: var(--on-selection);
+  }
 }

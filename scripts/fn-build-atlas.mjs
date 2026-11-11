@@ -4,7 +4,8 @@
  *
  * The Function runs on the Workers free plan (10 ms CPU per request), so it cannot shape or
  * rasterize a font at request time. Instead this script rasterizes every glyph it may need once,
- * at build time, from the self-hosted Barlow Condensed TTFs (src/assets/fonts/), and writes:
+ * at build time, from the site font's static TTFs (Archivo 600 and 800, `fonts.ttf` in
+ * src/styles/tokens.ts, the same files the build-time OG images use), and writes:
  *
  *   functions/_lib/atlas.json  metrics: advance widths and kerning (font units), and per strike
  *                              (weight + pixel size) the glyph boxes into atlas.bin
@@ -23,7 +24,7 @@
  * renderer fast even before the JIT warms up (the first request of a new isolate).
  *
  * Output is deterministic; both files are committed. Re-run after changing the fonts, the sizes in
- * DESIGN.md §16, or the character sets below:
+ * DESIGN.md "Share image", or the character sets below:
  *
  *   npm run fn:atlas            (node scripts/fn-build-atlas.mjs)
  *   node scripts/fn-build-atlas.mjs --check   exit 1 if the committed atlas is out of date
@@ -34,33 +35,41 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import opentype from 'opentype.js';
 import { Resvg } from '@resvg/resvg-js';
+import { fonts } from '../src/styles/tokens.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_JSON = join(root, 'functions/_lib/atlas.json');
 const OUT_BIN = join(root, 'functions/_lib/atlas.bin');
-const FONT = { 600: 'src/assets/fonts/BarlowCondensed-600.ttf', 700: 'src/assets/fonts/BarlowCondensed-700.ttf' };
+const WEIGHTS = [600, 800];
+const FONT = Object.fromEntries(WEIGHTS.map((w) => [w, fonts.ttf[w]]));
 
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';
 const DIGITS = '0123456789';
-// School names in caps: Latin-1 capitals cover every FBS name (e.g. SAN JOSÉ STATE) with room to spare.
-const NAME = `${UPPER}${DIGITS} &'()-.,/:ÀÁÂÄÃÅÇÈÉÊËÌÍÎÏÑÒÓÔÖÕÙÚÛÜÝ’ʻ`;
-const KICKER = `${UPPER}${DIGITS} ·-–.,:/&'#`;
-// Mixed-case school names for the share-image hook line ("Biggest call: San José State"), plus the
-// percent sign of the agreement number.
-const HOOK = `${UPPER}${LOWER}${DIGITS} .,'-·!?:%&()/àáâäãåçèéêëìíîïñòóôöõùúûüýÀÁÂÄÃÅÇÈÉÊËÌÍÎÏÑÒÓÔÖÕÙÚÛÜÝ’ʻ`;
+// School names as printed (sentence/display case, never recased): Latin-1 letters cover every FBS
+// name (e.g. San José State) with room to spare; "%" for the hook's agreement number ("43%").
+// Archivo has no okina (U+02BB): the renderer draws it as the turned comma ‘ (atlas.ts drawable).
+const NAME = `${UPPER}${LOWER}${DIGITS} &'()-.,/:%ÀÁÂÄÃÅÇÈÉÊËÌÍÎÏÑÒÓÔÖÕÙÚÛÜÝàáâäãåçèéêëìíîïñòóôöõùúûüý‘’`;
+// Semibold copy: the week kicker ("After Week 9 · 2026"), the hook's words ("matched the
+// committee", "Biggest call:"), row meta ("Bye · 8-0"), the footer credit
+// ("cfbblindresume.com · Ratings: FEI by Brian Fremeau"). Team names are never set in 600.
+const COPY = `${UPPER}${LOWER}${DIGITS} .,'-–·!?:;%&()/#`;
 
 /**
- * Strikes = (weight, px size) pairs from DESIGN.md §16 "Share image". `phases` = sub-pixel
- * positions per pixel (1 for large text, where a 0.5 px rounding is invisible).
+ * Strikes = (weight, px size) pairs from DESIGN.md "Share image". `phases` = sub-pixel positions
+ * per pixel (1 for display text, where a 0.5 px rounding is invisible).
  */
 const STRIKES = [
-  { weight: 700, size: 76, phases: 1, chars: `${UPPER}${DIGITS} -` }, // "MY TOP 12"
-  { weight: 700, size: 40, phases: 2, chars: DIGITS }, // seed plates
-  ...[34, 32, 30, 28, 26].map((size) => ({ weight: 700, size, phases: 4, chars: NAME })), // team names (34, shrink to 26)
-  { weight: 600, size: 30, phases: 4, chars: KICKER }, // "AFTER WEEK 9 · 2026", records "8-0"
-  { weight: 600, size: 28, phases: 4, chars: HOOK }, // tagline; hook "Matched the committee on 43% · Biggest call: Kentucky
-  { weight: 600, size: 26, phases: 4, chars: KICKER }, // "CFBBLINDRESUME.COM · RATINGS: FEI BY BRIAN FREMEAU"
+  // the fan's number ("43%"); "My top 12" when there is no hook; the brand card's wordmark
+  { weight: 800, size: 76, phases: 1, chars: `${UPPER}${LOWER}${DIGITS} %` },
+  // seed numerals on the index-tab plates; the small "My top 12" title beside the fan's number
+  { weight: 800, size: 36, phases: 2, chars: `${UPPER}${LOWER}${DIGITS} ` },
+  // team names (32, shrinking by 2 to 24); 32 is also the footer wordmark, 26 the biggest-call
+  // name and delta
+  ...[32, 30, 28, 26, 24].map((size) => ({ weight: 800, size, phases: 4, chars: NAME })),
+  { weight: 600, size: 28, phases: 4, chars: COPY }, // week kicker; the brand card's line
+  { weight: 600, size: 26, phases: 4, chars: COPY }, // hook copy, row meta
+  { weight: 600, size: 24, phases: 4, chars: COPY }, // footer credit
 ];
 
 const PAD = 4;
@@ -131,14 +140,19 @@ export function encodeRows(rows) {
 }
 
 function build() {
-  const fonts = { 600: loadFont(FONT[600]), 700: loadFont(FONT[700]) };
-  const upm = fonts[700].unitsPerEm;
-  if (fonts[600].unitsPerEm !== upm) throw new Error('fn-build-atlas: weights differ in unitsPerEm');
+  const faces = Object.fromEntries(WEIGHTS.map((w) => [w, loadFont(FONT[w])]));
+  const upm = faces[800].unitsPerEm;
+  if (WEIGHTS.some((w) => faces[w].unitsPerEm !== upm)) throw new Error('fn-build-atlas: weights differ in unitsPerEm');
+  for (const w of WEIGHTS) {
+    // The static instance must be the weight it is filed as (not a synthesized or wrong file).
+    const cls = faces[w].tables.os2.usWeightClass;
+    if (cls !== w) throw new Error(`fn-build-atlas: ${FONT[w]} has usWeightClass ${cls}, expected ${w}`);
+  }
 
   // Per weight: the union of the strikes' characters, advance widths and non-zero kerning pairs.
   const metrics = {};
-  for (const weight of [600, 700]) {
-    const font = fonts[weight];
+  for (const weight of WEIGHTS) {
+    const font = faces[weight];
     const chars = [...new Set(STRIKES.filter((s) => s.weight === weight).flatMap((s) => [...s.chars]))].sort().join('');
     const glyphs = [...chars].map((c) => {
       const g = font.charToGlyph(c);
@@ -159,7 +173,7 @@ function build() {
   const chunks = [];
   let offset = 0;
   const strikes = STRIKES.map((s) => {
-    const font = fonts[s.weight];
+    const font = faces[s.weight];
     const g = [];
     for (const ch of s.chars) {
       for (let p = 0; p < s.phases; p++) {
@@ -179,8 +193,8 @@ function build() {
     o += c.length;
   }
   const json = {
-    v: 1,
-    font: 'Barlow Condensed (SIL OFL 1.1, see src/assets/fonts/OFL.txt)',
+    v: 2,
+    font: 'Archivo 600/800 (SIL OFL 1.1, see src/assets/fonts/Archivo-OFL.txt)',
     note: 'Generated by scripts/fn-build-atlas.mjs. Do not edit.',
     upm,
     bytes: bin.length,

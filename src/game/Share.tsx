@@ -1,6 +1,9 @@
 /**
  * Share module (DESIGN.md §13): the /r/{code} link, Web Share when the device has it, copy link
  * (with a visible fallback field), and the share image /og/r/{code}.png (rendered by a Function).
+ * On your own results sharing is the screen's one primary action (Web Share, else Copy link; Play
+ * again below is secondary). In a shared view the viewer's primary action is "Play it yourself",
+ * so every button here is secondary.
  */
 import { useEffect, useRef, useState } from 'react';
 import { track } from './api';
@@ -61,15 +64,15 @@ export function Share({ code, shared, title }: { code: string; shared: boolean; 
   };
 
   return (
-    <section className="mt-10 rounded-card border border-line bg-surface p-4 sm:p-5" aria-labelledby="share-h" data-testid="share">
+    <section className="mt-10 rounded-card border border-line-strong bg-surface p-4 sm:p-5" aria-labelledby="share-h" data-testid="share">
       <div className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-center">
         {imgOk && (
-          <a href={image} target="_blank" rel="noopener" className="block overflow-hidden rounded-chip border border-line bg-raised" aria-label="Open the share image">
+          <a href={image} target="_blank" rel="noopener" className="share-proof block overflow-hidden rounded-chip border border-line bg-raised" aria-label="Open the share image">
             <img src={image} width={1200} height={630} alt="" loading="lazy" decoding="async" className="aspect-[1200/630] h-auto w-full" onError={() => setImgOk(false)} />
           </a>
         )}
         <div className={imgOk ? '' : 'md:col-span-2'}>
-          <h3 id="share-h" tabIndex={-1} className="cond text-heading uppercase outline-none">
+          <h3 id="share-h" tabIndex={-1} className="cond text-heading outline-none">
             {shared ? 'Share this ranking' : 'Share your ranking'}
           </h3>
           <p className="mt-1 text-[0.9375rem] leading-6 text-fg-muted">
@@ -85,18 +88,18 @@ export function Share({ code, shared, title }: { code: string; shared: boolean; 
               readOnly
               value={url || path}
               onFocus={(e) => e.currentTarget.select()}
-              className="cond min-w-0 flex-1 rounded-chip border border-control bg-page px-3 text-[0.9375rem] font-semibold tracking-[0.02em] text-fg-muted"
+              className="h-11 min-w-0 flex-1 rounded-chip border border-control bg-raised px-3 text-[0.9375rem] font-semibold text-fg-muted"
               data-testid="share-url"
             />
           </div>
           <div className="mt-3 flex flex-wrap gap-2.5">
             {canShare && (
-              <button type="button" className="btn btn-primary" onClick={webShare}>
+              <button type="button" className={`btn ${shared ? 'btn-secondary' : 'btn-primary'}`} onClick={webShare}>
                 <ShareIcon />
                 Share
               </button>
             )}
-            <button type="button" className={`btn min-w-40 ${canShare ? 'btn-secondary' : 'btn-primary'}`} onClick={copy} data-testid="copy-link">
+            <button type="button" className={`btn min-w-40 ${canShare || shared ? 'btn-secondary' : 'btn-primary'}`} onClick={copy} data-testid="copy-link">
               <LinkIcon />
               <span aria-live="polite">{copied ? 'Copied' : 'Copy link'}</span>
             </button>

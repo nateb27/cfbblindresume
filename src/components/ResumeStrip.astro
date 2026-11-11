@@ -1,72 +1,83 @@
 ---
 /**
- * Resume strip (SPEC card + team page): one dot per game in date order, sized and colored by the
- * opponent's current tier, with the result letter (win/loss color) and margin under it.
- * Pure SVG, no JS. `full` adds the opponent (@ = away, vs = neutral) above each dot.
+ * Resume strip (SPEC card + team page): one tick per game in date order on a baseline, its height
+ * the opponent's current tier (a tiny bar chart in toner), with the opponent above (@ = away,
+ * vs = neutral) and the result letter (win/loss colour) and margin under it.
+ * Static HTML + CSS, no JS (src/styles/season-strip.css). It never scrolls sideways: the games
+ * share the width it is given (up to 5rem each), and when one row of `col`-wide columns does not
+ * fit it wraps into two balanced rows (games 1-6 / 7-12), then three. Columns are as wide as the
+ * labels need (resume-strip.ts), or `minCol` when that is wider; `slots` reserves columns for at
+ * least that many games (the compare page gives both cards the same `minCol` and `slots`, so the
+ * two strips read as one chart). Ticks grow with the strip (1.2x on phones, 2x from 30rem), and
+ * so do the samples of the optional key under it.
  */
-import { gameRows } from '@lib/data';
 import type { WeekFile } from '@lib/types';
-import { TIER_DOT_PX, tierKey } from '../styles/tokens';
+import { tierKey } from '../styles/tokens';
+import '../styles/season-strip.css';
+import { stripCol, stripFit, stripGames, stripLabel } from './resume-strip';
 import { fmtShortDate, signed, siteVs } from './site';
 
 interface Props {
   week: WeekFile;
   slug: string;
-  variant?: 'full' | 'compact';
+  /** The narrowest column (px). */
+  minCol?: number;
+  /** Reserve columns for at least this many games. */
+  slots?: number;
+  /** Print the "Tick height = opponent tier" key under the strip, its samples at the strip's scale. */
+  legend?: boolean;
   class?: string;
 }
-const { week, slug, variant = 'full', class: cls } = Astro.props;
-const games = gameRows(week, slug).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.week - b.week));
-const full = variant === 'full';
-const col = full ? 40 : 20;
-const dotY = full ? 29 : 8;
-const height = full ? 74 : 32;
-const width = Math.max(col, games.length * col);
+const { week, slug, minCol = 0, slots = 0, legend = false, class: cls } = Astro.props;
+const games = stripGames(week, slug);
 const t = week.teams[slug]!;
-const oppLabel = (g: (typeof games)[number]): string => {
-  const abbr = g.opp.fbs ? (week.teams[g.opp.slug]?.short ?? g.opp.name) : 'FCS';
-  return g.site === 'away' ? `@${abbr}` : g.site === 'neutral' ? `vs ${abbr}` : abbr;
-};
+const col = Math.max(minCol, stripCol(week, slug));
+const n = Math.max(1, slots, games.length);
+const fit = stripFit(n, col);
 const summary = `${t.name} season in order: ${games
   .map((g) => `${g.result === 'W' ? 'win' : 'loss'} ${siteVs(g.site, g.opp.name)}, ${g.tier.label}, ${g.pf}-${g.pa}`)
   .join('; ')}.`;
 ---
 
-<div class:list={['overflow-x-auto', cls]}>
-  <svg
-    class="cond block"
-    width={width}
-    height={height}
-    viewBox={`0 0 ${width} ${height}`}
-    role="img"
-    aria-label={summary}
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    {games.length > 1 && <line x1={col / 2} x2={width - col / 2} y1={dotY} y2={dotY} class="stroke-line-strong" stroke-width="1" />}
+<div class:list={['season-strip-wrap', cls]}>
+  <div class="season-strip" role="img" aria-label={summary} style={`--n:${n};--half:${fit.half};--third:${fit.third};--col:${col}px`} data-fit-1={fit.one} data-fit-2={fit.two}>
     {
-      games.map((g, i) => {
-        const x = i * col + col / 2;
-        const key = tierKey(g.tier.stars);
-        return (
-          <g>
-            <title>{`${fmtShortDate(g.date)} · ${siteVs(g.site, g.opp.name)} (${g.tier.label}) · ${g.result} ${g.pf}-${g.pa}`}</title>
-            {full && (
-              <text x={x} y="12" text-anchor="middle" font-size="12" font-weight="600" letter-spacing="0.3" class="fill-fg-muted">
-                {oppLabel(g)}
-              </text>
-            )}
-            <circle cx={x} cy={dotY} r={TIER_DOT_PX[key] / 2 + (full ? 1 : 0)} class={`fill-tier-${key} stroke-page`} stroke-width="2" />
-            <text x={x} y={full ? 53 : 29} text-anchor="middle" font-size={full ? 15 : 12} font-weight="700" class={g.result === 'W' ? 'fill-win' : 'fill-loss'}>
-              {g.result}
-            </text>
-            {full && (
-              <text x={x} y="69" text-anchor="middle" font-size="12" font-weight="600" class="fill-fg-muted">
-                {signed(g.pf - g.pa)}
-              </text>
-            )}
-          </g>
-        );
-      })
+      games.map((g) => (
+        <span class="season-game" title={`${fmtShortDate(g.date)} · ${siteVs(g.site, g.opp.name)} (${g.tier.label}) · ${g.result} ${g.pf}-${g.pa}`}>
+          <span class="season-opp">{stripLabel(week, g)}</span>
+          <span class="season-tick">
+            <span class="tier-dot" data-tier={tierKey(g.tier.stars)} />
+          </span>
+          <span class="season-result" data-result={g.result}>
+            {g.result}
+          </span>
+          <span class="season-margin">{signed(g.pf - g.pa)}</span>
+        </span>
+      ))
     }
-  </svg>
+  </div>
+  {
+    legend && (
+      // Inside the strip's container, so its samples scale with the ticks they explain (1.2x / 2x).
+      <p class="season-legend mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] leading-5 text-fg-muted">
+        <span>Tick height = opponent tier</span>
+        <span class="flex items-center gap-x-3">
+          {(
+            [
+              ['50', 'FEI 1-5'],
+              ['30', '26-50'],
+              ['10', '101+'],
+            ] as const
+          ).map(([k, label]) => (
+            <span class="flex items-center gap-1.5">
+              <span class="tier-tick-cell">
+                <span class="tier-dot" data-tier={k} aria-hidden="true" />
+              </span>
+              {label}
+            </span>
+          ))}
+        </span>
+      </p>
+    )
+  }
 </div>

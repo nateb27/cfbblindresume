@@ -15,11 +15,21 @@ const NAME: Record<BlockSize, string> = {
   reveal: 'text-heading line-clamp-2 max-sm:text-[1.25rem] max-sm:leading-5 [overflow-wrap:anywhere]',
   slot: 'text-[0.9375rem] leading-4 truncate',
 };
+// Seed plates have one fixed width per size (no padding), so a two-digit seed never pushes its
+// name right of the one above it ("Alabama" over "Boise State" in a bracket box).
 const PLATE: Record<BlockSize, string> = {
-  tile: 'min-w-9 text-[1.375rem]',
-  row: 'min-w-10 text-[1.375rem]',
+  tile: 'w-10 px-0 text-[1.375rem]',
+  row: 'w-10 px-0 text-[1.375rem]',
   reveal: 'min-w-12 text-[1.75rem]',
-  slot: 'min-w-8 text-[1.125rem]',
+  slot: 'w-10 px-0 text-[1.125rem]',
+};
+// Meta (the record): right of the name; on tiles it prints under the name (game.css), so the
+// name keeps the label's full width.
+const META: Record<BlockSize, string> = {
+  tile: 'pl-2.5 text-[0.8125rem] leading-4',
+  row: 'ml-2 text-[1.0625rem]',
+  reveal: 'ml-auto pl-3 text-[1.0625rem]',
+  slot: 'ml-2 text-[1.0625rem]',
 };
 
 export function teamStyle(team: Pick<GameTeam, 'colors'>): CSSProperties {
@@ -37,27 +47,31 @@ export function TeamBlock(props: {
   seed?: number | string;
   size: BlockSize;
   meta?: string;
-  inField?: boolean;
+  /** Partial runs: a team that never came up (provisional look, game.css). */
+  unseen?: boolean;
   link?: boolean;
   className?: string;
   label?: string;
 }) {
-  const { slug, team, seed, size, meta, inField, link = true, className = '', label } = props;
+  const { slug, team, seed, size, meta, unseen, link = true, className = '', label } = props;
   const inner = (
     <>
       {seed !== undefined && <span className={`seed-plate ${PLATE[size]}`}>{seed}</span>}
-      <span className={`${seed !== undefined ? 'pl-2.5' : 'pl-3'} min-w-0 flex-1 ${NAME[size]}`}>{team.name}</span>
-      {meta && <span className="ml-2 flex-none text-[1.0625rem]">{meta}</span>}
+      {/* In the reveal the name shrink-wraps its text, so the redaction bar over it is the name's own width. */}
+      <span className={`team-name ${seed !== undefined ? 'pl-2.5' : 'pl-3'} min-w-0 ${size === 'reveal' ? 'flex-initial' : 'flex-1'} ${NAME[size]}`}>{team.name}</span>
+      {meta && <span className={`team-meta flex-none ${META[size]}`}>{meta}</span>}
     </>
   );
   const cls = `team-block ${HEIGHT[size]} pr-3 ${className}`;
-  const field = inField ? { 'data-in-field': '' } : {};
+  const field = { 'data-unseen': unseen ? '' : undefined, 'data-meta': meta ? '' : undefined };
+  // Index tab (seed plate + name typed on paper) for dense lists; cover (full team colour) for the reveal.
+  const variant = seed !== undefined && size !== 'reveal' ? 'tab' : 'cover';
   return link ? (
-    <a href={`/teams/${slug}`} className={cls} style={teamStyle(team)} aria-label={label} {...field}>
+    <a href={`/teams/${slug}`} className={cls} style={teamStyle(team)} aria-label={label} data-variant={variant} data-size={size} {...field}>
       {inner}
     </a>
   ) : (
-    <div className={cls} style={teamStyle(team)} aria-label={label} {...field}>
+    <div className={cls} style={teamStyle(team)} aria-label={label} data-variant={variant} data-size={size} {...field}>
       {inner}
     </div>
   );
@@ -66,7 +80,7 @@ export function TeamBlock(props: {
 /** Inline team mark (12x20 block + rule + caps name), linking to the team page. */
 export function TeamChip({ slug, team, children }: { slug: string; team: GameTeam; children?: ReactNode }) {
   return (
-    <a href={`/teams/${slug}`} className="team-chip hover:text-accent" style={teamStyle(team)}>
+    <a href={`/teams/${slug}`} className="team-chip hover:underline hover:decoration-2 hover:underline-offset-4" style={teamStyle(team)}>
       {team.name}
       {children}
     </a>

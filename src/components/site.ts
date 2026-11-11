@@ -33,6 +33,8 @@ export const compareHubHref = '/compare';
 export const teamOgPath = (slug: string): string => `/og/teams/${slug}.png`;
 export const compareOgPath = (pairSlug: string): string => `/og/compare/${pairSlug}.png`;
 export const DEFAULT_OG = '/og/default.png';
+/** The rankings image (/rankings, /bubble): this week's top 5 both ways. */
+export const RANKINGS_OG = '/og/rankings.png';
 /**
  * Cache-busting suffix for share images: the images bake in one week's numbers, and social
  * networks cache og:image per URL, so the URL changes with every snapshot ("?v=2026-9").
@@ -131,9 +133,9 @@ export function formatStatus(f: PlayoffFormat, season: number): string {
   return f.status === 'proposed' ? `Proposed for ${season + 1} — not final` : `${season} format`;
 }
 
-/** Segment-style label: "12 teams · 2026 format" / "24 teams · proposed". */
+/** Segment-style label: "12 teams · 2026 format" / "24 teams (2027 proposal)". */
 export function formatShortLabel(f: PlayoffFormat, season: number): string {
-  return f.status === 'proposed' ? `${f.label} · proposed` : `${f.label} · ${season} format`;
+  return f.status === 'proposed' ? `${f.label} (${season + 1} proposal)` : `${f.label} · ${season} format`;
 }
 
 /** Kicker that says "proposed" once: "12 teams · 2026 format" / "24 teams · Proposed for 2027 — not final". */

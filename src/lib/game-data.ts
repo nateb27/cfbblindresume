@@ -222,7 +222,7 @@ export function buildGameData(week: WeekFile): GameData {
   };
 }
 
-/** A head-to-head flag for the cards: "B beat A head-to-head · +16". */
+/** A head-to-head flag for the cards ("[H2H] B over A by 16"). */
 export interface H2HFlag {
   winner: string;
   loser: string;

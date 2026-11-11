@@ -4,7 +4,8 @@
  * verdicts), then FEI overall, offense, defense and schedule. Each: label, "#N", a 6px bar
  * (tier color of that rank band, filled by rankFill; the committee rank too, so a #20 committee
  * bar never looks longer than a #14 strength of record), and the FEI value. Strength of record and
- * schedule also say what the value means, in the words of /how-it-works.
+ * schedule also say what the value means, in the words of /how-it-works. The labels are plain text
+ * like "Committee" (the "What these measure" link under the row explains them all).
  */
 import type { Team, WeekFile } from '@lib/types';
 import { METRICS, bandKey, feiValue, fill, fmtShortDate } from './site';
@@ -55,11 +56,7 @@ const release = week.sources.committee?.releaseDate;
   {
     cells.map((m, i) => (
       <div class:list={[i === 0 && week.committee && 'lg:border-r lg:border-line lg:pr-6']}>
-        <dt class="label-caps text-fg-muted">
-          <a href={`/how-it-works#${m.anchor}`} class="hover:text-fg">
-            {m.label}
-          </a>
-        </dt>
+        <dt class="label-caps text-fg-muted">{m.label}</dt>
         <dd class="cond text-stat-lg">#{m.rank}</dd>
         <dd class="meter mt-1.5" data-tier={bandKey(m.rank)} style={`--fill:${fill(m.rank, n)}`}>
           <span />

@@ -3,25 +3,26 @@
  * CPU benchmark for the share-image Function (/og/r/{code}.png) in Node, which runs the same V8 as
  * workerd. It times exactly what one request does after the asset fetch: JSON.parse of the week's
  * game data, share-code decode + rule check + computeRunResults (src/lib), painting the 1200x630
- * palette canvas from the glyph atlas, and zlib deflate at the default level (what
- * CompressionStream('deflate') runs natively in workerd), plus PNG chunk CRCs.
+ * palette canvas from the glyph atlas, and the PNG's native zlib deflate (png.ts zlibDeflateSync:
+ * node:zlib, the same C++ zlib in Node and workerd), plus PNG chunk CRCs.
  *
  *   node scripts/fn-bench-og.mjs [--runs 300] [--cold 7]
+ *   (FN_SCRATCH: where the bundled worker and fn-bench-og.json go; default <tmpdir>/cfbblindresume-fn)
  *
  * Also times "1st request after warm-up": a fresh process that first runs warmShareRenderer() (what
  * the deployed route does at module scope, i.e. at isolate startup) and then serves one request.
  *
  * "cold" = the first request in a brand-new process (nothing JIT-compiled yet, like the first
- * share image in a fresh isolate); "warm" = steady state. Synchronous zlib is used for timing so
- * Node's thread-pool stream overhead (absent in workerd) does not distort the number.
+ * share image in a fresh isolate); "warm" = steady state.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SCRATCH = process.env.FN_SCRATCH ?? '/tmp/claude-0/-home-user/38da28a1-5927-5734-b75e-1321c36c6410/scratchpad';
+const SCRATCH = process.env.FN_SCRATCH ?? join(tmpdir(), 'cfbblindresume-fn');
 const OUT = join(SCRATCH, 'backend');
 mkdirSync(OUT, { recursive: true });
 const argv = process.argv.slice(2);
@@ -33,7 +34,6 @@ const opt = (name, d) => {
 // The measured code, bundled from the repo sources (src/lib + functions/_lib).
 const WORKER = `
 import { readFileSync } from 'node:fs';
-import { deflateSync } from 'node:zlib';
 import { buildGameData, computeRunResults, gameRunViolations, gameTrioState } from '@lib/game-data';
 import { loadWeek } from '@lib/data-node';
 import { nextTrio } from '@lib/trios';
@@ -41,7 +41,7 @@ import { rngForRound, mulberry32 } from '@lib/rng';
 import { encodeRun, parseShareCode, resolveShareCode } from '@lib/sharecode';
 import { loadAtlas } from './functions/_lib/atlas';
 import { shareImageModel, paintShareImage, warmShareRenderer } from './functions/_lib/share-image';
-import { crc32 } from './functions/_lib/png';
+import { crc32, zlibDeflateSync } from './functions/_lib/png';
 
 const mode = process.argv[2];
 const runs = Number(process.argv[3] || 1);
@@ -73,7 +73,7 @@ function request(code) {
   const canvas = paintShareImage(shareImageModel(gd, res.ranking.order, res.playoff.byes.map((s) => s.slug), res.agreement), atlas);
   const rawRows = canvas.finishScanlines();
   const t2 = performance.now();
-  const idat = deflateSync(rawRows);
+  const idat = zlibDeflateSync(rawRows);
   crc32(idat); crc32(canvas.paletteBytes());
   const t3 = performance.now();
   return { results: t1 - t0, paint: t2 - t1, encode: t3 - t2, total: t3 - t0, bytes: idat.length + canvas.palette.length * 3 + 57, palette: canvas.palette.length, levels: canvas.levels };
