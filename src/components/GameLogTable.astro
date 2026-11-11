@@ -45,7 +45,7 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
                   <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} tap />
                   {cfp(g.opp) !== null && <span class="label-caps whitespace-nowrap text-fg-muted max-sm:hidden">CFP {cfp(g.opp)}</span>}
                 </span>
-                <span class="pl-5 text-[0.8125rem] leading-4 whitespace-nowrap text-fg-muted sm:hidden">
+                <span class="pl-4 text-[0.8125rem] leading-4 whitespace-nowrap text-fg-muted sm:hidden">
                   {cfp(g.opp) !== null && `CFP ${cfp(g.opp)} · `}
                   {SITE_LABELS[g.site]}
                 </span>

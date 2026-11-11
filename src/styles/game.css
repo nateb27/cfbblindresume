@@ -365,6 +365,13 @@
     bottom: -0.5rem;
     border-top: 2px dashed var(--color-fg);
   }
+  /* The segments reach into the gaps to meet their neighbours; at the grid's own edges they stop. */
+  .field-cut-tile[data-cut-below]:nth-child(5n + 1)::after {
+    left: 0;
+  }
+  .field-cut-tile[data-cut-below]:nth-child(5n)::after {
+    right: 0;
+  }
   .field-cut-tile[data-cut-right]::before {
     top: -0.5rem;
     bottom: 0;

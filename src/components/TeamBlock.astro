@@ -62,6 +62,7 @@ const Name = nameAs;
   style={teamVars(team.colors)}
   data-variant={seed !== undefined && size !== 'reveal' ? 'tab' : 'cover'}
   data-size={size}
+  data-meta={meta ? '' : undefined}
 >
   {seed !== undefined && <span class:list={['seed-plate', plate]}>{seed}</span>}
   <Name class:list={['team-name min-w-0 flex-1', pad, nameCls]} style={nameFit?.style}>

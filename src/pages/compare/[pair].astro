@@ -125,16 +125,15 @@ const standingShort = (p: (typeof orders)[number]['res'][string], slug: string) 
 const hlA = resumeHighlights(week, a);
 const hlB = resumeHighlights(week, b);
 const pct = (wl: { w: number; l: number } | null) => (wl && wl.w + wl.l > 0 ? wl.w / (wl.w + wl.l) : null);
-const rankRows: { k: string; av: string; bv: string; better: 'a' | 'b' | null; sr: string }[] = [
-  ...(A.ranks.committee !== null && B.ranks.committee !== null
-    ? [{ k: 'Committee', a: A.ranks.committee, b: B.ranks.committee, sr: 'committee rank' }]
-    : []),
-  { k: 'Strength of record', a: A.ranks.sor, b: B.ranks.sor, sr: 'FEI strength of record rank' },
-  { k: 'FEI overall', a: A.ranks.fei, b: B.ranks.fei, sr: 'FEI overall rank' },
-  { k: 'Offense', a: A.ranks.off, b: B.ranks.off, sr: 'FEI offense rank' },
-  { k: 'Defense', a: A.ranks.def, b: B.ranks.def, sr: 'FEI defense rank' },
-  { k: 'Schedule', a: A.ranks.sos, b: B.ranks.sos, sr: 'FEI schedule rank, #1 hardest' },
-].map((r) => ({ k: r.k, av: `#${r.a}`, bv: `#${r.b}`, better: r.a === r.b ? null : r.a < r.b ? 'a' : 'b', sr: r.sr }));
+// The row header names the rank ("Schedule" adds "#1 = hardest"); the caption says #1 is best.
+const rankRows: { k: string; av: string; bv: string; better: 'a' | 'b' | null }[] = [
+  ...(A.ranks.committee !== null && B.ranks.committee !== null ? [{ k: 'Committee', a: A.ranks.committee, b: B.ranks.committee }] : []),
+  { k: 'Strength of record', a: A.ranks.sor, b: B.ranks.sor },
+  { k: 'FEI overall', a: A.ranks.fei, b: B.ranks.fei },
+  { k: 'Offense', a: A.ranks.off, b: B.ranks.off },
+  { k: 'Defense', a: A.ranks.def, b: B.ranks.def },
+  { k: 'Schedule', a: A.ranks.sos, b: B.ranks.sos },
+].map((r) => ({ k: r.k, av: `#${r.a}`, bv: `#${r.b}`, better: r.a === r.b ? null : r.a < r.b ? 'a' : 'b' }));
 if (hlA.vsCommittee && hlB.vsCommittee) {
   const pa = pct(hlA.vsCommittee);
   const pb = pct(hlB.vsCommittee);
@@ -143,7 +142,6 @@ if (hlA.vsCommittee && hlB.vsCommittee) {
     av: `${hlA.vsCommittee.w}-${hlA.vsCommittee.l}`,
     bv: `${hlB.vsCommittee.w}-${hlB.vsCommittee.l}`,
     better: pa === null || pb === null || pa === pb ? null : pa > pb ? 'a' : 'b',
-    sr: `record against the committee's top ${hlA.vsCommittee.n}`,
   });
 }
 
@@ -204,7 +202,7 @@ const overdog = underdog.slug === A.slug ? B : A;
       </h2>
       <div class="table-wrap mt-1.5 md:hidden">
         <table class="data-table" data-testid="compare-ranks">
-          <caption class="sr-only">{`${A.name} and ${B.name}: every rank side by side (#1 is best of ${week.fbsCount} FBS teams)`}</caption>
+          <caption class="sr-only">{`${A.name} and ${B.name}: every rank side by side (#1 is best of ${week.fbsCount} FBS teams; schedule #1 is the hardest)`}</caption>
           <thead>
             <tr>
               <th scope="col"><span class="sr-only">Rank</span></th>
@@ -216,7 +214,10 @@ const overdog = underdog.slug === A.slug ? B : A;
             {
               rankRows.map((r) => (
                 <tr>
-                  <th scope="row" class="!text-left text-[0.875rem] font-semibold text-fg-muted">{r.k}</th>
+                  <th scope="row" class="!text-left text-[0.875rem] font-semibold text-fg-muted">
+                    {r.k}
+                    {r.k === 'Schedule' && <span class="block text-[0.75rem] leading-4 font-normal">#1 = hardest</span>}
+                  </th>
                   {(['a', 'b'] as const).map((side) => (
                     <td data-num class:list={['cond text-[1.0625rem]', r.better === side ? 'font-extrabold text-fg' : 'font-semibold text-fg-muted']}>
                       {side === 'a' ? r.av : r.bv}
@@ -260,7 +261,7 @@ const overdog = underdog.slug === A.slug ? B : A;
       <ResumeCard week={week} slug={b} stripCol={sharedStripCol} stripSlots={sharedStripSlots} />
     </div>
     <p class="mt-3 text-[0.8125rem] text-fg-muted">
-      #N = rank among all {week.fbsCount} FBS teams. Opponent tiers use this week's FEI ranks. Ratings:{' '}
+      #N = rank among all {week.fbsCount} FBS teams (schedule: #1 = hardest). Opponent tiers use this week's FEI ranks. Ratings:{' '}
       <a class="link" href={week.sources.ratings.url}>FEI by {week.sources.ratings.author}</a>
     </p>
 
@@ -305,7 +306,7 @@ const overdog = underdog.slug === A.slug ? B : A;
                     {shared.map((s) => (
                       <tr>
                         <td>
-                          <TeamChip week={week} slug={s.opp.slug} nonFbs={!s.opp.fbs} tap class="whitespace-nowrap" />
+                          <TeamChip week={week} slug={s.opp.slug} nonFbs={!s.opp.fbs} tap class="sm:whitespace-nowrap" />
                         </td>
                         <td>
                           {/* Pips + band text on every row (phones: the short band under the pips), as in the game log. */}

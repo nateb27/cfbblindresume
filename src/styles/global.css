@@ -934,14 +934,16 @@
     color: var(--color-fg);
     box-shadow: inset 0 3px 0 var(--color-fg);
   }
-  /* Phones: the four files share the row (no hidden tab, no sideways scroll). */
+  /* Phones: the four files fit one row (no hidden tab, no sideways scroll) at their own widths,
+     left-aligned as on laptops. They never grow to fill the row, so the Fans tab, which arrives with
+     its data after load, never resizes or moves the others (no layout shift). */
   @media (width < 40rem) {
     .tabs {
       gap: 2px;
       overflow: visible;
     }
     .tab {
-      flex: 1 1 auto;
+      flex: 0 1 auto;
       min-width: 0;
       padding: 0 0.375rem;
       font-size: 0.875rem;
@@ -1176,6 +1178,77 @@
     }
     .ad-slot[data-kind="sidebar"] .ad-box { min-height: 600px; max-width: 300px; }
   }
+
+  /* A list of row-size team blocks with a side column: each list item is a size container for the
+     narrow-row rules below. `.row-fit`: the game's phone results list. `.row-fit-tag`: the home
+     "This week" lists, whose meta also carries the field tag (about 42px more fixed width per row,
+     so they switch later). */
+  .row-fit {
+    container: row-fit / inline-size;
+  }
+  .row-fit-tag {
+    container: row-fit-tag / inline-size;
+  }
+}
+
+/* -------------------------------------------------------------------------- narrow rows
+ * A row's record, with any field tag beside it, prints under the name, as on the results tiles:
+ * below 22rem of list width in the game's results list (phones narrower than 384px) and below
+ * 23.75rem in the home lists (phones narrower than 412px; their two columns at 768-839px). The name
+ * then gets the label's full width and breaks only at a space: at 18px every FBS name but
+ * "Massachusetts" fits whole down to a 320px screen. The two blocks carry the same rules. In the
+ * utilities layer because they replace the meta's margin and size utilities. */
+@layer utilities {
+  @container row-fit (width < 22rem) {
+    .team-block[data-size="row"][data-meta] {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: 1fr auto auto 1fr;
+      align-items: center;
+    }
+    .team-block[data-size="row"][data-meta] > .seed-plate {
+      grid-row: 1 / -1;
+    }
+    .team-block[data-size="row"][data-meta] > .team-name {
+      grid-row: 2;
+      grid-column: 2;
+      padding-block: 0.25rem 0;
+    }
+    .team-block[data-size="row"][data-meta] > .team-meta {
+      grid-row: 3;
+      grid-column: 2;
+      margin-left: 0;
+      padding: 0.125rem 0 0.25rem 0.625rem;
+      text-align: left;
+      font-size: 0.8125rem;
+      line-height: 1rem;
+    }
+  }
+  @container row-fit-tag (width < 23.75rem) {
+    .team-block[data-size="row"][data-meta] {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: 1fr auto auto 1fr;
+      align-items: center;
+    }
+    .team-block[data-size="row"][data-meta] > .seed-plate {
+      grid-row: 1 / -1;
+    }
+    .team-block[data-size="row"][data-meta] > .team-name {
+      grid-row: 2;
+      grid-column: 2;
+      padding-block: 0.25rem 0;
+    }
+    .team-block[data-size="row"][data-meta] > .team-meta {
+      grid-row: 3;
+      grid-column: 2;
+      margin-left: 0;
+      padding: 0.125rem 0 0.25rem 0.625rem;
+      text-align: left;
+      font-size: 0.8125rem;
+      line-height: 1rem;
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- forced colours
@@ -1238,6 +1311,12 @@
     box-shadow: none;
     outline: 1px solid CanvasText;
     outline-offset: -1px;
+  }
+  /* Losses keep their flag (the loss-tint wash paints as Canvas here); wins stay quiet. A 2px
+     frame, so a result never reads as a 1px file tag. */
+  .result-chip[data-result="L"] {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
   }
   :focus-visible { outline-color: Highlight; }
 }

@@ -254,7 +254,8 @@ const ld = {
                           </span>
                           {g.site === 'away' ? 'at ' : 'vs '}
                           {o.slug ? <TeamLink team={{ slug: o.slug, name: o.name }} /> : o.name}
-                          {g.site === 'neutral' && ' (neutral)'} <span class="text-fg-muted">· {o.rank}</span>
+                          {/* The rank in parentheses, kept whole (the space before it stays outside, so the whole parenthetical can wrap): a wrapped line may start with "(FEI #23)" or "(neutral, FEI #23)", never with a stray dot or half of it. */}
+                          <>{' '}<span class="whitespace-nowrap text-fg-muted">({g.site === 'neutral' ? 'neutral, ' : ''}{o.rank})</span></>
                         </>
                       ) : (
                         <span class="text-fg-muted">{none}</span>

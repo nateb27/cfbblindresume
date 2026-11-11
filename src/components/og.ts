@@ -234,6 +234,8 @@ export function compareOgSvg(week: WeekFile, a: string, b: string): string {
   const plate = 84;
   const BLOCK = 272;
   let s = '';
+  // Both names print at one size (the smaller fit), so neither team reads as the lesser one.
+  const nameSize = Math.min(...[A, B].map((t) => fit(t.name, half - pad - plate / 2 - 28, 96, 40, 800, -0.025)));
   [A, B].forEach((t, i) => {
     const p = teamPaint(t.colors);
     const x0 = i * half;
@@ -245,7 +247,7 @@ export function compareOgSvg(week: WeekFile, a: string, b: string): string {
     const independent = week.playoffFormats.some((f) => f.nonConferences.includes(t.conference));
     const kicker = independent ? t.conference : `${t.conference} · Conf ${t.confRecord.w}-${t.confRecord.l}`;
     s += text(x, 76, kicker, 28, p.ink, { weight: 600, anchor });
-    s += text(x, 178, t.name, fit(t.name, half - pad - plate / 2 - 28, 96, 40, 800, -0.025), p.ink, { anchor, trackEm: -0.025 });
+    s += text(x, 178, t.name, nameSize, p.ink, { anchor, trackEm: -0.025 });
     s += text(x, 244, `${t.record.w}-${t.record.l}`, 60, p.ink, { anchor, trackEm: -0.02 });
   });
   s += rect(half - plate / 2, BLOCK / 2 - plate / 2, plate, plate, P.fg);

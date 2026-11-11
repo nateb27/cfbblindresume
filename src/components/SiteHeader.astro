@@ -2,14 +2,16 @@
 /**
  * Site header: wordmark + main nav (Play, Rankings, Bubble, Teams, How it works).
  * Phones: wordmark + Play on the first row, the other four links on a second row. No JS.
+ * `game`: the page is a game surface (/ and /r/*), whose own Play is the call to action.
  */
 import Wordmark from './Wordmark.astro';
 import type { NavKey } from './site';
 
 interface Props {
   current?: NavKey;
+  game?: boolean;
 }
-const { current } = Astro.props;
+const { current, game = false } = Astro.props;
 
 const items: { key: NavKey; href: string; label: string }[] = [
   { key: 'play', href: '/', label: 'Play' },
@@ -25,11 +27,16 @@ const items: { key: NavKey; href: string; label: string }[] = [
     <a href="/" class="flex h-12 items-center sm:h-14" aria-label="CFB Blind Resume home">
       <Wordmark />
     </a>
-    {/* Phones: Play is a violet button everywhere except on the game page itself, where the intro's
-        Play is the one call to action and this becomes the current-page mark (an ink rule). */}
+    {/* Phones: Play is a violet button on content pages. On the game page itself the intro's Play is
+        the one call to action and this becomes the current-page mark (an ink rule); on a shared
+        result (/r/*, not the Play page) "Play it yourself" is, and this is a plain ink link. */}
     {
       current === 'play' ? (
         <a href="/#play" class="flex h-12 items-center px-2.5 text-sm font-bold text-fg shadow-[inset_0_-3px_0_var(--color-fg)] sm:hidden" aria-current="page">
+          Play
+        </a>
+      ) : game ? (
+        <a href="/#play" class="flex h-12 items-center px-2.5 text-sm font-semibold text-fg sm:hidden">
           Play
         </a>
       ) : (

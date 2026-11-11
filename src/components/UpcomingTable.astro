@@ -60,7 +60,8 @@ const narrow = compact ? '' : 'sm:hidden';
                       <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} tap />
                       {g.oppCommittee !== null && <span class:list={['label-caps whitespace-nowrap text-fg-muted', wide]}>CFP {g.oppCommittee}</span>}
                     </span>
-                    <span class:list={['pl-5 text-[0.8125rem] leading-4 whitespace-nowrap text-fg-muted', narrow]}>
+                    {/* Hangs under the name: the chip's 10px tab + its gap (6px on phones, 8px from 640px). */}
+                    <span class:list={['pl-4 text-[0.8125rem] leading-4 whitespace-nowrap text-fg-muted sm:pl-[1.125rem]', narrow]}>
                       {g.oppCommittee !== null && `CFP ${g.oppCommittee} · `}
                       {SITE_LABELS[g.site]}
                       {g.conf && ' · Conf'}

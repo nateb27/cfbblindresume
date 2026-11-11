@@ -52,7 +52,8 @@ export function Intro(props: {
           {/* The page's h1 right above already pitches the game: the panel heads straight into how a
               round works and Play (no second headline). */}
           <h2 className="label-caps text-fg-muted">How the blind resume game works</h2>
-          <ol className="order-3 mt-6 flex flex-col gap-4 border-t border-line pt-5 sm:order-none sm:mt-4 sm:border-0 sm:pt-0">
+          {/* data-steps: without JS (no Play row above them on phones) index.astro drops their rule. */}
+          <ol data-steps className="order-3 mt-6 flex flex-col gap-4 border-t border-line pt-5 sm:order-none sm:mt-4 sm:border-0 sm:pt-0">
             <Step n={1} title="Read three blind resumes">
               Record, FEI ratings, schedule strength and every result. Names and logos stay hidden.
             </Step>

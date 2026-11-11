@@ -7,10 +7,12 @@ export type BlockSize = 'tile' | 'row' | 'reveal' | 'slot';
 
 // Names never truncate where space is tight (320-390px phones): rows and reveal slabs wrap to a
 // second line instead (rows grow; the reveal slab fits two 20px lines). Bracket slots are full width
-// on phones and wide columns on desktop, so they always fit one line.
+// on phones and wide columns on desktop, so they always fit one line. Tiles (the results grid, from
+// 1024px, at least 116px of name) wrap at spaces only, never hyphenated ("Wake Fo-rest"); breaking
+// anywhere is only the last resort for a word wider than that ("Massachusetts", 122px at 16px).
 const HEIGHT: Record<BlockSize, string> = { tile: 'min-h-16', row: 'min-h-12', reveal: 'h-14', slot: 'h-9' };
 const NAME: Record<BlockSize, string> = {
-  tile: 'text-team line-clamp-2 hyphens-auto [overflow-wrap:anywhere]',
+  tile: 'text-team line-clamp-2 [overflow-wrap:anywhere]',
   row: 'py-1 text-[1.125rem] leading-[1.125rem] [overflow-wrap:anywhere]',
   reveal: 'text-heading line-clamp-2 max-sm:text-[1.25rem] max-sm:leading-5 [overflow-wrap:anywhere]',
   slot: 'text-[0.9375rem] leading-4 truncate',

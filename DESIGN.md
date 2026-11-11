@@ -370,10 +370,19 @@ element has class `team-name`, the meta `team-meta`.
 | Size | Height | Plate | Name | Use |
 | --- | --- | --- | --- | --- |
 | slot | `h-9` 36 | `min-w-8` 18px | 15px | bracket slots |
-| row | `h-12` 48 | `min-w-10` 22px | 18px | phone results list, home lists |
+| row | `h-12` 48 | `min-w-10` 22px | 18px | phone results list, home lists (narrow: record under the name, see below the table) |
 | tile | `min-h-16` 64 | `min-w-9` 22px | `text-team` 16px, 2 lines max | results grid |
 | reveal | `h-14` 56 (phones `h-12`) | `min-w-12` 28px | `text-heading` 25px (phones 20px) | reveal panel |
 | hero | `min-h-[4.5rem] sm:min-h-24` | none | `.hero-name`, sized by `heroNameFit` | team page header |
+
+**Narrow rows.** A list of row blocks with a side column makes each `li` a size container: `.row-fit`
+in the game's phone results list, `.row-fit-tag` in the home "This week" lists (their meta also
+carries the field tag, about 42px more fixed width, so they switch later). Under 22rem of list
+width in the game (phones under 384px) and under 23.75rem on home (phones under 412px; the two
+columns at 768-839px) the record prints under the name, 13/16, as on the tiles, with any field tag
+beside it (the home lists pass the tag in the meta slot). The name then gets the label's full width and
+breaks only at a space: at 18px every FBS name but "Massachusetts" fits whole at 320px. Never a
+smaller name and never a break inside a word ("Kentu/cky"). `data-meta` marks a block with a record.
 
 ```html
 <a href="/teams/miami" class="team-block min-h-16 pr-3" data-variant="tab" data-size="tile" style="--team-bg:#f47321;--team-ink:#0e0f12;--team-rule:#005030;…">
@@ -404,7 +413,7 @@ global.css (`@layer components`, so a utility on the same element wins):
 | `.btn` + `.btn-primary` / `.btn-secondary` / `.btn-ghost` / `.btn-rank` | 44px min, Archivo 800 16px, radius 3px, `scale(.97)` on press. Primary `accent-fill`; secondary 1.5px `control` border, 600, hover `raised` + `fg` border; ghost 600 `fg-muted`. Every component hover (buttons, tabs, segments, checkboxes, team blocks, links, table rows) sits in `@media (hover: hover) and (pointer: fine)`: on touch screens `:hover` sticks under the thumb after a tap |
 | `.switch` + `.switch-track` | `<button role="switch" aria-checked>`: an 18x18 form box (1.5px `control` border, radius 2px, `surface`); checked = `fg` border + an ink check mark; hover `fg` border. No pill, no knob, no violet |
 | `.segmented` | frame 1px `control`, radius 4px, `raised` bg, 3px padding; options 15px 600 `fg-muted`; selected (`aria-pressed|selected|current`) = `surface` + `fg` + inset 2px `fg`. Below 640px options 14/16, padding 0 6px, wrap balanced inside the 40px segment |
-| `.tabs` + `.tab` | folder tabs: 15px 600, 1px `line-strong` border without bottom, radius 5px 5px 0 0, `fg-muted`; hover `raised`; selected = `surface` + `fg` + `inset 0 3px 0 fg` (weight never changes). Below 640px the tabs share the row (14px, padding 0 6px; 13px / 4px below 360px) |
+| `.tabs` + `.tab` | folder tabs: 15px 600, 1px `line-strong` border without bottom, radius 5px 5px 0 0, `fg-muted`; hover `raised`; selected = `surface` + `fg` + `inset 0 3px 0 fg` (weight never changes). Below 640px all four fit one row at their own widths, left-aligned as on laptops (14px, padding 0 6px; 13px / 4px below 360px); they never grow to fill the row, so the Fans tab, which arrives with its data after load, never resizes or moves the others (no layout shift) |
 | `.link` | inherits colour; 1px `fg-faint` underline, offset 3px; hover `fg` text + 2px `fg` underline. No violet |
 | `.table-wrap` + `.data-table` | head 13/16 600 `fg-muted` with a 1px `fg` rule; `td[data-num]` 16px 600 right-aligned; hairline rows; row hover `raised`; `tr[data-cut]` = 2px dashed `fg` line + `.cut-note` (13px 600 `fg`, scissors icon). Below 640px cell padding 6px. `.table-wrap` is `position: relative` so `.sr-only` cell text scrolls with the table |
 | `.callout` | a memo: 3px `fg` left rule, radius 0 4px 4px 0, `surface` |
@@ -478,7 +487,8 @@ rounded-card border bg-surface` (no border-colour utility: the picked state must
   the bar; rank "#N" `text-stat` = rank among `fbsCount` teams; `.meter` 5px. **Compact** (below
   1024px, where the at-a-glance table above already lists the four ranks): one row of four
   label + rank pairs ("SoR" with the full name in its accessible name, 16px 800 ranks, 3px meters,
-  about 64px tall); the open definition prints under the row, full width. So four or five game-log
+  about 64px tall; on cards under 17.5rem, 320-340px phones, "Schedule" prints "Sched", accessible
+  name "Sched: Schedule" at every width, so it always contains the visible label); the open definition prints under the row, full width. So four or five game-log
   rows sit above the phone footer at 390.
 - **Quality wins**: three shaded fields, label 13px 600 `fg-muted`, value 16px 800 (`fg-faint` for
   0-0). No tier mark.
@@ -505,12 +515,14 @@ rounded-card border bg-surface` (no border-colour utility: the picked state must
   border holding `<span class="h2h-tag">H2H</span>` + 15px 600 "B over A by 16".
 - **Desktop (>= 1024px)**: `grid grid-cols-3 gap-x-5`. Rank buttons live in a sticky bar, the grid's
   last row (`sticky bottom-0 col-span-3 grid grid-cols-3 gap-x-5 bg-page pt-3 pb-4`, a 24px
-  `page`-to-transparent fade above). Each `.btn-rank` is aligned with its card ("Rank A 1st", then
+  `page`-to-transparent fade above; the bar and its fade reach 4px past the grid, `-mx-1 px-1`, so a
+  picked card's 1px ring never shows beside it). Each `.btn-rank` is aligned with its card ("Rank A 1st", then
   "Rank B 2nd"). The picked card's button takes the card's picked look (`accent-tint`, 2px
   `accent-edge`, 600) with the solid "1st" `.pick-stamp` and "Undo" (undo icon): the solid violet
   fill stays for actions that move forward. The confirm bar shows the order as `.file-letter.file-letter-md[data-place]`
   plates. Keyboard hint 13px `fg-faint` ("Keys: A B C rank a card · Backspace or Esc undo · Enter
-  lock in"; Esc undoes the last pick, like Backspace), each `kbd` 600 Archivo.
+  lock in"; Esc undoes the last pick, like Backspace), each `kbd` 600 Archivo; hidden on touch-only
+  screens (`pointer: coarse`, a 1024px tablet).
 - **Phones/tablets (< 1024px)**: a snap carousel (`.game-carousel`, cards `w-[88%] max-w-[26rem]`),
   no per-card button. Fixed footer `border-t border-line-strong bg-surface`, 68px in every state, no
   shadow: card switchers `.file-letter.file-letter-rec` (letter 17px 800 over the record 11px 600;
@@ -529,7 +541,7 @@ rounded-card border bg-surface` (no border-colour utility: the picked state must
 - **Lock in automatically** (saved setting, on by default): the second pick locks after a short
   countdown (`.game-countdown`); only a real mouse move or keyboard focus on Undo stops it.
 - One line under the cards: "#N = best of 138 FBS teams · Tap a label for its definition · Ratings: FEI by Brian Fremeau"
-  (13px `fg-muted`, `.link`; 138 from `fbsCount`). It also appears in the reveal footer and on
+  ("Click a label" with a mouse, `pointer: fine`) (13px `fg-muted`, `.link`; 138 from `fbsCount`). It also appears in the reveal footer and on
   results (the attribution on every game view).
 
 ## 15. Reveal panel
@@ -563,11 +575,13 @@ announced (`aria-labelledby`, plus a polite live region with the running line).
 - One line, 15px: this round's verdict per source, then the running counts: "This round: ✓ committee
   ✗ FEI · You've matched the committee in **4 of 6** rounds, FEI in **5 of 6**." (check in `accent`
   600 with sr-only "matched", cross `fg-muted` with "missed"; the counts `text-accent` 800, your
-  numbers). No chips. The key line ("1st–3rd: order among these three · #: rank in the full
-  ranking · FEI SoR: …") prints on the first reveal of the session only.
+  numbers, never split across lines). Phones: the verdict is its own line and the running count
+  starts the next (no "·"). No chips. The key line ("1st–3rd: order among these three · #: rank in
+  the full ranking · FEI SoR: …") prints on the first reveal of the session only.
 - Footer: Next round `btn-primary` full width, credit under it; both stay pinned to the bottom edge
-  while the panel scrolls and stay operable during the lift. Tap, Esc, Enter or a letter key
-  continues; arrows, Page, Home/End and Space scroll. The panel opens scrolled to the top.
+  while the panel scrolls and stay operable during the lift (from 640px the footer hint reads "Click
+  anywhere or press Enter to continue" with a mouse, "Tap anywhere to continue" on touch). Tap, Esc,
+  Enter or a letter key continues; arrows, Page, Home/End and Space scroll. The panel opens scrolled to the top.
 
 ## 16. Done panel
 
@@ -599,8 +613,9 @@ Order top to bottom: header, tabs, controls, the key, top 25 + next five, bracke
 agreement sentence, (ad), share module, play again.
 
 - **Header**: kicker `label-caps text-fg-muted` "After Week 9 · 15 rounds" (+ "· partial" when
-  skipped), `text-title lg:text-display` "Your top 25", `btn btn-secondary` "Play again" (phones: a
-  jump row Bracket · Bids · Share, 36px `btn btn-secondary text-label-lg` with 44px hit areas).
+  skipped), `text-title lg:text-display` "Your top 25", `btn btn-secondary` "Play again" (from
+  640px; below 1024px, with the list, a jump row Bracket · Bids · Share, 36px `btn btn-secondary
+  text-label-lg` with 44px hit areas).
   Headline stat under the title ("Matched the committee on **43%** of your head-to-head calls, FEI
   on **65%**."): your numbers in `text-accent` 800; on `/r/*` they are the sharer's, in `text-fg`.
 - **Tabs**: folder tabs Your ranking / Committee / FEI SoR / Fans (Fans only above the threshold;
@@ -610,28 +625,37 @@ agreement sentence, (ad), share module, play again.
   `.segmented` (full width with equal segments on phones): "12 teams · 2026 format" | "24 teams
   (2027 proposal)". Selecting 24 shows the one-line rules, "Proposed for 2027 — not final" and the source
   link under the controls (2px `line` left rule, text at most 70ch). The 12-team rules fold into a
-  one-line disclosure on phones ("12-team field: 5 champions, 7 at-large. Rules").
+  one-line disclosure on phones ("12-team field: 6 automatic, 6 at-large. Rules": the selected
+  view's field, as in the bid lists, so Notre Dame's guarantee counts as automatic).
 - **Key** (13px `fg-muted`, `data-testid="legend"`), one line right under the controls, before the
-  first mark: the `.cut-note` "Above the line: the 12-team field", `.file-tag` AQ "automatic bid",
-  the delta triangle, Unseen / Not shown tags. "NR" marks positions past what the selected source
+  first mark: the `.cut-note` "Above the line: the 12-team field" ("Above the line: 11 of the
+  12-team field" when a field team sits below the line), `.file-tag` AQ "automatic bid", the delta
+  triangle (the same `▲2` sample as the switch), Unseen / Not shown tags. "NR" marks positions past what the selected source
   ranked.
-- **Grid (>= 640px)**: `grid grid-cols-5 gap-x-3 gap-y-3.5` of index-tab tiles, the record (13px 600
-  `fg-muted`) under the name (`.team-block[data-size="tile"][data-meta]` grid); >= 1024px a right
-  column (`lg:border-l lg:border-line lg:pl-6`) "Next five" with tiles 26-30 (names 14/16, plate
-  18px). 640-1023px: the next five is a row under the grid.
-- **List (< 640px)**: `flex flex-col gap-2`; each row an index tab (row size, record as meta) + a
+- **Grid (>= 1024px)**: `grid grid-cols-5 gap-x-3 gap-y-3.5` of index-tab tiles, the record (13px 600
+  `fg-muted`) under the name (`.team-block[data-size="tile"][data-meta]` grid). Names wrap at spaces
+  only (no hyphenation); below 1024px five columns leave 50-120px for a name and split words like
+  "Northwestern", so the list takes over there, as the one-round bracket does. >= 1280px a right
+  column (`xl:border-l xl:border-line xl:pl-6`) "Next five" with tiles 26-30 (names 14/16, plate
+  18px); 1024-1279px: the next five is a row under the grid.
+- **List (< 1024px)**: `flex flex-col gap-2` (at most 36rem wide from 640px, so on a tablet the record
+  stays near the name); each row an index tab (row size, record as meta) + a
   fixed 76px side cell right next to it, left-aligned: "CFP 6" `label-caps text-fg-muted` +
-  `.delta`, then the tags stacked under it (Unseen / Not shown, AQ). Its width never depends on
-  state.
+  `.delta`, then the tags under it (Unseen / Not shown, AQ). A status tag and AQ side by side would
+  wrap to a third line, so when "CFP 6" has no delta beside it (an Unseen row never has one) AQ
+  joins that line: every row stays two lines, 48px. Its width never depends on state.
 - **Compare to committee**: under each tile "CFP 6" ("CFP NR" when unranked) and `.delta`
   (omitted when equal). Delta = committee rank minus your rank (positive = you rank them higher).
 - **Show playoff field**: selection chrome, in ink, the rankings tables' device: a 2px dashed `fg`
   cut line under the last team of the unbroken run at the top that is in the field, with the
-  scissors `.cut-note` ("Above the line: the 12-team field"). Phones: `.field-cut` under that row,
-  spanning row and side cell. Grid: a staircase through the gaps (`.field-cut-tile[data-cut-below]`
-  under each tile whose neighbour below is past the cut, `[data-cut-right]` right of the last tile
-  in) plus an sr-only note. AQ tags mark every automatic bid, so a team that comes in from below the
-  line is marked. It marks the minority in both formats (12: about 11 above the line; 24: the five
+  scissors `.cut-note` ("Above the line: the 12-team field", or "Above the line: 11 of the 12-team
+  field" when a field team sits below the line). List: `.field-cut` under that row, spanning row
+  and side cell. Grid: a staircase through the gaps (`.field-cut-tile[data-cut-below]` under each
+  tile whose neighbour below is past the cut, `[data-cut-right]` right of the last tile in; the
+  segments stop at the grid's own edges) plus an sr-only note. AQ tags mark every automatic bid, so
+  a team that comes in from below the line is marked; a field team no tile shows (ranked past the
+  grid and the next five) is named in one 13px line under them: "Also in the 12-team field: Boise
+  State (#34, AQ)." The line marks the minority in both formats (12: about 11 above the line; 24: the five
   or six below it), never violet, on every tab.
 - **Unseen / Not shown / AQ**: `.file-tag` in the tile's under-line, never on the colour. A team
   that never came up (`data-unseen`) is provisional: a dashed `control` frame on its label and the
@@ -672,8 +696,10 @@ Typographic, tables not cards; light or dark by OS (the page is the sheet). `max
 
 - **Site header**: `h-14 border-b border-line`; `.wordmark` with the redacted "Blind"; nav 14px 400
   `fg-muted`, current page `font-bold text-fg shadow-[inset_0_-3px_0_var(--color-fg)]` (an ink rule,
-  not violet); phone Play button `btn btn-primary`, except on the game page itself, where it is
-  the current-page mark (800 `fg` + the 3px ink rule) so the intro's Play is the one call to action. **Footer**: `border-t border-line py-6 text-sm
+  not violet); phone Play button `btn btn-primary`, except on game surfaces: on the game page itself
+  it is the current-page mark (800 `fg` + the 3px ink rule) so the intro's Play is the one call to
+  action; on `/r/*` (not the Play page, so no `aria-current`) a plain ink link (14px 600 `fg`), so
+  "Play it yourself" is. **Footer**: `border-t border-line py-6 text-sm
   text-fg-muted`, the wordmark, always "Ratings: FEI by Brian Fremeau" linking to
   `https://bcftoys.com/{season}-fei` + data credits.
 - **Breadcrumb / kicker**: `label-caps text-fg-muted` above every h1. Never violet.
@@ -737,6 +763,8 @@ Typographic, tables not cards; light or dark by OS (the page is the sheet). `max
   Under 640px drop the Date and Site columns; the site (and "CFP N") becomes a second line under
   the opponent, the date a second line under the score, and cell padding drops to 6px, so the table
   fits 328px. Non-FBS opponents: `.team-chip` with `--team-bg: var(--color-raised-2)`, not a link.
+  An unranked team's committee cell prints "NR" (`fg-faint`) in every table (/rankings, /teams);
+  "—" means only "no ranking released yet" (the team page's rank-by-week strip).
 - **Rankings tables**: Rank | Team | Record | SoR (or CFP) | SoR vs CFP delta; ink head rule; cut
   lines for "in the 12" and "in the 24 (proposed)" as `tr[data-cut]` (2px dashed `fg`) + a
   `.cut-note` (scissors, ink, not violet) in the last cell. "Auto bid" tags, the playoff tables'
@@ -753,7 +781,14 @@ Typographic, tables not cards; light or dark by OS (the page is the sheet). `max
   stacked on phones) with a cover team block on top; rows show site + short band (12px) stacked in
   the site cell. Above them a head-to-head note and one ruled list (`dl`, `divide-y`, max 40rem), a
   44px row per source (Committee / FEI SoR / FEI overall: preferred `.team-chip` + rank, "over" the
-  other + rank), captioned "The committee and strength of record agree / disagree".
+  other + rank), captioned "The committee and strength of record agree / disagree"; below 768px a
+  two-column rank table instead (the Schedule row header adds "#1 = hardest"; the line under the
+  cards says "(schedule: #1 = hardest)"). Best win / worst loss print the rank as one
+  unbreakable "(FEI #23)" ("(neutral, FEI #23)"; the space before it stays outside, so the whole
+  parenthetical wraps), so a wrapped line never starts or ends on a dot or half a parenthetical. In a
+  card under 19rem (phones under 370px) the vs CFP top 25 / best win / worst loss labels sit above
+  their values, as on the team page, so an opponent's name ("Texas A&M") is not split across lines. Shared opponents: below 640px opponent names may wrap, so the
+  table fits a 360px screen.
 - **Bubble**: a `data-table` of committee 8-20 sorted by GWD rank; gap column `.delta`; In/out cells
   "In 10" / "2nd out" / "Out" (`outText()`).
 - **Play pitch** (`PlayCta`, compare, bubble and team pages; never inside an ad slot): `play-pitch
@@ -794,7 +829,7 @@ or modals.
   rank buttons, you-are-here tick, match stamps and your 3rd in the reveal, checked tick, focus
   outline). The field's cut line is a dashed border, so it maps to `CanvasText` on its own. Selection chrome drawn with inset shadows (selected segment, open tab) gets `outline:
   2px solid Highlight; outline-offset: -2px`; step boxes, tags and index tabs a 1px `CanvasText`
-  outline. Progress ticks: `GrayText` / `CanvasText`.
+  outline; a loss `.result-chip` (its wash paints as Canvas) a 2px `CanvasText` frame, wins none. Progress ticks: `GrayText` / `CanvasText`.
 - `@media (prefers-reduced-motion: reduce)`: the reveal bar is never drawn (names show at once); the
   global rule zeroes all other durations.
 
@@ -837,7 +872,7 @@ within 1.5:1 of the paper or the sheet). Text widths from the static TTFs (`text
   (sheet row + 1px `line-strong` frame, 56px plate in the primary with a 5px secondary rule, numeral
   800 30px team ink, name 800 28px ink, record 600 26px carbon). The wordmark prints once (footer).
 - **Compare** (`/og/compare/{pair}.png`): two covers (each half, 272px) with 12px rules; kicker 600
-  28px ("SEC · Conf 5-1", as on the team image); name 800 fit 96 -> 40; record 800 60px; a centred ink 84x84 plate with "vs" 800 40px in
+  28px ("SEC · Conf 5-1", as on the team image); names 800 fit 96 -> 40, both at the smaller of the two fits; record 800 60px; a centred ink 84x84 plate with "vs" 800 40px in
   paper. Ratings rows on paper (1px `line` separators): the better rank 800 40px ink, the other 600
   40px carbon; label 600 26px carbon centred.
 - **Share image** (`/og/r/{code}.png`, Worker, `functions/_lib/share-image.ts`): paper page. The

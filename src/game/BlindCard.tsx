@@ -4,7 +4,8 @@
  * game log toughest first, and the FEI credit (house rule 8: on every card, which people screenshot
  * on their own). Identity never reaches the DOM: no slug, name, color or conference.
  *
- * The card is a size container: below 19rem (320px phones) pips and gaps shrink. Nothing truncates.
+ * The card is a size container: below 19rem (320px phones) pips and gaps shrink, and below 17.5rem
+ * (320-340px phones) the compact row prints "Sched". Nothing truncates.
  *
  * `compact` (phones and tablets, where the at-a-glance table above already lists the four ranks):
  * the ratings fold into one row of four short label + rank pairs with thin meters, so the season
@@ -23,7 +24,7 @@ import { FeiCredit } from './ui';
 type MetricKey = 'sor' | 'off' | 'def' | 'sos';
 
 /** One-line definitions, in our own words, of the FEI numbers on the card. */
-const METRICS: { key: MetricKey; label: string; short: string; def: string; wide: boolean }[] = [
+const METRICS: { key: MetricKey; label: string; short: string; tiny?: string; def: string; wide: boolean }[] = [
   {
     key: 'sor',
     label: 'Strength of record',
@@ -49,6 +50,8 @@ const METRICS: { key: MetricKey; label: string; short: string; def: string; wide
     key: 'sos',
     label: 'Schedule',
     short: 'Schedule',
+    // The compact row on the narrowest cards (320-340px phones), where "Schedule" outruns its column.
+    tiny: 'Sched',
     def: 'Losses an elite team would expect against this schedule. #1 is the hardest (FEI ELS).',
     wide: true,
   },
@@ -126,11 +129,20 @@ export const BlindCard = memo(function BlindCard(props: {
               type="button"
               aria-expanded={isOpen}
               aria-controls={defId}
-              aria-label={compact && m.short !== m.label ? `${m.short}: ${m.label}` : undefined}
+              aria-label={compact ? (m.short !== m.label ? `${m.short}: ${m.label}` : m.tiny ? `${m.tiny}: ${m.label}` : undefined) : undefined}
               onClick={() => setOpen(isOpen ? null : m.key)}
               className={`label-caps relative -my-1.5 py-1.5 text-left underline decoration-dotted decoration-1 underline-offset-[5px] after:absolute after:-inset-x-1.5 after:-inset-y-2 after:content-[''] hover:text-fg ${isOpen ? 'text-fg decoration-fg-muted' : 'text-fg-muted decoration-control'}`}
             >
-              {compact ? m.short : m.label}
+              {compact && m.tiny ? (
+                <>
+                  <span className="@max-[17.5rem]:hidden">{m.short}</span>
+                  <span className="hidden @max-[17.5rem]:inline">{m.tiny}</span>
+                </>
+              ) : compact ? (
+                m.short
+              ) : (
+                m.label
+              )}
             </button>
           );
           const value = (

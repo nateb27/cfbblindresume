@@ -60,11 +60,12 @@ const lines = [
       ))
     }
   </dl>
-  <dl class="flex flex-col gap-1.5 border-t border-line px-4 py-3 text-sm">
+  {/* A size container: in a narrow card (under 19rem, phones under 370px) each label sits above its value, as on the team page, so the value gets the card's full width and an opponent's name ("Texas A&M") is not split across lines. */}
+  <dl class="@container flex flex-col gap-1.5 border-t border-line px-4 py-3 text-sm">
     {
       hl.vsCommittee && (
-        <div class="flex items-baseline gap-2">
-          <dt class="label-caps w-24 flex-none text-fg-muted">vs CFP top {hl.vsCommittee.n}</dt>
+        <div class="flex items-baseline gap-2 @max-[19rem]:flex-col @max-[19rem]:items-start @max-[19rem]:gap-0.5">
+          <dt class="label-caps w-24 flex-none text-fg-muted @max-[19rem]:w-auto">vs CFP top {hl.vsCommittee.n}</dt>
           <dd class="cond text-[1.0625rem] font-bold">
             {hl.vsCommittee.w + hl.vsCommittee.l === 0 ? <span class="text-fg-muted">No games</span> : `${hl.vsCommittee.w}-${hl.vsCommittee.l}`}
           </dd>
@@ -75,8 +76,8 @@ const lines = [
       lines.map(({ k, g, none }) => {
         const o = g ? oppWithRank(week, g) : null;
         return (
-          <div class="flex items-baseline gap-2">
-            <dt class="label-caps w-24 flex-none text-fg-muted">{k}</dt>
+          <div class="flex items-baseline gap-2 @max-[19rem]:flex-col @max-[19rem]:items-start @max-[19rem]:gap-0.5">
+            <dt class="label-caps w-24 flex-none text-fg-muted @max-[19rem]:w-auto">{k}</dt>
             <dd class="min-w-0">
               {g && o ? (
                 <>
@@ -86,7 +87,8 @@ const lines = [
                   </span>
                   {g.site === 'away' ? 'at ' : 'vs '}
                   {o.slug ? <TeamLink team={{ slug: o.slug, name: o.name }} /> : o.name}
-                  {g.site === 'neutral' && ' (neutral)'} <span class="text-fg-muted">· {o.rank}</span>
+                  {/* The rank in parentheses, kept whole (the space before it stays outside, so the whole parenthetical can wrap): a wrapped line may start with "(FEI #23)" or "(neutral, FEI #23)", never with a stray dot or half of it. */}
+                  <>{' '}<span class="whitespace-nowrap text-fg-muted">({g.site === 'neutral' ? 'neutral, ' : ''}{o.rank})</span></>
                 </>
               ) : (
                 <span class="text-fg-muted">{none}</span>

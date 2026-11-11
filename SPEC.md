@@ -302,10 +302,11 @@ OG images: one per team (1200×630 PNG generated at build with @resvg/resvg-js i
 - After round 15: the done panel ("Round 15 of 15") — "One more round" (up to 30) or "Final results".
 - Results: tabs Your ranking / Committee / FEI / Fans (when ≥ threshold); the selected list as
   a 5×5 grid of numbered team tiles (index tabs: rank on a team-color tab + name, no logos; single column list
-  on phones) with a "Next five" column (26-30); two toggles: "Compare to committee" (each
+  on phones and tablets, below 1024px) with a "Next five" column (26-30); two toggles: "Compare to committee" (each
   tile shows the committee rank and an up/down delta) and "Show playoff field" (an ink dashed cut
   line with scissors under the unbroken run of field teams at the top, as on the rankings tables,
-  plus AQ tags on automatic bids). A segmented control "12 teams · 2026 format" |
+  plus AQ tags on automatic bids; its note says how many field teams are above it when one sits
+  lower: "Above the line: 11 of the 12-team field"). A segmented control "12 teams · 2026 format" |
   "24 teams (2027 proposal)" (default 12) switches the bracket, bid lists, cut line and the teams
   just outside;
   the 24 view shows the one-line rules + "Proposed for 2027 — not final" + source link. Unseen teams marked. Below: the bracket for the selected format

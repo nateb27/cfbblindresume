@@ -66,7 +66,13 @@ const fromBelow = (res: (typeof lists)[number]['res'], order: string[]) => res.f
 ---
 
 <BaseLayout title={title} description={description} path="/" jsonLd={ld} game ads current="play" week={week}>
-  <noscript slot="head"><style>.game-root [data-play-row] { display: none !important; }</style></noscript>
+  {/* No JS: the Play row goes, and on phones the rule that separated it from the steps goes with it. */}
+  <noscript slot="head"
+    ><style>
+      .game-root [data-play-row] { display: none !important; }
+      @media (width < 40rem) { .game-root [data-steps] { margin-top: 1rem !important; padding-top: 0 !important; border-top: 0 !important; } }
+    </style></noscript
+  >
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <section class="pt-6 lg:pt-10" aria-labelledby="hero">
       <p class="label-caps text-fg-muted">
@@ -136,13 +142,17 @@ const fromBelow = (res: (typeof lists)[number]['res'], order: string[]) => res.f
                   const label = l.other === 'cmte-sor' ? `${SOR} ${g}` : `CFP ${c ?? 'NR'}`;
                   const tag = fieldTag(l.res, slug);
                   return (
-                    <li class="flex items-center gap-3">
+                    <li class="row-fit-tag flex items-center gap-3">
                       <TeamBlock team={t} size="row" seed={i + 1} meta={record(t)} class="min-w-0 flex-1">
-                        {tag && (
-                          <span class="file-tag ml-2" data-tone={tag.quiet ? 'quiet' : undefined} title={tag.title}>
-                            {tag.text}
-                          </span>
-                        )}
+                        {/* The field tag rides with the record, so in a row under 23.75rem (phones under 412px, the two columns at 768-839px) both print under the name (global.css, narrow rows). */}
+                        <span slot="meta" class="inline-flex items-center gap-2">
+                          {record(t)}
+                          {tag && (
+                            <span class="file-tag" data-tone={tag.quiet ? 'quiet' : undefined} title={tag.title}>
+                              {tag.text}
+                            </span>
+                          )}
+                        </span>
                       </TeamBlock>
                       <span class="flex w-[4.75rem] flex-none flex-col items-start gap-1">
                         <span class="label-caps text-fg-muted">{label}</span>

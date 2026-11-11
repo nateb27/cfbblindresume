@@ -306,7 +306,7 @@ export function Play() {
 
         {desktop && (
           <div
-            className="sticky bottom-0 z-10 mt-0 bg-page pt-3 pb-4 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-linear-to-t before:from-page before:to-transparent"
+            className="sticky bottom-0 z-10 -mx-1 mt-0 bg-page px-1 pt-3 pb-4 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-linear-to-t before:from-page before:to-transparent"
             data-rank-controls
           >
             {confirmOrder ? (
@@ -344,7 +344,8 @@ export function Play() {
                 })}
               </div>
             )}
-            <p className="mt-2 text-center text-[0.8125rem] leading-5 text-fg-faint">
+            {/* Keys need a keyboard: hidden on touch-only screens (a 1024px tablet gets this layout). */}
+            <p className="mt-2 text-center text-[0.8125rem] leading-5 text-fg-faint pointer-coarse:hidden">
               Keys: <kbd className="font-sans font-semibold text-fg-muted">A</kbd> <kbd className="font-sans font-semibold text-fg-muted">B</kbd>{' '}
               <kbd className="font-sans font-semibold text-fg-muted">C</kbd> rank a card · <kbd className="font-sans font-semibold text-fg-muted">Backspace</kbd> or <kbd className="font-sans font-semibold text-fg-muted">Esc</kbd> undo ·{' '}
               <kbd className="font-sans font-semibold text-fg-muted">Enter</kbd> lock in
@@ -356,7 +357,10 @@ export function Play() {
       <div className="mt-3 flex flex-col items-center gap-1 text-center lg:mt-2">
         <p className="flex flex-col items-center text-[0.8125rem] leading-5 text-fg-muted lg:flex-row lg:flex-wrap lg:justify-center" data-testid="card-note">
           <span>#1 = best of {gd.fbsCount} FBS teams</span>
-          <span className="lg:before:px-1.5 lg:before:content-['·']">Tap a label for its definition</span>
+          <span className="lg:before:px-1.5 lg:before:content-['·']">
+            <span className="hidden pointer-fine:inline">Click</span>
+            <span className="pointer-fine:hidden">Tap</span> a label for its definition
+          </span>
           <span className="lg:before:px-1.5 lg:before:content-['·']">
             <FeiCredit url={gd.ratingsUrl} />
           </span>

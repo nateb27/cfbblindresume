@@ -60,9 +60,6 @@ function rulesText(f: PlayoffFormat): string {
     .join(' + ');
 }
 
-/** Automatic bids a format reserves for champions (guarantees like Notre Dame's come out of at-large). */
-const autoCount = (f: PlayoffFormat): number => f.autoBids.rules.reduce((n, r) => n + r.count, 0);
-
 /**
  * Segment label: "12 teams · 2026 format" / "24 teams (2027 proposal)"; on phones (under 640px the
  * two segments share the width) the size alone: "12 · 2026 format" / "24 · 2027 proposal", so each
@@ -120,8 +117,12 @@ const NotShownTag = () => (
 );
 const AqTag = () => <Tag title="Automatic bid">AQ</Tag>;
 
-/** The cut line's note: the content rankings tables' device (scissors, ink). */
-const cutText = (f: PlayoffFormat) => `Above the line: the ${f.size}-team field`;
+/**
+ * The cut line's note: the content rankings tables' device (scissors, ink). The line marks the
+ * unbroken run at the top, so when a field team sits lower (an automatic bid) the note says how
+ * many are above it: "Above the line: 11 of the 12-team field".
+ */
+const cutText = (f: PlayoffFormat, cut: number) => (cut >= f.size ? `Above the line: the ${f.size}-team field` : `Above the line: ${cut} of the ${f.size}-team field`);
 
 export function Results() {
   const api = useGameApi();
@@ -261,6 +262,10 @@ export function Results() {
   const anyUnseen = shownSlugs.some((s) => unseen.has(s));
   const anyNotShown = shownSlugs.some(notShown);
   const anyAq = highlight && shownSlugs.some((s) => auto.has(s));
+  const cutLabel = cutText(format, cut);
+  /** Field teams no tile shows (a champion ranked past the grid and the next five): named under it. */
+  const offGrid = highlight ? playoff.field.filter((s) => !shownSlugs.includes(s.slug)) : [];
+  const sourceRanked = view.id === 'committee' || view.id === 'fans' ? view.ranked : Infinity;
   /** Grid staircase: a dashed rule under tile p when the tile below it is past the cut, and right of the last tile in. */
   const cutMarks = (p: number) => ({
     below: cut > 0 && p <= cut && p + 5 > cut && p + 5 <= GRID,
@@ -348,9 +353,9 @@ export function Results() {
         )}
       </div>
 
-      {/* Phones: the bracket and share module are far below the list */}
+      {/* Phones and tablets (the list): the bracket and share module are far below it */}
       {/* 36px buttons whose hit areas reach 44px, so the list starts higher. */}
-      <nav className="-mt-1 mb-3 flex items-center gap-2 sm:hidden [&>button]:relative [&>button]:min-h-9 [&>button]:px-3.5 [&>button]:after:absolute [&>button]:after:inset-x-0 [&>button]:after:-inset-y-1 [&>button]:after:content-['']" aria-label="Jump to">
+      <nav className="-mt-1 mb-3 flex items-center gap-2 lg:hidden [&>button]:relative [&>button]:min-h-9 [&>button]:px-3.5 [&>button]:after:absolute [&>button]:after:inset-x-0 [&>button]:after:-inset-y-1 [&>button]:after:content-['']" aria-label="Jump to">
         <span className="label-caps text-fg-muted">Jump to</span>
         <button type="button" className="btn btn-secondary text-label-lg" onClick={() => jump('bracket-h')}>
           Bracket
@@ -428,12 +433,12 @@ export function Results() {
             </div>
           )}
         </div>
-        <FormatNote format={format} season={gd.season} />
+        <FormatNote format={format} season={gd.season} autoBids={playoff.autoBids.length} />
 
         {/* What the marks mean: one line right under the controls, before the first mark. */}
         {(showCompare || highlight || anyUnseen || anyNotShown) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] leading-5 text-fg-muted" data-testid="legend">
-            {highlight && <span className="cut-note">{cutText(format)}</span>}
+            {highlight && <span className="cut-note">{cutLabel}</span>}
             {anyAq && (
               <span className="inline-flex items-center gap-1.5">
                 <AqTag />
@@ -443,7 +448,7 @@ export function Results() {
             {showCompare && (
               <span className="inline-flex items-center gap-1.5">
                 <span className="delta" data-dir="up" aria-hidden="true">
-                  4
+                  2
                 </span>
                 <span>
                   <span className="sr-only">Up triangle and a number: that many </span>spots above the committee
@@ -465,19 +470,19 @@ export function Results() {
           </p>
         )}
 
-        {/* Top 25: grid (>= 640px) */}
-        <div className="mt-3 hidden gap-6 sm:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,1fr)]">
+        {/* Top 25: grid (>= 1024px; narrower, five columns would split long names like "Northwestern") */}
+        <div className="mt-3 hidden gap-6 lg:grid xl:grid-cols-[minmax(0,5fr)_minmax(0,1fr)]">
           <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5" aria-label={view.title} data-testid="top25-grid">
             {top.map((slug, i) => (
-              <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} cut={cutMarks(i + 1)} cutLabel={cutText(format)} />
+              <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} cut={cutMarks(i + 1)} cutLabel={cutLabel} />
             ))}
           </ol>
-          <section className="lg:border-l lg:border-line lg:pl-6" aria-labelledby="next-h">
-            <h3 id="next-h" className="label-caps mb-2 text-fg-muted lg:mb-1.5">
+          <section className="xl:border-l xl:border-line xl:pl-6" aria-labelledby="next-h">
+            <h3 id="next-h" className="label-caps mb-2 text-fg-muted xl:mb-1.5">
               Next five
             </h3>
             {next.length > 0 && (
-              <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 lg:grid-cols-1 [&_.seed-plate]:text-[1.125rem] [&_.team-name]:text-[0.875rem] [&_.team-name]:leading-4 [&_.team-name]:[overflow-wrap:normal]">
+              <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 xl:grid-cols-1 [&_.seed-plate]:text-[1.125rem] [&_.team-name]:text-[0.875rem] [&_.team-name]:leading-4 [&_.team-name]:[overflow-wrap:normal]">
                 {next.map((slug, i) => (
                   <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} />
                 ))}
@@ -491,11 +496,11 @@ export function Results() {
           </section>
         </div>
 
-        {/* Top 25: list (< 640px) */}
-        <div className="mt-3 sm:hidden">
+        {/* Top 25: list (< 1024px). On tablets it keeps a reading width, so the record stays near the name. */}
+        <div className="mt-3 sm:max-w-[36rem] lg:hidden">
           <ol className="flex flex-col gap-2" aria-label={view.title} data-testid="top25-list">
             {top.map((slug, i) => (
-              <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cutAfter={cut === i + 1 ? cutText(format) : undefined} />
+              <ListRow key={slug} slug={slug} team={gd.teams[slug]!} rank={i + 1} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cutAfter={cut === i + 1 ? cutLabel : undefined} />
             ))}
           </ol>
           {next.length > 0 && (
@@ -516,11 +521,25 @@ export function Results() {
           )}
         </div>
 
+        {offGrid.length > 0 && (
+          <p className="mt-3 text-[0.8125rem] leading-5 text-fg-muted" data-testid="field-off-grid">
+            Also in the {format.size}-team field:{' '}
+            {offGrid.map((s, i) => (
+              <span key={s.slug}>
+                {i > 0 && ', '}
+                <span className="font-semibold text-fg">{gd.teams[s.slug]!.name}</span> ({s.rank > sourceRanked ? 'NR' : `#${s.rank}`}
+                {auto.has(s.slug) ? ', AQ' : ''})
+              </span>
+            ))}
+            .
+          </p>
+        )}
+
         <Bracket key={format.id} playoff={playoff} gd={gd} source={view.source} />
         <Bids
           playoff={playoff}
           gd={gd}
-          ranked={view.id === 'committee' || view.id === 'fans' ? view.ranked : Infinity}
+          ranked={sourceRanked}
           sourceName={view.id === 'committee' ? 'the committee' : view.id === 'fans' ? 'the fans' : null}
         />
       </div>
@@ -590,21 +609,27 @@ function Tile(props: RowProps & { cfp: (t: GameTeam) => string; cut?: { below: b
           {unseen ? <UnseenTag /> : notShown ? <NotShownTag /> : compare ? <Delta value={d} /> : null}
         </span>
       </div>
-      {cut?.last && cutLabel && <span className="sr-only">{cutLabel}: the field's unbroken run ends here.</span>}
+      {cut?.last && cutLabel && <span className="sr-only">The cut line runs under this team. {cutLabel}.</span>}
     </li>
   );
 }
 
 /**
  * Phone row. A fixed side column right next to the row (its width never depends on state): "CFP 12"
- * with the delta, then the tags (Unseen / Not shown, AQ) stacked under it. The cut line, when it
- * falls under this row, spans the row and the column.
+ * with the delta, then the tags (Unseen / Not shown, AQ) under it. A status tag and AQ side by side
+ * would wrap to a third line, so when "CFP 12" has no delta beside it (an Unseen row never has one)
+ * the AQ tag joins that line and every row keeps two. The cut line, when it falls under this row,
+ * spans the row and the column. On phones narrower than 384px the record prints under the name
+ * (row-fit, global.css), so a long name ("Northwestern") never breaks inside the word.
  */
 function ListRow(props: RowProps & { cutAfter?: string }) {
   const { slug, team, rank, aq, compare, unseen, notShown, cutAfter } = props;
   const d = team.committee === null ? 0 : team.committee - rank;
+  const deltaShown = compare && !unseen && d !== 0;
+  const status = unseen ? <UnseenTag /> : notShown ? <NotShownTag /> : null;
+  const aqTop = aq && compare && !deltaShown && status !== null;
   return (
-    <li>
+    <li className="row-fit">
       <div className="flex items-stretch gap-2">
         <div className="min-w-0 flex-1">
           <TeamBlock slug={slug} team={team} seed={rank} size="row" meta={recordText(team.record)} unseen={unseen} />
@@ -613,13 +638,14 @@ function ListRow(props: RowProps & { cutAfter?: string }) {
           {compare && (
             <span className="flex items-center gap-1">
               <span className="label-caps whitespace-nowrap text-fg-muted">CFP {team.committee ?? 'NR'}</span>
-              {!unseen && <Delta value={d} />}
+              {deltaShown && <Delta value={d} />}
+              {aqTop && <AqTag />}
             </span>
           )}
-          {(unseen || notShown || aq) && (
+          {(status || (aq && !aqTop)) && (
             <span className="flex flex-wrap items-center gap-1">
-              {unseen ? <UnseenTag /> : notShown ? <NotShownTag /> : null}
-              {aq && <AqTag />}
+              {status}
+              {aq && !aqTop && <AqTag />}
             </span>
           )}
         </div>
@@ -636,9 +662,10 @@ function ListRow(props: RowProps & { cutAfter?: string }) {
 /**
  * The selected format's rules. The proposed format always shows them in full with its status and
  * source (SPEC). The current format does too from 640px; on phones it folds into a one-line
- * disclosure so the top 25 starts higher.
+ * disclosure so the top 25 starts higher. Its counts are this view's field, as in the bid lists
+ * ("6 automatic, 6 at-large" when Notre Dame's guarantee applies).
  */
-function FormatNote({ format, season }: { format: PlayoffFormat; season: number }) {
+function FormatNote({ format, season, autoBids }: { format: PlayoffFormat; season: number; autoBids: number }) {
   const body = (
     <p className="max-w-[70ch] text-[0.8125rem] leading-5 text-fg-muted sm:text-[0.875rem]">
       {format.note}{' '}
@@ -660,7 +687,7 @@ function FormatNote({ format, season }: { format: PlayoffFormat; season: number 
       <details className="group sm:hidden">
         <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 py-1 text-[0.8125rem] leading-5 text-fg-muted [&::-webkit-details-marker]:hidden">
           <span className="min-w-0">
-            <b className="font-semibold text-fg">{format.size}-team field:</b> {autoCount(format)} champions, {format.size - autoCount(format)} at-large.{' '}
+            <b className="font-semibold text-fg">{format.size}-team field:</b> {autoBids} automatic, {format.size - autoBids} at-large.{' '}
             <span className="link">Rules</span>
           </span>
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" className="ml-auto flex-none transition-transform group-open:rotate-180">

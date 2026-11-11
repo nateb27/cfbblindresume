@@ -264,16 +264,19 @@ export function Reveal() {
         <p id="reveal-line" className="px-5 pt-3 text-[0.9375rem] leading-6 text-fg-muted sm:pt-4" aria-live="polite">
           {last && (last.committee !== null || last.fei !== null) && (
             <>
-              <span className="mr-1.5 inline-flex flex-wrap items-baseline gap-x-2.5">
+              {/* Phones: the verdict is its own line and the running count starts the next. */}
+              <span className="mr-1.5 inline-flex flex-wrap items-baseline gap-x-2.5 max-sm:mr-0 max-sm:flex">
                 <span>This round:</span>
                 {last.committee !== null && <Verdict ok={last.committee} who="committee" />}
                 {last.fei !== null && <Verdict ok={last.fei} who="FEI" />}
               </span>
-              <span aria-hidden="true">· </span>
+              <span className="max-sm:hidden" aria-hidden="true">
+                ·{' '}
+              </span>
             </>
           )}
           {emphasize(line, /\d+ of \d+/g, (m, k) => (
-            <b key={k} className="font-extrabold text-accent">
+            <b key={k} className="font-extrabold whitespace-nowrap text-accent">
               {m}
             </b>
           ))}
@@ -294,7 +297,10 @@ export function Reveal() {
             <ArrowIcon />
           </button>
           <p className="mt-2 flex flex-wrap justify-between gap-x-4 text-[0.75rem] leading-4 text-fg-faint">
-            <span className="max-sm:hidden">Tap anywhere or press Enter to continue</span>
+            <span className="max-sm:hidden">
+              <span className="hidden pointer-fine:inline">Click anywhere or press Enter to continue</span>
+              <span className="pointer-fine:hidden">Tap anywhere to continue</span>
+            </span>
             <span data-testid="reveal-credit">
               <FeiCredit url={gd.ratingsUrl} />
             </span>
