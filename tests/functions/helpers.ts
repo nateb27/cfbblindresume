@@ -32,7 +32,7 @@ export function realGameData(): GameData {
 
 /* ------------------------------------------------------------------ ASSETS */
 
-export const SHELL_HTML = `<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8" />
+export const SHELL_HTML = `<!doctype html><html lang="en" data-surface="board"><head><meta charset="utf-8" />
 <title>A Shared Blind Resume Ranking | CFB Blind Resume</title>
 <meta name="description" content="Someone ranked college football playoff resumes without seeing the names." />
 <link rel="canonical" href="https://cfbblindresume.com/r" />

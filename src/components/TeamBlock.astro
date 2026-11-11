@@ -1,7 +1,8 @@
 ---
 /**
- * Team identity lower-third (DESIGN §8): primary color block, condensed caps name in the
- * contrast-picked ink, 4px secondary rule. Links to the team page unless `href` is false.
+ * Team identity (DESIGN §10): a cover (primary color block, sentence-case name in the
+ * contrast-picked ink, 4px secondary rule) or, with a seed, an index tab (the seed on a small
+ * team-color tab, the name typed in ink on paper). Links to the team page unless `href` is false.
  * Only the name and the optional meta (record) sit on the team color.
  */
 import type { Team } from '@lib/types';
@@ -40,7 +41,7 @@ const nameCls = {
   row: 'truncate text-[1.125rem] leading-5',
   tile: 'text-team line-clamp-2',
   reveal: 'truncate text-heading',
-  hero: nameFit ? 'cond hero-name uppercase' : 'cond truncate text-title uppercase sm:text-display',
+  hero: nameFit ? 'hero-name' : 'truncate text-title sm:text-display',
 }[size];
 const plate = { slot: 'min-w-8 text-[1.125rem]', row: 'min-w-10 text-[1.375rem]', tile: 'min-w-9 text-[1.375rem]', reveal: 'min-w-12 text-[1.75rem]', hero: '' }[size];
 const metaCls = {
@@ -55,9 +56,16 @@ const Tag = href ? 'a' : 'div';
 const Name = nameAs;
 ---
 
-<Tag href={href || undefined} class:list={['team-block', height, cls]} style={teamVars(team.colors)} data-in-field={inField ? '' : undefined}>
+<Tag
+  href={href || undefined}
+  class:list={['team-block', height, cls]}
+  style={teamVars(team.colors)}
+  data-variant={seed !== undefined && size !== 'reveal' ? 'tab' : 'cover'}
+  data-size={size}
+  data-in-field={inField ? '' : undefined}
+>
   {seed !== undefined && <span class:list={['seed-plate', plate]}>{seed}</span>}
-  <Name class:list={['min-w-0 flex-1', pad, nameCls]} style={nameFit?.style}>
+  <Name class:list={['team-name min-w-0 flex-1', pad, nameCls]} style={nameFit?.style}>
     {
       nameFit && nameFit.parts.length === 2 ? (
         <>
@@ -68,6 +76,6 @@ const Name = nameAs;
       )
     }
   </Name>
-  {meta && <span class:list={['ml-3 flex-none text-right', metaCls]}><slot name="meta">{meta}</slot></span>}
+  {meta && <span class:list={['team-meta ml-3 flex-none text-right', metaCls]}><slot name="meta">{meta}</slot></span>}
   <slot />
 </Tag>

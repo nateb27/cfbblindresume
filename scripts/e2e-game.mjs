@@ -19,12 +19,17 @@
  *     open /r/{code} in a fresh context and get the same top 25.
  *  Controls that change under the pointer ignore pointer activations for 400 ms (double-tap guard),
  *  so the script waits `GUARD` between dependent taps, as a person would.
- *  2. Laptop 1280x800, keyboard only (Tab / Enter / A-B-C / Escape): 15 rounds with a different
+ *  2. Laptop 1280x800, keyboard only (Tab / Enter / A-B-C / Esc): 15 rounds with a different
  *     order, results, format and tab switches, shared view matches.
  *  3. Skip to results after 5 rounds: partial results with Unseen teams.
  *  4. Corrupted and garbage share codes show the friendly error with a Play link.
- * --only phone,laptop,skip,bad runs a subset. Screenshots of every screen at both sizes go to --out. Exits non-zero on any failure, page
- * error or console error.
+ *  5. Reduced motion (laptop): the reveal shows the names at once, no redaction bar is drawn.
+ * Every flow checks that no identity of the three teams on screen (name, slug, colours,
+ * conference) reaches the island's DOM or a request URL before lock-in, and that the declassify
+ * (the bars lifting off the names) is done within 550 ms and never blocks Next round or Esc.
+ * --only phone,laptop,skip,bad,motion runs a subset; --scheme dark runs every flow in dark mode
+ * (default light). Screenshots of every screen at both sizes go to --out. Exits non-zero on any
+ * failure, page error or console error.
  */
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
@@ -41,6 +46,7 @@ const OUT = resolve(String(args.out ?? 'e2e-game-shots'));
 const PLAY = String(args.play ?? '/');
 const SHELL = String(args.shell ?? 'r.html');
 const FANS = !args['no-fans'];
+const SCHEME = args.scheme === 'dark' ? 'dark' : 'light';
 mkdirSync(OUT, { recursive: true });
 
 let chromium;
@@ -156,6 +162,51 @@ async function shot(page, name, opts = {}) {
   await page.screenshot({ path: join(OUT, `${name}.png`), fullPage: !!opts.full });
 }
 
+/** The reveal's declassify sequence (bars lifting off the names) has finished: every running
+ * animation in the document, pseudo-elements included, is done. Screenshots wait for this. */
+async function animationsDone(page) {
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity), null, { timeout: 3000 });
+}
+
+/**
+ * No identity before lock-in: the island's DOM never carries the name, short name, slug, colours or
+ * conference of the three teams on screen, and no request made so far names one of them (the
+ * fans lookup and the vote go out only after the round locks).
+ */
+async function noIdentityBeforeLockIn(page, slugs, requests, label) {
+  const html = (await page.evaluate(() => document.querySelector('.game-root')?.outerHTML ?? '')).toLowerCase();
+  const esc = (x) => x.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const hits = [];
+  for (const slug of slugs) {
+    const t = gameData.teams[slug];
+    if (new RegExp(`[>"]${esc(t.name)}[<"]`).test(html)) hits.push(`name ${t.name}`);
+    if (t.short && new RegExp(`[>"]${esc(t.short)}[<"]`).test(html)) hits.push(`short name ${t.short}`);
+    if (new RegExp(`(^|[^a-z0-9-])${esc(slug)}([^a-z0-9-]|$)`).test(html)) hits.push(`slug ${slug}`);
+    for (const c of [t.colors.primary, t.colors.secondary]) if (c && html.includes(c.toLowerCase())) hits.push(`colour ${c}`);
+    if (html.includes(`>${t.conference.toLowerCase()}<`)) hits.push(`conference ${t.conference}`);
+  }
+  const named = requests.filter((u) => slugs.some((s) => u.includes(s)));
+  check(!hits.length, `${label}: no team identity in the island before lock-in${hits.length ? ` (${hits.join(', ')})` : ''}`);
+  check(!named.length, `${label}: no request names a team before lock-in${named.length ? ` (${named.join(', ')})` : ''}`);
+}
+
+/**
+ * The declassify as it is scheduled (read from the running CSS animations, so it does not depend
+ * on how fast this machine is): three bars, lifting in the user's order, the last one gone by 550 ms.
+ */
+async function declassifyTiming(page, label) {
+  const t = await page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.animationName === 'declassify')
+      .map((a) => ({ start: a.effect.getComputedTiming().delay, end: a.effect.getComputedTiming().endTime, pseudo: a.effect.pseudoElement })),
+  );
+  const ends = t.map((x) => x.end);
+  check(t.length === 3 && t.every((x) => x.pseudo === '::after'), `${label}: three redaction bars lift (${t.length})`);
+  check(t.length === 3 && t[0].start < t[1].start && t[1].start < t[2].start, `${label}: bars lift in your order (${t.map((x) => x.start).join(' / ')} ms)`);
+  check(ends.length && Math.max(...ends) <= 550, `${label}: all names declassified by ${Math.max(...ends)} ms (<= 550)`);
+}
+
 async function noHorizontalScroll(page, label) {
   const { sw, iw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
   check(sw <= iw, `${label}: no horizontal page scroll (${sw} <= ${iw})`);
@@ -196,10 +247,12 @@ async function topNames(page, testid) {
 
 async function phoneRun(browser, base) {
   console.log('\nPhone 390x844 (touch)');
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, colorScheme: SCHEME });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await ctx.newPage();
   watch(page, 'phone');
+  const requests = [];
+  page.on('request', (r) => requests.push(r.url()));
   // The week's data is fetched at idle (prefetch) or on Play, whichever comes first.
   const gdResp = page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
   await page.goto(base + PLAY, { waitUntil: 'networkidle' });
@@ -220,6 +273,7 @@ async function phoneRun(browser, base) {
     check(trio.every((t) => t.slug), `round ${round}: all three cards identified`);
     const want = byPrior(trio);
     if (round === 1) {
+      await noIdentityBeforeLockIn(page, trio.map((t) => t.slug), requests, 'phone round 1');
       check((await page.locator('[data-testid=glance] tbody tr').count()) === 3, 'phone: the at-a-glance table lists the three resumes');
       const credits = await page.$$eval('[data-card] [data-testid=card-credit] a', (as) => as.map((a) => `${a.textContent}|${a.getAttribute('href')}`));
       check(credits.length === 3 && credits.every((c) => c.startsWith('FEI by Brian Fremeau|https://bcftoys.com/')), 'every blind card carries the FEI credit link');
@@ -235,6 +289,7 @@ async function phoneRun(browser, base) {
       await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
       await page.waitForTimeout(200);
       check((await page.locator(`[data-card=${want[0].letter}]`).getAttribute('aria-label')).includes('ranked 1st'), 'phone: a double tap on Rank 1st keeps the pick');
+      await noIdentityBeforeLockIn(page, trio.map((t) => t.slug), requests, 'phone round 1, 1st picked');
       await shot(page, 'm-03-first-pick');
     } else await page.locator('[data-testid=rank-current]').tap();
     // 2nd: one of the two "Rank X 2nd" buttons for the cards left.
@@ -260,9 +315,19 @@ async function phoneRun(browser, base) {
     await page.waitForSelector('[data-testid=reveal][open]', { timeout: 5000 });
     const order = await page.$$eval('[data-testid=reveal] ol > li .team-block span:nth-child(2)', (els) => els.map((e) => e.textContent));
     check(JSON.stringify(order) === JSON.stringify(want.map((t) => gameData.teams[t.slug].name)), `round ${round}: reveal lists the picked order`);
+    if (round === 1) await declassifyTiming(page, 'phone round 1');
+    if (round === 3) {
+      // Next round works while the bars are still lifting (taps wait out the 400 ms double-tap guard).
+      await page.waitForTimeout(GUARD - 10);
+      await page.locator('[data-testid=reveal-next]').tap();
+      await page.waitForSelector('[data-testid=reveal]', { state: 'detached', timeout: 2000 });
+      check(true, 'phone: Next round works during the declassify');
+      continue;
+    }
     if (round === 1) {
       await page.waitForSelector('[data-testid=fans-cell]', { timeout: 5000 }).catch(() => null);
       if (FANS) check((await page.locator('[data-testid=fans-cell]').count()) === 3, 'reveal shows the Fans column when fan data exists');
+      await animationsDone(page);
       await shot(page, 'm-05-reveal');
     }
     await settle(page);
@@ -315,7 +380,7 @@ async function phoneRun(browser, base) {
   await shot(page, 'm-12-share');
   await ctx.close();
 
-  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, colorScheme: SCHEME });
   const p2 = await ctx2.newPage();
   watch(p2, 'phone-shared');
   await p2.goto(link, { waitUntil: 'networkidle' });
@@ -345,10 +410,12 @@ async function tabTo(page, testid, max = 80) {
 
 async function laptopRun(browser, base) {
   console.log('\nLaptop 1280x800 (keyboard only)');
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2, colorScheme: SCHEME });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
   const page = await ctx.newPage();
   watch(page, 'laptop');
+  const requests = [];
+  page.on('request', (r) => requests.push(r.url()));
   const gdResp = gameData ? null : page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
   await page.goto(base + PLAY, { waitUntil: 'networkidle' });
   await shot(page, 'd-01-intro');
@@ -360,6 +427,7 @@ async function laptopRun(browser, base) {
     await waitRound(page, round);
     if (round === 1) await shot(page, 'd-02-round');
     const trio = await readTrio(page);
+    if (round === 1) await noIdentityBeforeLockIn(page, trio.map((t) => t.slug), requests, 'laptop round 1');
     // A different order than the committee's: reverse it on odd rounds.
     const want = round % 2 ? byPrior(trio).reverse() : byPrior(trio);
     if (round % 3 === 0) {
@@ -370,6 +438,13 @@ async function laptopRun(browser, base) {
       check(await tabTo(page, `rank-${want[1].letter}`, 10), `round ${round}: Tab reaches Rank ${want[1].letter} 2nd`);
       await page.keyboard.press('Enter');
     } else {
+      if (round === 4) {
+        // Esc undoes the last pick, like Backspace.
+        await page.keyboard.press(want[0].letter.toLowerCase());
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(100);
+        check((await page.locator('[data-card][data-place]').count()) === 0, 'laptop: Esc undoes the pick');
+      }
       await page.keyboard.press(want[0].letter.toLowerCase());
       await page.keyboard.press(want[1].letter.toLowerCase());
     }
@@ -379,7 +454,16 @@ async function laptopRun(browser, base) {
     await page.keyboard.press('Enter');
     await page.waitForSelector('[data-testid=reveal][open]');
     check(await page.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'reveal-next'), `round ${round}: reveal takes focus`);
+    if (round === 2) {
+      // Esc closes the reveal at once, mid-declassify (no double-tap guard on Esc).
+      await page.keyboard.press('Escape');
+      await page.waitForSelector('[data-testid=reveal]', { state: 'detached', timeout: 2000 });
+      check(true, 'laptop: Esc closes the reveal during the declassify');
+      continue;
+    }
     if (round === 1) {
+      await declassifyTiming(page, 'laptop round 1');
+      await animationsDone(page);
       await shot(page, 'd-05-reveal');
       check(await page.evaluate(() => document.querySelector('[data-testid=reveal]').scrollTop === 0), 'reveal opens scrolled to the top');
       await page.keyboard.press('ArrowDown');
@@ -439,7 +523,7 @@ async function laptopRun(browser, base) {
   await shot(page, 'd-15-share');
   await ctx.close();
 
-  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2, colorScheme: SCHEME });
   const p2 = await ctx2.newPage();
   watch(p2, 'laptop-shared');
   await p2.goto(link, { waitUntil: 'networkidle' });
@@ -453,7 +537,7 @@ async function laptopRun(browser, base) {
 
 async function skipRun(browser, base) {
   console.log('\nSkip to results after round 5 (phone)');
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, colorScheme: SCHEME });
   const page = await ctx.newPage();
   watch(page, 'skip');
   await page.addInitScript(() => localStorage.setItem('cfbbr:reveal', 'off'));
@@ -500,7 +584,7 @@ async function badCodes(browser, base, goodLink) {
   const flipped = code.slice(0, 10) + (code[10] === 'A' ? 'B' : 'A') + code.slice(11);
   for (const [w, h, tag] of [[390, 844, 'm'], [1280, 800, 'd']]) {
     for (const [bad, label] of [[flipped, 'one character changed'], ['not-a-real-code', 'garbage'], [code.slice(0, 20), 'truncated']]) {
-      const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, colorScheme: SCHEME });
       const page = await ctx.newPage();
       watch(page, `bad-${tag}`);
       await page.goto(`${base}/r/${bad}`, { waitUntil: 'networkidle' });
@@ -511,6 +595,35 @@ async function badCodes(browser, base, goodLink) {
       await ctx.close();
     }
   }
+}
+
+/* ------------------------------------------------------------------ flow 5: reduced motion */
+
+async function motionRun(browser, base) {
+  console.log('\nReduced motion (laptop)');
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: SCHEME, reducedMotion: 'reduce' });
+  const page = await ctx.newPage();
+  watch(page, 'motion');
+  const gdResp = gameData ? null : page.waitForResponse((r) => /\/game-data\/.+\.json$/.test(r.url()));
+  await page.goto(base + PLAY, { waitUntil: 'networkidle' });
+  await page.locator('[data-testid=play]').click();
+  if (gdResp) gameData = await (await gdResp).json();
+  await waitRound(page, 1);
+  await page.keyboard.press('a');
+  await page.keyboard.press('b');
+  await page.waitForSelector('[data-testid=lock]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('[data-testid=reveal][open]');
+  const state = await page.evaluate(() => ({
+    bars: [...document.querySelectorAll('[data-testid=reveal] .team-name')].map((el) => getComputedStyle(el, '::after').display),
+    running: document.getAnimations().filter((a) => a.playState === 'running' && a.effect?.getComputedTiming().activeDuration > 1).length,
+  }));
+  check(state.bars.length === 3 && state.bars.every((d) => d === 'none'), `reduced motion: no redaction bar over the names (${state.bars.join(', ')})`);
+  check(state.running === 0, `reduced motion: nothing animates in the reveal (${state.running} running)`);
+  await shot(page, 'd-18-reduced-motion-reveal', { settle: 50 });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('[data-testid=reveal]', { state: 'detached' });
+  await ctx.close();
 }
 
 /* ------------------------------------------------------------------ main */
@@ -525,7 +638,7 @@ if (!base) {
   server = await startServer(String(args.dist));
   base = `http://127.0.0.1:${server.address().port}`;
 }
-console.log(`Base ${base} · screenshots in ${OUT}`);
+console.log(`Base ${base} · ${SCHEME} · screenshots in ${OUT}`);
 const browser = await chromium.launch();
 try {
   const only = args.only ? new Set(String(args.only).split(',')) : null;
@@ -535,6 +648,7 @@ try {
   if (run('laptop')) await laptopRun(browser, base);
   if (run('skip')) await skipRun(browser, base);
   if (run('bad')) await badCodes(browser, base, link ?? `${base}/r/ARoJECp6ZAyIQnYQVms3b4InQzwpAiJ7MmxBcd`);
+  if (run('motion')) await motionRun(browser, base);
   if (server && !only) {
     check(received.votes.length >= 15 + 16 + 5, `votes posted after every round (${received.votes.length})`);
     check(received.votes.every((v) => Array.isArray(v?.order) && v.order.length === 3 && v.season && v.week), 'vote bodies are {season, week, order:[a,b,c]}');

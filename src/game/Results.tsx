@@ -104,7 +104,7 @@ function Delta({ value }: { value: number }) {
 
 function Tag({ children, title, tone = 'plain' }: { children: ReactNode; title: string; tone?: 'plain' | 'quiet' }) {
   return (
-    <span className={`label-caps flex-none rounded-slab px-1 ${tone === 'plain' ? 'bg-raised-2 text-fg' : 'border border-line-strong text-fg-muted'}`} title={title}>
+    <span className="file-tag" data-tone={tone} title={title}>
       {children}
     </span>
   );
@@ -296,12 +296,12 @@ export function Results() {
       {/* Header */}
       <div className="flex flex-col gap-x-4 gap-y-3 pt-6 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="label-caps text-accent">
+          <p className="label-caps text-fg-muted">
             {shared ? 'Shared ranking · ' : ''}
             {gd.label} · {plural(rounds.length, 'round')}
             {partial ? ' · partial' : ''}
           </p>
-          <h2 ref={heading} tabIndex={-1} className="cond text-title uppercase outline-none lg:text-display" data-testid="results-title">
+          <h2 ref={heading} tabIndex={-1} className="cond text-title outline-none lg:text-display" data-testid="results-title">
             {view.title}
           </h2>
           {headline && (
@@ -368,7 +368,7 @@ export function Results() {
       )}
 
       {/* Tabs */}
-      <div className="tabs max-[359px]:[&>.tab]:px-2" role="tablist" aria-label="Whose top 25" onKeyDown={onTabKey}>
+      <div className="tabs" role="tablist" aria-label="Whose top 25" onKeyDown={onTabKey}>
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -423,7 +423,7 @@ export function Results() {
             )}
             {highlight && (
               <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-3 w-4 rounded-[1px] shadow-[0_0_0_2px_var(--color-page),0_0_0_4px_var(--color-accent-edge)]" aria-hidden="true" />
+                <span className="field-swatch" aria-hidden="true" />
                 <span>= in the {format.size}-team field</span>
               </span>
             )}
@@ -460,7 +460,7 @@ export function Results() {
               Next five
             </h3>
             {next.length > 0 && (
-              <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 lg:grid-cols-1">
+              <ol className="grid grid-cols-5 gap-x-3 gap-y-3.5 lg:grid-cols-1 [&_.seed-plate]:text-[1.125rem] [&_.team-name]:text-[0.875rem] [&_.team-name]:leading-4 [&_.team-name]:[overflow-wrap:normal]">
                 {next.map((slug, i) => (
                   <Tile key={slug} slug={slug} team={gd.teams[slug]!} rank={GRID + 1 + i} inField={highlight && field.has(slug)} aq={highlight && auto.has(slug)} compare={showCompare} unseen={unseen.has(slug)} notShown={notShown(slug)} cfp={cfpLabel} />
                 ))}
@@ -491,6 +491,11 @@ export function Results() {
               </ol>
               {nextShort && <p className="mt-2 text-[0.875rem] leading-5 text-fg-muted">{`The fans’ ranking stops at ${view.ranked} teams so far.`}</p>}
             </>
+          )}
+          {next.length === 0 && (
+            <p className="mt-3 text-[0.875rem] leading-5 text-fg-muted">
+              {view.id === 'committee' ? 'The committee ranks only 25 teams.' : `The fans’ ranking stops at ${view.ranked} teams so far.`}
+            </p>
           )}
         </div>
 

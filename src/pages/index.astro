@@ -1,7 +1,7 @@
 ---
 /**
- * / (dark): H1 + one indexable paragraph above the fold, the game island (the only JS on the
- * site), the leaderboard ad below the game container, then a static "This week" section:
+ * / (game page: white sheets on the grey board): H1 + one indexable paragraph above the fold, the
+ * game island (the only JS on the site), the leaderboard ad below the game container, then a static "This week" section:
  * committee top 12 vs FEI strength-of-record top 12 and the projected fields. Without JavaScript
  * the Play button is hidden and a note points to the static pages.
  */
@@ -60,8 +60,8 @@ const lists = [
       <p class="label-caps text-fg-muted">
         {week.label}, {week.season}{release && <span class="max-sm:hidden">{` · committee ranking of ${fmtLongDate(release)}`}</span>}
       </p>
-      <h1 id="hero" class="cond mt-2 text-title uppercase lg:text-display">
-        Rank the resumes.{' '}<span class="text-fg-muted">Names hidden.</span>
+      <h1 id="hero" class="cond mt-2 text-title lg:text-display">
+        Rank the resumes.{' '}<span class="hero-redacted">Names hidden.</span>
       </h1>
       <p class="mt-3 max-w-read text-[0.9375rem] leading-6 sm:text-lg sm:leading-7">
         {
@@ -92,7 +92,7 @@ const lists = [
 
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <section aria-labelledby="this-week" class="mt-16 border-t border-line pt-10">
-      <h2 id="this-week" class="cond text-title uppercase lg:text-display">This week</h2>
+      <h2 id="this-week" class="cond text-title lg:text-display">This week</h2>
       <p class="mt-2 max-w-read text-fg-muted">
         {
           committee
@@ -176,20 +176,20 @@ const lists = [
       <nav aria-label="More" class="mt-12">
         <ul class="grid gap-3 sm:grid-cols-3">
           <li>
-            <a href="/rankings" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
-              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">Full rankings</span>
+            <a href="/rankings" class="flex min-h-16 flex-col justify-center rounded-card border border-line-strong bg-surface px-4 py-3 transition-colors hover:border-control hover:bg-raised">
+              <span class="cond text-[1.25rem] leading-6 font-bold">Full rankings</span>
               <span class="text-sm text-fg-muted">Top 25 both ways, cut lines, every field</span>
             </a>
           </li>
           <li>
-            <a href="/bubble" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
-              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">Bubble watch</span>
+            <a href="/bubble" class="flex min-h-16 flex-col justify-center rounded-card border border-line-strong bg-surface px-4 py-3 transition-colors hover:border-control hover:bg-raised">
+              <span class="cond text-[1.25rem] leading-6 font-bold">Bubble watch</span>
               <span class="text-sm text-fg-muted">Who is in, who is out, and who changes sides</span>
             </a>
           </li>
           <li>
-            <a href="/teams" class="flex min-h-16 flex-col justify-center rounded-card border border-line px-4 py-3 transition-colors hover:border-control hover:bg-surface">
-              <span class="cond text-[1.25rem] leading-6 font-bold uppercase">All {Object.keys(week.teams).length} teams</span>
+            <a href="/teams" class="flex min-h-16 flex-col justify-center rounded-card border border-line-strong bg-surface px-4 py-3 transition-colors hover:border-control hover:bg-raised">
+              <span class="cond text-[1.25rem] leading-6 font-bold">All {Object.keys(week.teams).length} teams</span>
               <span class="text-sm text-fg-muted">Every FBS resume, by conference</span>
             </a>
           </li>

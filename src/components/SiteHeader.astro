@@ -40,7 +40,7 @@ const items: { key: NavKey; href: string; label: string }[] = [
                 aria-current={current === it.key ? 'page' : undefined}
                 class:list={[
                   'flex items-center px-2.5 text-sm whitespace-nowrap transition-colors hover:text-fg sm:px-3',
-                  current === it.key ? 'font-semibold text-fg shadow-[inset_0_-2px_0_var(--color-accent-edge)]' : 'text-fg-muted',
+                  current === it.key ? 'font-bold text-fg shadow-[inset_0_-3px_0_var(--color-fg)]' : 'text-fg-muted',
                 ]}
               >
                 {it.label}

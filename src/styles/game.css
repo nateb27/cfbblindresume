@@ -1,7 +1,292 @@
 /*
- * Game island extras (owner: game). Everything else is tokens.css / global.css utilities and
- * components; this file only holds what Tailwind utilities cannot express.
+ * Game island styles (owner: game). Imported by GameApp.tsx, so it ships only with the game pages
+ * (/ and /r/*). Two parts:
+ * 1. Game components (DESIGN.md "Game screens"): the blind card as a resume form, the round
+ *    progress, the reveal and its declassify sequence, the intro folder, results and bracket.
+ *    They sit in @layer components, exactly like global.css's components, so a Tailwind utility on
+ *    the same element still wins. The layer order statement repeats Tailwind's, so the order holds
+ *    whichever stylesheet the browser sees first.
+ * 2. Unlayered extras that Tailwind utilities cannot express (carousel, dialog backdrop, the
+ *    lock-in countdown, viewport reservation), the island's in-field rule, motion and forced colours.
  */
+@layer theme, base, components, utilities;
+
+@layer components {
+  /* --- Round progress: done = ink, you are here = a taller violet tick, still to play = a light rule. */
+  .round-ticks {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 8px;
+  }
+  .round-tick {
+    flex: 1 1 0;
+    height: 4px;
+    background-color: var(--color-line-strong);
+    transition: background-color var(--duration-base) var(--ease-out);
+  }
+  .round-tick[data-state="done"] {
+    background-color: var(--color-fg);
+  }
+  .round-tick[data-state="current"] {
+    height: 8px;
+    background-color: var(--color-accent-fill);
+  }
+
+  /* --- Head-to-head note: a typed tag on the file. */
+  .h2h-tag {
+    flex: none;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-slab);
+    background-color: var(--color-fg);
+    color: var(--color-page);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 800;
+  }
+
+  /* --- The blind card: a resume form. Border colour lives here (no utility), so the picked
+     state wins: 1st = a 2px violet edge, 2nd = a violet rule. */
+  .blind-card {
+    border-color: var(--color-line-strong);
+    background-color: var(--color-surface);
+    transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+  }
+  .blind-card[data-place="1"] {
+    border-color: var(--color-accent-fill);
+    box-shadow: 0 0 0 1px var(--color-accent-fill);
+  }
+  .blind-card[data-place="2"] {
+    border-color: var(--color-accent-edge);
+  }
+  /* Header = the reveal cover with its name inked out: [file letter] Team A / [bar] [record]. */
+  .card-header {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: stretch;
+    min-height: 4.5rem;
+    padding-right: 1rem;
+    background-color: var(--color-surface);
+    color: var(--color-fg);
+    border-bottom: 2px solid var(--color-fg);
+  }
+  .card-header .file-letter {
+    width: 3.5rem;
+    font-size: 2.5rem;
+    border-radius: 0;
+  }
+  .card-header-title {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0.3125rem;
+    margin-left: 0.875rem;
+    padding-block: 0.625rem 0.5rem;
+  }
+  .card-header-title > .label-caps {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    color: var(--color-fg-muted);
+  }
+  /* The bar fills the free column: its width comes from the card, never from the hidden name
+     (no name, slug, colour or conference reaches the DOM before lock-in). */
+  .card-header-title > [data-redacted] {
+    grid-column: 1;
+    grid-row: 2;
+    height: 1.375rem;
+    min-width: 3rem;
+  }
+  .card-header-title > [data-record] {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  /* Absolute, so a stamp never reflows the header. It presses on as it appears: 1.18 → 1 with the
+     snap ease's tiny overshoot (a stamp meeting paper), 140ms, upright, never rotated. */
+  .card-header .pick-stamp {
+    position: absolute;
+    top: 0.4375rem;
+    right: 0.75rem;
+    animation: stamp-in var(--duration-fast) var(--ease-snap) both;
+  }
+
+  /* --- File-letter sizes outside the card header. */
+  .file-letter-sm {
+    width: 1.75rem;
+    height: 1.5rem;
+    font-size: 0.9375rem;
+  }
+  .file-letter-md {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.125rem;
+    border-radius: var(--radius-chip);
+  }
+  /* Phone footer letters (letter over record): the card in view is solid ink, the others quiet. */
+  .file-letter-rec {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background-color: var(--color-raised);
+    color: var(--color-fg-muted);
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  }
+  .file-letter-rec[data-current] {
+    background-color: var(--color-fg);
+    color: var(--color-surface);
+    box-shadow: none;
+  }
+  .file-letter-tick {
+    position: absolute;
+    bottom: 0;
+    width: 1.25rem;
+    height: 2px;
+    background-color: transparent;
+  }
+  .file-letter-tick[data-current] {
+    background-color: var(--color-fg);
+  }
+
+  /* --- Reveal ("Your order, revealed"): declassified. The panel is a sheet; covers in full team
+     colour, with the same ink file letter as the blind card. */
+  .reveal-panel {
+    border-color: var(--color-line-strong);
+  }
+  .game-dialog .team-block[data-variant="cover"] {
+    border-bottom: 0;
+    box-shadow: inset 0 -4px 0 var(--team-rule), inset 0 0 0 1px var(--team-edge);
+  }
+  .game-dialog .team-block > .seed-plate {
+    background-color: var(--color-fg);
+    color: var(--color-surface);
+    box-shadow: inset -2px 0 0 var(--color-surface); /* a paper gap: plate and cover never merge (Iowa) */
+    padding-bottom: 0;
+  }
+  .game-dialog .team-block .team-name {
+    position: relative;
+  }
+  .game-dialog .team-block .team-meta {
+    color: inherit;
+    font-weight: 800;
+  }
+  .reveal-cell {
+    box-shadow: inset 0 -1px 0 var(--color-line-strong);
+  }
+  .reveal-cell dt {
+    color: var(--color-fg-muted);
+  }
+  .reveal-value {
+    display: inline-block;
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--color-fg);
+  }
+  /* Agrees with your pick: the value gets your stamp (the same ruled box as a 2nd-pick stamp),
+     so "matches you" never relies on violet vs ink alone (plus sr-only text in the markup). */
+  .reveal-cell[data-match] .reveal-value {
+    margin-left: -0.3125rem;
+    padding: 0 0.25rem;
+    color: var(--color-accent);
+    box-shadow: inset 0 0 0 2px var(--color-accent-edge);
+    border-radius: var(--radius-slab);
+  }
+
+  /* --- The declassify (storyboard and timing: src/game/Reveal.tsx TIMING / PANEL / BAR, handed in
+     as custom properties on the dialog and each row; the fallbacks below are the same numbers).
+     The sheet lands, then the bar lifts off each name toward the record, in your order. Transform
+     and opacity only; the bars are pointer-events: none, so Next round and Esc work throughout.
+     Screen readers get the names at once (the bar is a pseudo-element). The bar is the marker
+     colour, or the team ink where the marker would not read on the primary (--team-redact). */
+  .reveal-panel {
+    animation: reveal-in var(--reveal-in-duration, 200ms) var(--reveal-in-ease, var(--ease-out)) var(--reveal-in-delay, 0ms) both;
+  }
+  .game-dialog .team-block .team-name::after {
+    content: "";
+    position: absolute;
+    inset: 18% -0.25rem 18% 0.375rem;
+    background-color: var(--team-redact);
+    clip-path: polygon(0.8% 9%, 6% 2%, 97% 0, 100% 14%, 99.3% 91%, 94% 100%, 2% 97%, 0 82%);
+    transform-origin: var(--declassify-origin, right) center;
+    transform: scaleX(0);
+    animation: declassify var(--declassify-duration, 240ms) var(--declassify-ease, var(--ease-declassify)) var(--lift-at, var(--declassify-start, 80ms)) both;
+    pointer-events: none;
+  }
+
+  /* --- Intro: the folder on the desk. */
+  /* Play while the week's resumes load is still your action in progress: it keeps the violet fill
+     (the same look as a tap before hydration, html.cfbbr-play-pending), with a progress cursor. */
+  .game-root .btn.btn-primary[data-testid="play"][aria-busy="true"] {
+    background-color: var(--color-accent-fill);
+    border-color: var(--color-accent-fill);
+    color: var(--color-on-accent);
+    cursor: progress;
+  }
+  .step-no {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-slab);
+    box-shadow: inset 0 0 0 1.5px var(--color-fg);
+    font-size: 1.125rem;
+    line-height: 1;
+    font-weight: 800;
+  }
+  .demo-slab {
+    display: flex;
+    height: 3.5rem;
+    align-items: stretch;
+    overflow: hidden;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-chip);
+    background-color: var(--color-surface);
+  }
+  .demo-slab .file-letter {
+    width: 3rem;
+    font-size: 1.875rem;
+    border-radius: 0;
+  }
+  .demo-slab .label-caps {
+    color: var(--color-fg-muted);
+  }
+  .demo-slab [data-redacted] {
+    height: 0.875rem;
+  }
+
+  /* --- Bracket: one ruled box per game; inside it two shaded form fields (no box-in-box). */
+  .game-root [data-testid="bracket"] .team-block[data-variant="tab"] {
+    background-color: var(--color-raised);
+    box-shadow: none;
+  }
+  .game-root [data-testid="bracket"] a.team-block[data-variant="tab"]:hover {
+    background-color: var(--color-raised-2);
+  }
+}
+
+@keyframes declassify {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+@keyframes stamp-in {
+  from { opacity: 0; transform: scale(1.18); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(var(--reveal-in-rise, 8px)); }
+  to { opacity: 1; transform: none; }
+}
+
+/* -------------------------------------------------------------------------- unlayered extras */
 
 /* Phone card carousel: no visible scrollbar, no scroll chaining into the page. */
 .game-carousel {
@@ -13,12 +298,10 @@
   display: none;
 }
 
-/* Reveal dialog backdrop (::backdrop may not inherit custom properties in older engines). */
+/* Reveal dialog backdrop (::backdrop may not inherit custom properties in older engines). The
+   dialog inherits the page's colour scheme. */
 .game-dialog::backdrop {
-  background-color: var(--color-scrim, rgb(6 7 9 / 0.8));
-}
-.game-dialog {
-  color-scheme: dark;
+  background-color: var(--color-scrim, rgb(24 25 29 / 0.5));
 }
 
 /* Lock-in countdown: a fill that sweeps across the Lock in button during the undo window. */
@@ -69,19 +352,96 @@ html.cfbbr-play-pending .game-root [data-testid="play"]::after {
 }
 
 /*
- * "Highlight playoff field" in the game is drawn with a box-shadow ring (page gap + 2px accent edge,
- * same geometry as the content pages' outline), so the keyboard focus ring can differ from it:
- * focus is a 3px fg ring outside the field ring. Without this the focused in-field tile looked
- * exactly like its neighbours (WCAG 2.4.7).
+ * "Highlight playoff field" in the island: the same 2px violet rule as global.css, unlayered so it
+ * also wins over the bracket's flat fields. Focus stays a 3px ink outline outside it (WCAG 2.4.7).
  */
 .game-root .team-block[data-in-field] {
   outline: none;
-  box-shadow:
-    inset 0 0 0 1px var(--team-edge),
-    0 0 0 2px var(--color-page),
-    0 0 0 4px var(--color-accent-edge);
+  box-shadow: inset 0 0 0 2px var(--color-accent-edge);
 }
 .game-root .team-block:focus-visible {
   outline: 3px solid var(--color-fg);
   outline-offset: 4px;
+}
+
+/* Reduced motion: the final frame of the declassify at once: the sheet is simply there and the bar
+   is never drawn, so the names show immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-panel {
+    animation: none;
+  }
+  .game-dialog .team-block .team-name::after {
+    display: none;
+  }
+}
+
+/* Forced colours (global.css has the shared components): the reveal bar stays a solid block; the
+   fan's marks map to Highlight; progress ticks keep their two states. */
+@media (forced-colors: active) {
+  .game-dialog .team-block .team-name::after {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
+  .blind-card[data-place],
+  .game-root .team-block[data-in-field] {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    box-shadow: inset 0 0 0 2px Highlight;
+  }
+  :is(.blind-card, .demo-slab)[data-place="1"] .file-letter,
+  :is(.blind-card, .demo-slab)[data-place="2"] .file-letter,
+  .round-tick[data-state="current"] {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+  .reveal-cell[data-match] .reveal-value {
+    forced-color-adjust: none;
+    color: CanvasText;
+    box-shadow: inset 0 0 0 2px Highlight;
+  }
+  .step-no {
+    box-shadow: none;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  .round-tick {
+    forced-color-adjust: none;
+    background-color: GrayText;
+  }
+  .round-tick[data-state="done"] {
+    background-color: CanvasText;
+  }
+  /* The reveal's plate is the blind card's ink file letter; the cover keeps its outline. */
+  .game-dialog .team-block > .seed-plate {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+    color: Canvas;
+    box-shadow: none;
+  }
+  .game-dialog .team-block[data-variant="cover"] {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  /* Phone footer: the card in view stays a solid letter, the others are outlined; its tick stays. */
+  .file-letter-rec:not([data-current]) {
+    background-color: Canvas;
+    color: CanvasText;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  .file-letter-tick[data-current] {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
+  .h2h-tag {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  /* Up / down triangles keep their shape (the delta is drawn as a background). */
+  .game-root .delta::before {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
 }

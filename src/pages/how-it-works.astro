@@ -87,7 +87,7 @@ const terms = [
 <BaseLayout title={title} description={description} path="/how-it-works" jsonLd={ld} ads current="how" week={week}>
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <Breadcrumbs items={[{ name: 'How it works', href: '/how-it-works' }]} />
-    <h1 class="cond mt-2 text-title uppercase lg:text-display">How it works</h1>
+    <h1 class="cond mt-2 text-title lg:text-display">How it works</h1>
     <p class="mt-4 max-w-read text-lg leading-7">
       Every number here is either FEI, created by {s.ratings.author}, or computed from final scores. Here is what each one means, how the game
       turns your picks into a top 25, and how the playoff fields are built.
@@ -105,14 +105,14 @@ const terms = [
 
     <div class="mt-12 flex max-w-read flex-col gap-14">
       <section aria-labelledby="numbers" class="scroll-mt-4">
-        <h2 id="numbers" class="cond text-heading uppercase">The numbers</h2>
+        <h2 id="numbers" class="cond text-heading">The numbers</h2>
         <p class="mt-2 text-fg-muted">Every rank is out of all {n} FBS teams, where #1 is best.</p>
         <dl class="mt-5 flex flex-col gap-6">
           {
             terms.map((t) => (
               <div id={t.id} class="scroll-mt-4 border-l-4 border-line-strong pl-4">
                 <dt class="flex flex-wrap items-baseline gap-x-2.5">
-                  <span class="cond text-[1.375rem] leading-6 font-bold uppercase">{t.term}</span>
+                  <span class="cond text-[1.375rem] leading-6 font-bold">{t.term}</span>
                   <span class="label-caps text-fg-muted">{t.src}</span>
                 </dt>
                 <dd class="mt-1.5 leading-7">{t.body}</dd>
@@ -123,19 +123,19 @@ const terms = [
       </section>
 
       <section aria-labelledby="tiers" class="scroll-mt-4">
-        <h2 id="tiers" class="cond text-heading uppercase">Opponent tiers</h2>
+        <h2 id="tiers" class="cond text-heading">Opponent tiers</h2>
         <p class="mt-2 leading-7">
-          Every opponent gets a tier from its overall FEI rank this week, so a win over a team that turns out to be good keeps getting better. Stars,
-          dot sizes and colors all follow the same scale.
+          Every opponent gets a tier from its overall FEI rank this week, so a win over a team that turns out to be good keeps getting better. Pips,
+          tick heights and ink density all follow the same scale: the better the opponent, the more ink.
         </p>
         <div class="table-wrap mt-4">
           <table class="data-table">
             <caption class="sr-only">Opponent tiers</caption>
             <thead>
               <tr>
-                <th scope="col">Stars</th>
+                <th scope="col">Pips</th>
                 <th scope="col">Tier</th>
-                <th scope="col" class="w-14">Dot</th>
+                <th scope="col" class="w-14">Tick</th>
               </tr>
             </thead>
             <tbody>
@@ -147,7 +147,7 @@ const terms = [
                     </td>
                     <td>{t.label}</td>
                     <td>
-                      <span class="grid h-4 w-4 place-items-center">
+                      <span class="tier-tick-cell">
                         <span class="tier-dot" data-tier={tierKey(t.stars)} aria-hidden="true" />
                       </span>
                     </td>
@@ -165,7 +165,7 @@ const terms = [
       <AdSlot kind="incontent" />
 
       <section aria-labelledby="ranking" class="scroll-mt-4">
-        <h2 id="ranking" class="cond text-heading uppercase">Your ranking</h2>
+        <h2 id="ranking" class="cond text-heading">Your ranking</h2>
         <ol class="mt-4 flex list-decimal flex-col gap-3 pl-5 leading-7 marker:font-semibold marker:text-fg-muted">
           <li>
             The pool is the committee's top {week.committee?.length ?? TOP_N} plus any team in FEI's strength of record top {TOP_N} the committee left out.
@@ -195,7 +195,7 @@ const terms = [
       </section>
 
       <section aria-labelledby="playoff" class="scroll-mt-4">
-        <h2 id="playoff" class="cond text-heading uppercase">Playoff formats</h2>
+        <h2 id="playoff" class="cond text-heading">Playoff formats</h2>
         <p class="mt-2 leading-7">
           Every field on this site comes from a ranking (the committee's, FEI's or yours) and the rules below. Seeding is straight by rank, and the
           top seeds get first-round byes. Until title games are played, each conference's champion is its current leader: the best conference
@@ -204,9 +204,9 @@ const terms = [
         <div class="mt-6 flex flex-col gap-8">
           {
             views.formats.map((f) => (
-              <article aria-labelledby={`pf-${f.id}`} class="rounded-card border border-line p-5">
+              <article aria-labelledby={`pf-${f.id}`} class="rounded-card border border-line-strong p-5">
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <h3 id={`pf-${f.id}`} class="cond text-heading uppercase">
+                  <h3 id={`pf-${f.id}`} class="cond text-heading">
                     {f.status === 'proposed' ? f.label : formatShortLabel(f, week.season)}
                   </h3>
                   {f.status === 'proposed' && (
@@ -254,7 +254,7 @@ const terms = [
       </section>
 
       <section aria-labelledby="sources" class="scroll-mt-4">
-        <h2 id="sources" class="cond text-heading uppercase">Sources</h2>
+        <h2 id="sources" class="cond text-heading">Sources</h2>
         <ul class="mt-4 flex flex-col gap-3 leading-7">
           <li>
             <b>Ratings:</b> <a class="link" href={s.ratings.url}>FEI by {s.ratings.author}</a>

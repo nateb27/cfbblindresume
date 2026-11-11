@@ -1,5 +1,5 @@
 ---
-/** Opponent-tier stars (DESIGN §4): one masked element, filled in the tier color. */
+/** Opponent-tier pips (DESIGN.md "Opponent-tier indicator"): five square pips, filled in toner to the tier. */
 import { tierKey } from '../styles/tokens';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   class?: string;
 }
 const { stars, label, class: cls } = Astro.props;
-const name = `${stars} of 5 stars${label ? `, ${label}` : ''}`;
+const name = `${stars} of 5 pips${label ? `, ${label}` : ''}`;
 ---
 
 <span class:list={['stars', cls]} data-tier={tierKey(stars)} role="img" aria-label={name}></span>

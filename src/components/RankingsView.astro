@@ -51,9 +51,9 @@ const groups = [
         ]
       : [{ name: 'Rankings', href: '/rankings' }]}
   />
-  <h1 class="cond mt-2 text-title uppercase lg:text-display">
+  <h1 class="cond mt-2 text-title lg:text-display">
     {committee ? 'Committee vs strength of record' : 'FEI strength of record'}{' '}
-    <span class="block text-fg-muted">{archive ? `${week.label}, ${week.season}` : `Top ${n}, ${week.label.replace(/^After/, 'after')}`}</span>
+    <span class="title-sub">{archive ? `${week.label}, ${week.season}` : `Top ${n}, ${week.label.replace(/^After/, 'after')}`}</span>
   </h1>
   <p class="mt-4 max-w-read text-lg leading-7">
     {
@@ -94,7 +94,7 @@ const groups = [
     {
       committee && (
         <section aria-labelledby="t-cmte" class="min-w-0">
-          <h2 id="t-cmte" class="cond text-heading uppercase">
+          <h2 id="t-cmte" class="cond text-heading">
             Committee top {n}
           </h2>
           <p class="mt-1 text-sm text-fg-muted">With each team's FEI strength-of-record rank ({SOR}).</p>
@@ -103,7 +103,7 @@ const groups = [
       )
     }
     <section aria-labelledby="t-fei" class="min-w-0">
-      <h2 id="t-fei" class="cond text-heading uppercase">FEI strength of record top {n}</h2>
+      <h2 id="t-fei" class="cond text-heading">FEI strength of record top {n}</h2>
       <p class="mt-1 text-sm text-fg-muted">{committee ? 'With the committee rank for each team (NR = unranked).' : `Among all ${week.fbsCount} FBS teams.`}</p>
       <RankingsTable week={week} kind="fei" caption={`FEI strength of record top ${n}${committee ? ' with committee ranks' : ''}`} class="mt-3" />
     </section>
@@ -119,7 +119,7 @@ const groups = [
     committee && (
       <div class:list={['mt-12', ADS_ON && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12']}>
         <section aria-labelledby="disagree">
-          <h2 id="disagree" class="cond text-heading uppercase">
+          <h2 id="disagree" class="cond text-heading">
             Where they disagree most
           </h2>
           <div class:list={['mt-4 grid gap-x-12 gap-y-8 sm:grid-cols-2', !ADS_ON && 'lg:max-w-[56rem]']}>
@@ -171,7 +171,7 @@ const groups = [
   {committee && <CutPairs week={week} class="mt-14" />}
 
   <section aria-labelledby="archive" class="mt-14">
-    <h2 id="archive" class="cond text-heading uppercase">Every week</h2>
+    <h2 id="archive" class="cond text-heading">Every week</h2>
     <ul class="mt-3 flex flex-wrap gap-2">
       {
         refs
@@ -186,10 +186,10 @@ const groups = [
                   aria-current={here ? 'page' : undefined}
                   class:list={[
                     'flex min-h-11 flex-col justify-center rounded-chip border px-3 py-1.5 transition-colors hover:bg-surface',
-                    here ? 'border-accent-edge' : 'border-line hover:border-control',
+                    here ? 'border-fg shadow-[inset_0_0_0_1px_var(--color-fg)]' : 'border-line hover:border-control',
                   ]}
                 >
-                  <span class="cond text-[1.0625rem] leading-5 font-bold uppercase">
+                  <span class="cond text-[1.0625rem] leading-5 font-bold">
                     {r.label}, {r.season}
                   </span>
                   <span class="text-[0.8125rem] leading-4 text-fg-muted">

@@ -1,7 +1,9 @@
 /*
  * cfbblindresume global stylesheet. Import once per page (layouts): `import '../styles/global.css'`.
- * Tailwind 4 + design tokens + base styles + the few shared component classes that both the
- * Astro content pages and the React game island use. DESIGN.md is the visual spec.
+ * Tailwind 4 + design tokens + base styles + the shared component classes that both the Astro
+ * content pages and the React game island use. DESIGN.md is the visual spec (DOSSIER: a redacted
+ * committee file; paper, ink, toner, one violet stamp ink for "you", one marker bar for "hidden").
+ * Game-only components live in game.css (same @layer components).
  */
 @import "tailwindcss";
 @import "./tokens.css";
@@ -10,100 +12,81 @@
 @source inline("{bg,text,fill,stroke,border,outline,ring,decoration}-tier-{50,45,40,30,20,15,10,05}");
 
 /* -------------------------------------------------------------------------- fonts
- * Barlow Condensed 600 + 700, latin subset, woff2 only, self-hosted. The woff2 files are the
- * @fontsource/barlow-condensed latin files, copied next to the TTFs used for PNG rendering.
- * Vite fingerprints them (/_astro/BarlowCondensed-700.<hash>.woff2). To preload the 700 weight
- * (above the fold on every page), import the same file with ?url in the layout:
- *   import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url';
- *   <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
- * The ?url import and the url() below resolve to the same hashed file.
+ * Archivo 400 / 600 / 800 (SIL OFL 1.1, src/assets/fonts/Archivo-OFL.txt), latin subset, woff2,
+ * self-hosted: the @fontsource/archivo 5.3.0 latin files. Vite fingerprints them
+ * (/_astro/archivo-latin-800-normal.<hash>.woff2). BaseLayout preloads all three by importing the
+ * same files with ?url, which resolve to the same hashed files as the url() below.
+ * font-weight 700 (`font-bold`) resolves to the 800 file: no 700 face is declared.
+ * The static TTFs next to them (Archivo-{400,600,800}.ttf) are for build-time images only.
  */
 @font-face {
-  font-family: "Barlow Condensed";
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/archivo-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("../assets/fonts/BarlowCondensed-600.woff2") format("woff2");
+  src: url("../assets/fonts/archivo-latin-600-normal.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Barlow Condensed";
+  font-family: "Archivo";
   font-style: normal;
-  font-weight: 700;
+  font-weight: 800;
   font-display: swap;
-  src: url("../assets/fonts/BarlowCondensed-700.woff2") format("woff2");
+  src: url("../assets/fonts/archivo-latin-800-normal.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-/* Metric-matched fallback: Barlow Condensed is 70.3% as wide as Arial (measured), so text set
-   in the fallback during the swap period occupies the same width and nothing reflows (CLS 0). */
+/* Metric-matched fallbacks, one per weight band (opentype.js over the static TTFs vs Liberation
+   Sans = Arial metrics; size-adjust from the advance widths of the site's own text: every FBS team
+   name, the UI labels, digits; ascent/descent = hhea / upm / size-adjust). Text set in the
+   fallback during the swap period occupies the same box, so nothing reflows (CLS 0). */
 @font-face {
-  font-family: "Barlow Condensed Fallback";
+  font-family: "Archivo Fallback";
+  font-weight: 100 500;
   src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Helvetica");
-  size-adjust: 70.3%;
-  ascent-override: 142.2%;
-  descent-override: 28.4%;
+  size-adjust: 98.5%;
+  ascent-override: 89.2%;
+  descent-override: 21.3%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Archivo Fallback";
+  font-weight: 600;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Helvetica Bold");
+  size-adjust: 96%;
+  ascent-override: 91.5%;
+  descent-override: 21.9%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Archivo Fallback";
+  font-weight: 700 900;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Helvetica Bold");
+  size-adjust: 103.7%;
+  ascent-override: 84.6%;
+  descent-override: 20.2%;
   line-gap-override: 0%;
 }
 
-/* -------------------------------------------------------------------------- themes */
-/* Dark theme values again, so data-theme="dark" can re-darken a subtree inside a light page.
-   Must equal the @theme block in tokens.css (tests/design-tokens.test.ts checks). */
-@utility theme-dark-values {
-  --color-page: #0e0f12;
-  --color-surface: #16181d;
-  --color-raised: #1e2128;
-  --color-raised-2: #272b33;
-  --color-line: #2a2e36;
-  --color-line-strong: #3a3f49;
-  --color-control: #7a808a;
-  --color-track: #2b2f37;
-  --color-fg: #ecedee;
-  --color-fg-muted: #9ba1ab;
-  --color-fg-faint: #878d97;
-  --color-accent: #c8f135;
-  --color-accent-fill: #c8f135;
-  --color-on-accent: #0e0f12;
-  --color-accent-tint: #333f22;
-  --color-accent-edge: #c8f135;
-  --color-focus: #c8f135;
-  --color-win: #3dd68c;
-  --color-loss: #ff6b6b;
-  --color-win-tint: #1b3a2f;
-  --color-loss-tint: #3e2329;
-  --color-tier-50: #ffcd34;
-  --color-tier-45: #f8b23d;
-  --color-tier-40: #d9a461;
-  --color-tier-30: #77abd7;
-  --color-tier-20: #7f96af;
-  --color-tier-15: #7c8999;
-  --color-tier-10: #777e87;
-  --color-tier-05: #717579;
-  --color-scrim: rgb(6 7 9 / 0.8);
-  --color-selection: #c8f135;
-  --color-on-selection: #0e0f12;
-  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.04), 0 18px 36px -18px rgb(0 0 0 / 0.75);
-  --shadow-panel: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 28px 72px -16px rgb(0 0 0 / 0.8);
-  --shadow-footer: 0 -14px 28px -14px rgb(0 0 0 / 0.7);
-  color-scheme: dark;
-}
-
 @layer base {
+  /* Every page follows the OS: light paper by default, photostat negative in dark mode. */
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
-  /* Content pages: follow the OS. Game pages put data-theme="dark" on <html> to stay dark. */
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      @apply theme-light-values;
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
     }
-  }
-  [data-theme="light"] {
-    @apply theme-light-values;
-  }
-  [data-theme="dark"] {
-    @apply theme-dark-values;
   }
 
   html {
@@ -129,6 +112,14 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
 
   :focus-visible {
@@ -165,76 +156,160 @@
 }
 
 /* -------------------------------------------------------------------------- utilities */
-/* Condensed caps label: metric names, column heads, section kickers. */
+/* Form-field label: metric names, column heads, section kickers, tags. 13/16 600, sentence case
+   (the name is historical: there are no caps and no tracking anywhere). */
 @utility label-caps {
-  font-family: var(--font-condensed);
+  font-family: var(--font-sans);
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
-  letter-spacing: var(--text-label--letter-spacing);
+  letter-spacing: 0;
   font-weight: 600;
-  text-transform: uppercase;
 }
-/* Condensed display numerals / names (pair with a text-<role> size). */
+/* Numerals that must line up (body already sets tabular figures; this keeps them inside elements
+   that opt out). The family is Archivo everywhere. */
 @utility cond {
-  font-family: var(--font-condensed);
   font-variant-numeric: tabular-nums;
 }
 
 /* -------------------------------------------------------------------------- components */
 @layer components {
-  /* --- Opponent tier: any element with data-tier="50|45|40|30|20|15|10|05" (stars x 10)
-     exposes --tier (ramp color), --stars (star count) and --tier-dot (resume-strip dot size). */
-  [data-tier="50"] { --tier: var(--color-tier-50); --stars: 5;   --tier-dot: 14px; }
-  [data-tier="45"] { --tier: var(--color-tier-45); --stars: 4.5; --tier-dot: 12px; }
-  [data-tier="40"] { --tier: var(--color-tier-40); --stars: 4;   --tier-dot: 11px; }
-  [data-tier="30"] { --tier: var(--color-tier-30); --stars: 3;   --tier-dot: 10px; }
-  [data-tier="20"] { --tier: var(--color-tier-20); --stars: 2;   --tier-dot: 9px; }
-  [data-tier="15"] { --tier: var(--color-tier-15); --stars: 1.5; --tier-dot: 8px; }
-  [data-tier="10"] { --tier: var(--color-tier-10); --stars: 1;   --tier-dot: 7px; }
-  [data-tier="05"] { --tier: var(--color-tier-05); --stars: 0.5; --tier-dot: 6px; }
-
-  /* Five stars, filled to --stars in the tier color (half stars work). One element, no SVG. */
-  .stars {
-    --star: 12px;
-    display: inline-block;
-    flex: none;
-    width: calc(var(--star) * 5);
-    height: var(--star);
-    background: linear-gradient(
-      90deg,
-      var(--tier, var(--color-fg-muted)) calc(var(--stars, 0) * 20%),
-      var(--color-line-strong) 0
-    );
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .6l1.44 3.92 4.17.16-3.28 2.58 1.14 4.01L6 8.95l-3.47 2.32 1.14-4.01L.39 4.68l4.17-.16z'/%3E%3C/svg%3E")
-      0 0 / var(--star) var(--star) repeat-x;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .6l1.44 3.92 4.17.16-3.28 2.58 1.14 4.01L6 8.95l-3.47 2.32 1.14-4.01L.39 4.68l4.17-.16z'/%3E%3C/svg%3E")
-      0 0 / var(--star) var(--star) repeat-x;
+  /* A heading is one colour. A second line is a subtitle in the same ink, lighter weight. */
+  .title-sub {
+    display: block;
+    color: inherit;
+    font-weight: 400;
+    letter-spacing: -0.015em;
   }
 
-  /* Resume-strip dot: size and color from data-tier. */
+  /* --- The redaction bar (the signature). An empty aria-hidden span; its size comes from the
+     layout around it, never from what it hides. Marker-swipe ends: barely irregular. */
+  [data-redacted] {
+    display: block;
+    background-color: var(--color-redaction);
+    clip-path: polygon(0.8% 9%, 6% 2%, 97% 0, 100% 14%, 99.3% 91%, 94% 100%, 2% 97%, 0 82%);
+  }
+  /* Wordmark: "CFB [Blind] Resume", the word reversed out of a bar. Static markup, no script. */
+  .wordmark {
+    font-family: var(--font-sans);
+    font-size: 1.125rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+  }
+  .wm-redacted,
+  .hero-redacted {
+    background-color: var(--color-redaction);
+    color: var(--color-on-redaction);
+    border-radius: 1px;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .wm-redacted {
+    padding: 0.06em 0.16em 0.08em;
+    margin: 0 0.02em;
+  }
+  /* Home hero: "Names hidden." is reversed out of a bar because it says what it does. The only
+     single-phrase treatment on the site. */
+  .hero-redacted {
+    padding: 0 0.14em 0.03em;
+    margin-left: -0.02em;
+  }
+
+  /* --- Opponent tier: any element with data-tier="50|45|40|30|20|15|10|05" (stars x 10)
+     exposes --tier (toner), --stars (pip count) and --tier-tick (season tick height). */
+  [data-tier="50"] { --tier: var(--color-tier-50); --stars: 5;   --tier-tick: 14px; }
+  [data-tier="45"] { --tier: var(--color-tier-45); --stars: 4.5; --tier-tick: 12px; }
+  [data-tier="40"] { --tier: var(--color-tier-40); --stars: 4;   --tier-tick: 10px; }
+  [data-tier="30"] { --tier: var(--color-tier-30); --stars: 3;   --tier-tick: 8px; }
+  [data-tier="20"] { --tier: var(--color-tier-20); --stars: 2;   --tier-tick: 6px; }
+  [data-tier="15"] { --tier: var(--color-tier-15); --stars: 1.5; --tier-tick: 5px; }
+  [data-tier="10"] { --tier: var(--color-tier-10); --stars: 1;   --tier-tick: 4px; }
+  [data-tier="05"] { --tier: var(--color-tier-05); --stars: 0.5; --tier-tick: 3px; }
+
+  /* Five square pips (class name kept: `.stars`). Filled pips are inked in toner (more ink =
+     better opponent, half tiers show a half-inked box); empty pips are blank form boxes (a 1px
+     outline), so the count is a shape difference, never only grey. */
+  .stars {
+    --pip: 9px;
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: calc(var(--pip) * 5);
+    height: 10px;
+  }
+  .stars::before,
+  .stars::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .stars::before {
+    background-color: var(--color-line-strong);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 10'%3E%3Crect x='2' y='0.5' width='5' height='9' fill='none' stroke='black' stroke-width='1'/%3E%3C/svg%3E")
+      0 0 / var(--pip) 10px repeat-x;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 10'%3E%3Crect x='2' y='0.5' width='5' height='9' fill='none' stroke='black' stroke-width='1'/%3E%3C/svg%3E")
+      0 0 / var(--pip) 10px repeat-x;
+  }
+  .stars::after {
+    background: linear-gradient(90deg, var(--tier, var(--color-fg-muted)) calc(var(--stars, 0) * 20%), transparent 0);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 10'%3E%3Crect x='1.5' y='0' width='6' height='10'/%3E%3C/svg%3E")
+      0 0 / var(--pip) 10px repeat-x;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 10'%3E%3Crect x='1.5' y='0' width='6' height='10'/%3E%3C/svg%3E")
+      0 0 / var(--pip) 10px repeat-x;
+  }
+  @container (max-width: 19rem) {
+    .stars {
+      --pip: 8px;
+    }
+  }
+
+  /* Season tick (class name kept: `.tier-dot`): one per game standing on a baseline, its height =
+     opponent tier, a tiny printed bar chart. */
   .tier-dot {
     display: block;
     flex: none;
-    width: var(--tier-dot, 8px);
-    height: var(--tier-dot, 8px);
-    border-radius: 999px;
+    align-self: end;
+    width: 8px;
+    height: var(--tier-tick, 6px);
+    border-radius: 0;
     background-color: var(--tier, var(--color-fg-muted));
   }
+  /* In the blind card: each slot carries a piece of the baseline, overlapping the gaps so it
+     reads as one ruled line under the season. */
+  .tick-slot {
+    display: grid;
+    align-self: stretch;
+    align-items: end;
+    justify-items: center;
+    height: 0.875rem;
+    margin: 0 -3px;
+    border-bottom: 1px solid var(--color-line-strong);
+  }
+  /* A single tick sample for legends and the how-it-works table. */
+  .tier-tick-cell {
+    display: inline-grid;
+    align-items: end;
+    justify-items: center;
+    width: 1rem;
+    height: 0.875rem;
+    border-bottom: 1px solid var(--color-line-strong);
+  }
 
-  /* Metric bar: <div class="meter" data-tier="50" style="--fill:.98"><span></span></div>
-     --fill = rankFill(rank, fbsCount) from @lib/tiers; color = tier of that rank band. */
+  /* Rank bar, a printed bar chart: <div class="meter" data-tier="50" style="--fill:.98"><span></span></div>
+     --fill = rankFill(rank, fbsCount) from @lib/tiers; colour = toner of that rank band. */
   .meter {
     position: relative;
-    height: 6px;
+    height: 5px;
     overflow: hidden;
-    border-radius: 1px;
+    border-radius: 0;
     background-color: var(--color-track);
   }
   .meter > span {
     position: absolute;
     inset: 0 auto 0 0;
     width: max(3px, calc(var(--fill, 0) * 100%));
-    border-radius: inherit;
+    border-radius: 0;
     background-color: var(--tier, var(--color-fg-muted));
     transform-origin: left center;
   }
@@ -242,26 +317,31 @@
     animation: var(--animate-fill);
   }
 
-  /* Game result chip: <span class="result-chip" data-result="W"><b>W</b><span>+16</span></span> */
+  /* Game result: <span class="result-chip" data-result="W"><span>W</span><span>+16</span></span>.
+     Wins print quiet (green letter, ink margin, no fill); losses are flagged (red on a red wash),
+     because fans scan a resume for its losses. */
   .result-chip {
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.375rem;
-    min-width: 3.75rem;
-    height: 1.5rem;
-    padding: 0 0.5rem;
-    border-radius: var(--radius-chip);
-    font-family: var(--font-condensed);
-    font-size: 0.9375rem;
-    font-weight: 700;
+    min-width: 3.5rem;
+    height: 1.375rem;
+    padding: 0 0.375rem;
+    border-radius: var(--radius-slab);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 800;
     line-height: 1;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .result-chip[data-result="W"] {
-    background-color: var(--color-win-tint);
+    background-color: transparent;
+    color: var(--color-fg);
+  }
+  .result-chip[data-result="W"] > span:first-child {
     color: var(--color-win);
   }
   .result-chip[data-result="L"] {
@@ -269,15 +349,15 @@
     color: var(--color-loss);
   }
 
-  /* Rank delta: <span class="delta" data-dir="up|down|same">3</span> (drawn triangle; the
-     condensed font has no arrow glyphs). Screen-reader text goes in an sr-only span. */
+  /* Rank delta: <span class="delta" data-dir="up|down|same">3</span> (a drawn triangle).
+     Screen-reader text goes in an sr-only span. */
   .delta {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-family: var(--font-condensed);
-    font-size: 0.9375rem;
-    font-weight: 700;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 800;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--color-fg-muted);
@@ -300,11 +380,48 @@
     clip-path: polygon(0 0, 100% 0, 50% 100%);
   }
 
-  /* --- Team identity. Style vars come from teamVars(team.colors) in src/styles/tokens.ts:
-     --team-bg (primary), --team-ink (text by contrast), --team-rule (secondary, 4px),
-     --team-edge-dark / --team-edge-light (hairline when the primary vanishes into the page). */
+  /* Tier cell (game-log tables): pips + band text on every row; the band goes under the pips
+     on phones. */
+  .tier-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .tier-band {
+    color: var(--color-fg-muted);
+    white-space: nowrap;
+  }
+  @media (width < 40rem) {
+    .tier-cell {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.125rem;
+    }
+    .tier-band {
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+  }
+
+  /* --- Team identity: covers and index tabs. Style vars come from teamVars(team.colors) in
+     src/styles/tokens.ts: --team-bg (primary), --team-ink (text by contrast), --team-rule
+     (secondary), --team-edge-light / -dark (a hairline when the primary vanishes into the page),
+     --team-redact-light / -dark (the reveal bar: marker or the team ink, >= 3:1 on the primary).
+     data-variant="cover" (the team colour in full: reveal, team hero, compare) or "tab" (the rank
+     on a small colour tab, the name typed on paper: every list). */
+  .team-block,
+  .team-chip {
+    --team-edge: var(--team-edge-light, transparent);
+    --team-redact: var(--team-redact-light, var(--color-redaction));
+  }
+  @media (prefers-color-scheme: dark) {
+    .team-block,
+    .team-chip {
+      --team-edge: var(--team-edge-dark, transparent);
+      --team-redact: var(--team-redact-dark, var(--color-redaction));
+    }
+  }
   .team-block {
-    --team-edge: var(--team-edge-dark, transparent);
     position: relative;
     display: flex;
     align-items: center;
@@ -314,42 +431,100 @@
     border-bottom: 4px solid var(--team-rule, var(--color-line-strong));
     border-radius: var(--radius-slab);
     box-shadow: inset 0 0 0 1px var(--team-edge);
-    font-family: var(--font-condensed);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
+    font-family: var(--font-sans);
+    font-weight: 800;
+    letter-spacing: -0.01em;
     font-variant-numeric: tabular-nums;
+  }
+  /* Cover: the team's colour in full, for the big moments. */
+  .team-block[data-variant="cover"] {
+    background-color: var(--team-bg);
+    color: var(--team-ink);
+    border-bottom: 4px solid var(--team-rule);
+    box-shadow: inset 0 0 0 1px var(--team-edge);
+  }
+  /* Index tab: dense lists. The rank sits on a colour tab (primary + secondary rule); the name is
+     typed on paper, so 25 rows read as names, not 25 slabs. */
+  .team-block[data-variant="tab"] {
+    background-color: var(--color-surface);
+    color: var(--color-fg);
+    border-bottom: 0;
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  }
+  .team-block[data-variant="tab"] > .seed-plate {
+    background-color: var(--team-bg, var(--color-raised-2));
+    color: var(--team-ink, var(--color-fg));
+    box-shadow: inset 0 -4px 0 var(--team-rule, var(--color-line-strong)), inset 0 0 0 1px var(--team-edge);
+    padding-bottom: 4px;
+  }
+  .team-block[data-variant="tab"] .team-meta {
+    color: var(--color-fg-muted);
+    font-weight: 600;
   }
   a.team-block,
   a .team-block {
-    transition: filter var(--duration-fast) var(--ease-out);
+    transition: background-color var(--duration-fast) var(--ease-out), filter var(--duration-fast) var(--ease-out);
   }
-  a.team-block:hover,
-  a:hover .team-block {
-    filter: brightness(1.1) saturate(1.05);
+  a.team-block[data-variant="tab"]:hover {
+    background-color: var(--color-raised);
   }
-  /* Inline team mark for tables and prose: 12x20 color block + 4px rule + condensed caps name. */
+  a.team-block[data-variant="cover"]:hover {
+    filter: brightness(1.06);
+  }
+  /* "Highlight playoff field" (the fan turned it on): the label's 1px rule becomes a 2px violet
+     rule. One cue, no ring, no layout change; the colour tab keeps the team colour. game.css
+     repeats it for the island. */
+  .team-block[data-in-field] {
+    box-shadow: inset 0 0 0 2px var(--color-accent-edge);
+  }
+  .team-block[data-in-field] > .seed-plate {
+    background-color: var(--team-bg, var(--color-raised-2));
+    color: var(--team-ink, var(--color-fg));
+  }
+  /* Focus on a team block: a 3px ink outline outside, never confused with the violet field rule
+     (WCAG 2.4.7). */
+  .team-block:focus-visible {
+    outline: 3px solid var(--color-fg);
+    outline-offset: 3px;
+  }
+  /* Seed / rank plate on the left of a team block. */
+  .seed-plate {
+    display: grid;
+    flex: none;
+    place-items: center;
+    min-width: 2.25rem;
+    align-self: stretch;
+    padding: 0 0.375rem;
+    border-radius: var(--radius-slab) 0 0 var(--radius-slab);
+    background-color: var(--color-raised-2);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 1.375rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Inline team mark for tables and prose: a 10x18 index tab + the name in 600. */
   .team-chip {
-    --team-edge: var(--team-edge-dark, transparent);
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     min-width: 0;
-    font-family: var(--font-condensed);
-    font-size: var(--text-label-lg);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
     line-height: 1.25rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0;
   }
   .team-chip::before {
     content: "";
     flex: none;
-    width: 0.75rem;
-    height: 1.25rem;
+    width: 0.625rem;
+    height: 1.125rem;
     border-radius: 1px;
     background-color: var(--team-bg, var(--color-raised-2));
-    border-bottom: 4px solid var(--team-rule, var(--color-line-strong));
+    border-bottom: 3px solid var(--team-rule, var(--color-line-strong));
     box-shadow: inset 0 0 0 1px var(--team-edge);
   }
   /* Team link in a table row: a 44px-tall hit area (the whole row height) that takes no more
@@ -359,26 +534,24 @@
     margin-block: -0.5rem;
     padding-right: 0.5rem;
   }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) :is(.team-block, .team-chip) {
-      --team-edge: var(--team-edge-light, transparent);
-    }
-  }
-  [data-theme="light"] :is(.team-block, .team-chip) {
-    --team-edge: var(--team-edge-light, transparent);
-  }
-  [data-theme="dark"] :is(.team-block, .team-chip) {
-    --team-edge: var(--team-edge-dark, transparent);
-  }
 
-  /* Team-page hero name (TeamBlock size "hero" + heroNameFit): the block is a size container and
-     the name's size is min(max, (100cqi - meta) / width-per-px), computed at build time from the
-     real glyph widths, so it shrinks only as much as needed and never truncates. Long names on
-     phones are two .hero-line spans that stack (two 32px lines fit the 72px block). Browsers
-     without container units keep the fixed sizes and truncate, as before. */
+  /* Team-page hero (TeamBlock size "hero" + heroNameFit): the file cover. The block is a size
+     container and the name's size is min(max, (100cqi - meta) / width-per-px), computed at build
+     time from the real Archivo 800 glyph widths, so it shrinks only as much as needed and never
+     truncates. Long names on phones are two .hero-line spans that stack. Browsers without
+     container units keep the fixed sizes and truncate. */
+  .team-block[data-size="hero"] {
+    border-bottom-width: 6px;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+  .team-block[data-size="hero"] .team-meta {
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
   .hero-name {
     font-size: var(--text-title);
     line-height: var(--text-title--line-height);
+    letter-spacing: -0.025em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -411,47 +584,106 @@
       }
     }
   }
+  /* Phones: the conference line wraps inside 92px so the name keeps its size (heroNameFit knows). */
+  .hero-conf {
+    max-width: 5.75rem;
+    margin-left: auto;
+  }
+  @media (width >= 40rem) {
+    .hero-conf {
+      max-width: none;
+    }
+  }
 
-  /* Seed / rank plate that sits on the left of a team block (lower-third). */
-  .seed-plate {
+  /* --- File letter: the ink plate that names a resume (card header, glance table, phone footer,
+     confirm bar, play pitch, intro demo). Picked: 1st solid violet, 2nd violet rule, 3rd quiet. */
+  .file-letter {
     display: grid;
     flex: none;
     place-items: center;
-    min-width: 2.25rem;
-    align-self: stretch;
-    padding: 0 0.375rem;
-    border-radius: var(--radius-slab) 0 0 var(--radius-slab);
-    background-color: var(--color-raised-2);
-    color: var(--color-fg);
-    font-family: var(--font-condensed);
-    font-size: 1.375rem;
-    font-weight: 700;
+    background-color: var(--color-fg);
+    color: var(--color-surface);
+    font-family: var(--font-sans);
+    font-weight: 800;
     line-height: 1;
+    letter-spacing: -0.02em;
+    border-radius: var(--radius-slab);
     font-variant-numeric: tabular-nums;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
   }
-  /*
-   * "Highlight playoff field": the team block gets an accent ring (a page-colored 2px gap, then a
-   * 2px accent edge) and an accent seed plate. The ring is a box-shadow, not an outline, so the
-   * keyboard focus ring stays distinct: a focused in-field block gets a 3px fg ring outside it
-   * (WCAG 2.4.7). game.css draws the same thing inside the island.
-   */
-  .team-block[data-in-field] {
-    box-shadow:
-      inset 0 0 0 1px var(--team-edge),
-      0 0 0 2px var(--color-page),
-      0 0 0 4px var(--color-accent-edge);
-  }
-  .team-block[data-in-field]:focus-visible {
-    outline: 3px solid var(--color-fg);
-    outline-offset: 4px;
-  }
-  [data-in-field] > .seed-plate,
-  .seed-plate[data-in-field] {
+  :is(.blind-card, .demo-slab)[data-place="1"] .file-letter,
+  .file-letter[data-place="1"] {
     background-color: var(--color-accent-fill);
     color: var(--color-on-accent);
   }
+  :is(.blind-card, .demo-slab)[data-place="2"] .file-letter,
+  .file-letter[data-place="2"] {
+    background-color: var(--color-accent-tint);
+    color: var(--color-accent);
+    box-shadow: inset 0 0 0 2px var(--color-accent-edge);
+  }
+  .file-letter[data-place="3"] {
+    background-color: var(--color-raised);
+    color: var(--color-fg-muted);
+    box-shadow: inset 0 0 0 1.5px var(--color-control);
+  }
 
-  /* --- Buttons. 44px min touch target. */
+  /* --- Pick stamp (1st / 2nd / 3rd): ruled, upright, never rotated or distressed. */
+  .pick-stamp {
+    display: inline-block;
+    flex: none;
+    padding: 0.0625rem 0.5rem;
+    border: 2px solid var(--color-accent-edge);
+    border-radius: var(--radius-slab);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    color: var(--color-accent);
+    background-color: transparent;
+  }
+  .pick-stamp[data-place="1"] {
+    background-color: var(--color-accent-fill);
+    border-color: var(--color-accent-fill);
+    color: var(--color-on-accent);
+  }
+  .pick-stamp[data-place="3"] {
+    border-width: 1.5px;
+    border-color: var(--color-control);
+    color: var(--color-fg-muted);
+  }
+
+  /* --- File tag (AQ, Unseen, Not shown): a ruled label, readable on any surface. */
+  .file-tag {
+    flex: none;
+    padding: 0 0.3125rem;
+    border-radius: var(--radius-slab);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    color: var(--color-fg);
+    background-color: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-fg-muted);
+  }
+  .file-tag[data-tone="quiet"] {
+    color: var(--color-fg-muted);
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+    background-color: transparent;
+  }
+  /* Legend swatch for the playoff-field rule (= the in-field rule). */
+  .field-swatch {
+    display: inline-block;
+    width: 1.125rem;
+    height: 0.875rem;
+    border-radius: 1px;
+    background-color: var(--color-surface);
+    box-shadow: inset 0 0 0 2px var(--color-accent-edge);
+  }
+
+  /* --- Buttons: sentence case, 3px corners, 44px min touch target. Primary = violet stamp ink
+     (your next action); secondary = a ruled outline in ink. */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -461,12 +693,11 @@
     padding: 0 1.25rem;
     border: 2px solid transparent;
     border-radius: var(--radius-chip);
-    font-family: var(--font-condensed);
-    font-size: 1.0625rem;
-    font-weight: 700;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 800;
     line-height: 1;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0;
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
@@ -480,26 +711,30 @@
   }
   .btn-primary {
     background-color: var(--color-accent-fill);
-    border-color: var(--color-accent-edge);
+    border-color: var(--color-accent-fill);
     color: var(--color-on-accent);
   }
   .btn-primary:hover {
-    background-color: color-mix(in oklab, var(--color-accent-fill) 86%, white);
+    background-color: color-mix(in oklab, var(--color-accent-fill) 86%, var(--color-fg));
+    border-color: transparent;
   }
   .btn-secondary {
     background-color: transparent;
+    border-width: 1.5px;
     border-color: var(--color-control);
     color: var(--color-fg);
+    font-weight: 600;
   }
   .btn-secondary:hover {
     background-color: var(--color-raised);
-    border-color: var(--color-fg-muted);
+    border-color: var(--color-fg);
   }
   .btn-ghost {
     min-height: 2.75rem;
     padding: 0 0.75rem;
     background-color: transparent;
     color: var(--color-fg-muted);
+    font-weight: 600;
   }
   .btn-ghost:hover {
     color: var(--color-fg);
@@ -510,7 +745,7 @@
   .btn-rank {
     width: 100%;
     min-height: 3rem;
-    background-color: transparent;
+    background-color: var(--color-surface);
     border-color: var(--color-accent-edge);
     color: var(--color-accent);
   }
@@ -545,13 +780,15 @@
     cursor: default;
   }
 
-  /* --- Toggle switch: <button role="switch" aria-checked="false" class="switch">
+  /* --- Settings checkbox (role="switch" kept): an ink tick in a ruled form box. No pill, no knob,
+     no violet. <button role="switch" aria-checked="false" class="switch">
      <span class="switch-track" aria-hidden="true"></span>Compare with committee</button> */
   .switch {
     display: inline-flex;
     align-items: center;
     gap: 0.625rem;
     min-height: 2.75rem;
+    font-family: var(--font-sans);
     font-size: 0.9375rem;
     line-height: 1.25rem;
     color: var(--color-fg);
@@ -560,42 +797,45 @@
   .switch-track {
     position: relative;
     flex: none;
-    width: 2.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
     border: 1.5px solid var(--color-control);
-    border-radius: 999px;
+    border-radius: var(--radius-slab);
+    background-color: var(--color-surface);
     transition: background-color var(--duration-fast) var(--ease-out),
       border-color var(--duration-fast) var(--ease-out);
   }
   .switch-track::after {
     content: "";
     position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 0.8125rem;
-    height: 0.8125rem;
-    border-radius: 999px;
-    background-color: var(--color-fg-muted);
-    transition: transform var(--duration-fast) var(--ease-out),
-      background-color var(--duration-fast) var(--ease-out);
+    top: 1px;
+    left: 1px;
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    background-color: transparent;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.1 6.3l2.5 2.5L9.9 3.3' fill='none' stroke='black' stroke-width='2.1'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.1 6.3l2.5 2.5L9.9 3.3' fill='none' stroke='black' stroke-width='2.1'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    transition: background-color var(--duration-fast) var(--ease-out);
   }
+  .switch:hover .switch-track,
   .switch[aria-checked="true"] .switch-track {
-    background-color: var(--color-accent-fill);
-    border-color: var(--color-accent-edge);
+    border-color: var(--color-fg);
   }
   .switch[aria-checked="true"] .switch-track::after {
-    transform: translateX(1rem);
-    background-color: var(--color-on-accent);
+    background-color: var(--color-fg);
   }
 
-  /* --- Segmented control (12 / 24 teams). Children: <button aria-pressed> or <a aria-current>. */
+  /* --- Segmented control (12 / 24 teams): options on a shaded field; the chosen one is a sheet
+     with an ink frame. Children: <button aria-pressed> or <a aria-current>. */
   .segmented {
     display: inline-flex;
     gap: 2px;
     padding: 3px;
     border: 1px solid var(--color-control);
-    border-radius: 6px;
-    background-color: var(--color-surface);
+    border-radius: var(--radius-card);
+    background-color: var(--color-raised);
   }
   .segmented > * {
     display: inline-flex;
@@ -603,12 +843,11 @@
     justify-content: center;
     min-height: 2.5rem;
     padding: 0 0.875rem;
-    border-radius: var(--radius-chip);
-    font-family: var(--font-condensed);
-    font-size: var(--text-label-lg);
+    border-radius: var(--radius-slab);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0;
     white-space: nowrap;
     color: var(--color-fg-muted);
     transition: background-color var(--duration-fast) var(--ease-out),
@@ -620,53 +859,102 @@
   .segmented > [aria-pressed="true"],
   .segmented > [aria-current],
   .segmented > [aria-selected="true"] {
-    background-color: var(--color-accent-tint);
-    color: var(--color-accent);
-    box-shadow: inset 0 0 0 1px var(--color-accent-edge);
+    background-color: var(--color-surface);
+    color: var(--color-fg);
+    box-shadow: inset 0 0 0 2px var(--color-fg);
+  }
+  /* Phones: a long option ("12 teams · 2026 format") wraps inside its 40px segment, never clips. */
+  @media (width < 40rem) {
+    .segmented > * {
+      min-width: 0;
+      padding: 0 0.375rem;
+      font-size: 0.875rem;
+      line-height: 1rem;
+      white-space: normal;
+      text-wrap: balance;
+      text-align: center;
+    }
   }
 
-  /* --- Tabs (Your ranking / Committee / FEI / Fans). */
+  /* --- Tabs (Your ranking / Committee / FEI SoR / Fans): folder tabs. The open file's tab is a
+     sheet tab with an ink top edge. Weight never changes with selection (no reflow on tap). */
   .tabs {
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
-    border-bottom: 1px solid var(--color-line);
+    box-shadow: inset 0 -1px 0 var(--color-line-strong);
     scrollbar-width: none;
   }
   .tab {
     flex: none;
     min-height: 2.75rem;
-    padding: 0 0.75rem;
-    font-family: var(--font-condensed);
-    font-size: var(--text-label-lg);
+    padding: 0 0.875rem;
+    border: 1px solid var(--color-line-strong);
+    border-bottom: 0;
+    border-radius: 5px 5px 0 0;
+    background-color: transparent;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0;
     color: var(--color-fg-muted);
-    box-shadow: inset 0 -3px 0 transparent;
     transition: color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
       box-shadow var(--duration-fast) var(--ease-out);
   }
   .tab:hover {
     color: var(--color-fg);
+    background-color: var(--color-raised);
   }
   .tab[aria-selected="true"],
   .tab[aria-current] {
+    background-color: var(--color-surface);
     color: var(--color-fg);
-    box-shadow: inset 0 -3px 0 var(--color-accent-fill);
+    box-shadow: inset 0 3px 0 var(--color-fg);
+  }
+  /* Phones: the four files share the row (no hidden tab, no sideways scroll). */
+  @media (width < 40rem) {
+    .tabs {
+      gap: 2px;
+      overflow: visible;
+    }
+    .tab {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 0 0.375rem;
+      font-size: 0.875rem;
+      line-height: 1rem;
+      white-space: nowrap;
+      text-align: center;
+    }
+  }
+  @media (width < 22.5rem) {
+    .tab {
+      padding: 0 0.25rem;
+      font-size: 0.8125rem;
+    }
+  }
+  @media (width < 20rem) {
+    .tab {
+      white-space: normal;
+      text-wrap: balance;
+    }
   }
 
-  /* --- Content pages. */
+  /* --- Content pages. Links: an ink underline that thickens on hover (violet is not for links). */
   .link {
     color: inherit;
     text-decoration-line: underline;
-    text-decoration-color: var(--color-accent-edge);
-    text-decoration-thickness: 2px;
+    text-decoration-color: var(--color-fg-faint);
+    text-decoration-thickness: 1px;
     text-underline-offset: 3px;
-    transition: color var(--duration-fast) var(--ease-out);
+    transition: color var(--duration-fast) var(--ease-out),
+      text-decoration-color var(--duration-fast) var(--ease-out);
   }
   .link:hover {
-    color: var(--color-accent);
+    color: var(--color-fg);
+    text-decoration-color: var(--color-fg);
+    text-decoration-thickness: 2px;
   }
 
   /* position: relative makes the wrapper the containing block of absolutely positioned
@@ -685,6 +973,7 @@
       padding-inline: 0;
     }
   }
+  /* Data table, a printed form: ink head rule, hairline rows, a dashed "cut here" line. */
   .data-table {
     width: 100%;
     border-collapse: collapse;
@@ -694,16 +983,15 @@
   }
   .data-table th {
     padding: 0.5rem 0.625rem;
-    border-bottom: 1px solid var(--color-line-strong);
+    border-bottom: 1px solid var(--color-fg);
     text-align: left;
     vertical-align: bottom;
     white-space: nowrap;
-    font-family: var(--font-condensed);
+    font-family: var(--font-sans);
     font-size: var(--text-label);
     line-height: var(--text-label--line-height);
-    letter-spacing: var(--text-label--letter-spacing);
+    letter-spacing: 0;
     font-weight: 600;
-    text-transform: uppercase;
     color: var(--color-fg-muted);
   }
   .data-table td {
@@ -723,22 +1011,90 @@
     white-space: nowrap;
   }
   .data-table td[data-num] {
-    font-family: var(--font-condensed);
-    font-size: 1.0625rem;
+    font-family: var(--font-sans);
+    font-size: 1rem;
     font-weight: 600;
   }
   .data-table tbody tr:hover {
-    background-color: var(--color-surface);
+    background-color: var(--color-raised);
   }
   .data-table tr[data-cut] td {
-    border-bottom: 2px solid var(--color-accent-edge);
+    border-bottom: 2px dashed var(--color-fg);
+  }
+  /* The note under a cut line, led by a pair of scissors. Ink, not violet. */
+  .cut-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: var(--text-label);
+    line-height: var(--text-label--line-height);
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+  .cut-note::before {
+    content: "";
+    flex: none;
+    width: 14px;
+    height: 14px;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6'%3E%3Ccircle cx='4' cy='4' r='2.3'/%3E%3Ccircle cx='4' cy='12' r='2.3'/%3E%3Cpath d='M5.8 5.4L14 12.5M5.8 10.6L14 3.5'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6'%3E%3Ccircle cx='4' cy='4' r='2.3'/%3E%3Ccircle cx='4' cy='12' r='2.3'/%3E%3Cpath d='M5.8 5.4L14 12.5M5.8 10.6L14 3.5'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
+  @media (width < 40rem) {
+    .data-table :is(th, td) {
+      padding-left: 0.375rem;
+      padding-right: 0.375rem;
+    }
+    .data-table .team-chip {
+      font-size: 0.875rem;
+      gap: 0.375rem;
+    }
   }
 
+  /* Callout = a memo clipped to the file: an ink rule, no accent (it is not "you"). */
   .callout {
     padding: 1rem 1.25rem;
-    border-left: 4px solid var(--color-accent-edge);
+    border-left: 3px solid var(--color-fg);
     border-radius: 0 var(--radius-card) var(--radius-card) 0;
     background-color: var(--color-surface);
+  }
+
+  /* --- Play pitch (content pages): opens with a miniature redacted card header (aria-hidden). */
+  .pitch-file {
+    display: flex;
+    flex: none;
+    align-items: stretch;
+    width: 13.5rem;
+    max-width: 100%;
+    min-height: 3rem;
+    border-bottom: 2px solid var(--color-fg);
+  }
+  .pitch-file .file-letter {
+    width: 2.5rem;
+    font-size: 1.5rem;
+    border-radius: 0;
+  }
+  .pitch-file-title {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0 0.625rem;
+  }
+  .pitch-file-title [data-redacted] {
+    height: 0.75rem;
+  }
+  .pitch-file-rec {
+    align-self: center;
+    padding-right: 0.25rem;
+    font-size: 1.375rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 
   /* Ad slot (PUBLIC_ADS=on). Markup (a plain div with a visible label, not a landmark, so two
@@ -758,12 +1114,11 @@
     border-bottom: 1px solid var(--color-line);
   }
   .ad-label {
-    font-family: var(--font-condensed);
+    font-family: var(--font-sans);
     font-size: var(--text-label);
     line-height: var(--text-label--line-height);
-    letter-spacing: var(--text-label--letter-spacing);
+    letter-spacing: 0;
     font-weight: 600;
-    text-transform: uppercase;
     color: var(--color-fg-faint);
   }
   .ad-box {
@@ -789,4 +1144,63 @@
     }
     .ad-slot[data-kind="sidebar"] .ad-box { min-height: 600px; max-width: 300px; }
   }
+}
+
+/* -------------------------------------------------------------------------- forced colours
+ * Windows High Contrast and friends: the redactions stay solid blocks (they would paint as
+ * Canvas), pips / ticks / bars keep their shapes, and the fan's marks map to Highlight.
+ * Game-only components: game.css. Unlayered on purpose, like the system colours they set. */
+@media (forced-colors: active) {
+  [data-redacted] {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
+  .wm-redacted,
+  .hero-redacted {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+    color: Canvas;
+  }
+  .stars::before,
+  .stars::after,
+  .tier-dot,
+  .meter,
+  .meter > span {
+    forced-color-adjust: none;
+  }
+  .stars::before { background-color: GrayText; }
+  .stars::after { background: linear-gradient(90deg, CanvasText calc(var(--stars, 0) * 20%), transparent 0); }
+  .tier-dot,
+  .meter > span { background-color: CanvasText; }
+  .meter { background-color: Canvas; outline: 1px solid GrayText; }
+  .file-letter { forced-color-adjust: none; background-color: CanvasText; color: Canvas; }
+  .team-block[data-in-field],
+  .field-swatch {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    box-shadow: inset 0 0 0 2px Highlight;
+  }
+  .file-letter[data-place="1"],
+  .file-letter[data-place="2"],
+  .pick-stamp,
+  .btn-rank[data-place] {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+  .switch[aria-checked="true"] .switch-track::after { forced-color-adjust: none; background-color: Highlight; }
+  /* Selection chrome drawn with inset shadows needs a real line here. */
+  .segmented > :is([aria-pressed="true"], [aria-current], [aria-selected="true"]),
+  .tab:is([aria-selected="true"], [aria-current]) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .file-tag,
+  .team-block[data-variant="tab"]:not([data-in-field]) {
+    box-shadow: none;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  :focus-visible { outline-color: Highlight; }
 }

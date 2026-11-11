@@ -32,7 +32,7 @@ const standIns = columns.some((c) => c.res.champions.some((ch) => ch.standIn));
 
 <section aria-labelledby={id} class={cls}>
   <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line pb-2">
-    <H id={id} class="cond text-heading uppercase">{formatSizeLabel(f)} field</H>
+    <H id={id} class="cond text-heading">{formatSizeLabel(f)} field</H>
     {
       proposed ? (
         <span class="label-caps rounded-slab border border-control px-1.5 py-0.5 text-fg">{formatStatus(f, week.season)}</span>
@@ -85,7 +85,7 @@ const standIns = columns.some((c) => c.res.champions.some((ch) => ch.standIn));
                         {!g ? (
                           '—'
                         ) : g.kind === 'bye' ? (
-                          <span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5 text-fg">Bye</span>
+                          <span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5 text-fg shadow-[inset_0_0_0_1px_var(--color-line-strong)]">Bye</span>
                         ) : (
                           <span class="text-fg-muted">
                             <span class="whitespace-nowrap">

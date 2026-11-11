@@ -1,13 +1,14 @@
 /**
- * Barlow Condensed advance widths read from the self-hosted TTFs (src/assets/fonts), for layout
- * decisions made at build time: OG image text fitting and the team-page hero name size. Node
- * only (reads the font files); never imported by client code.
+ * Archivo advance widths read from the static TTFs (src/assets/fonts/Archivo-{400,600,800}.ttf),
+ * for layout decisions made at build time: OG image text fitting and the team-page hero name size.
+ * Node only (reads the font files); never imported by client code.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fonts } from '../styles/tokens';
 
-export const fontFile = (w: 600 | 700): string => join(process.cwd(), fonts.ttf[w]);
+export type FontWeight = 400 | 600 | 800;
+export const fontFile = (w: FontWeight): string => join(process.cwd(), fonts.ttf[w]);
 
 interface Metrics {
   unitsPerEm: number;
@@ -55,18 +56,32 @@ function loadMetrics(file: string): Metrics {
   return { unitsPerEm, advance: (c) => buf.readUInt16BE(hmtx + 4 * Math.min(glyph(c), numH - 1)) };
 }
 
-let metrics: Record<600 | 700, Metrics> | null = null;
-function m(w: 600 | 700): Metrics {
-  metrics ??= { 600: loadMetrics(fontFile(600)), 700: loadMetrics(fontFile(700)) };
+let metrics: Record<FontWeight, Metrics> | null = null;
+function m(w: FontWeight): Metrics {
+  metrics ??= { 400: loadMetrics(fontFile(400)), 600: loadMetrics(fontFile(600)), 800: loadMetrics(fontFile(800)) };
   return metrics[w];
 }
 
-/** Rendered width of a string in px (letter-spacing added after every glyph, as resvg does). */
-export function textWidth(s: string, size: number, weight: 600 | 700 = 700, track = 0): number {
+/** Rendered width of a string in px (letter-spacing added after every glyph, as resvg and CSS do). */
+export function textWidth(s: string, size: number, weight: FontWeight = 800, track = 0): number {
   const mm = m(weight);
   let w = 0;
   for (const ch of s) w += (mm.advance(ch.codePointAt(0)!) / mm.unitsPerEm) * size + track;
   return w;
+}
+
+/** Hero name tracking in em (CSS `.hero-name`: Archivo 800, letter-spacing -0.025em). */
+const HERO_TRACK = -0.025;
+/** Phones: the hero's conference line ("SEC 2-4", 13px 600) stays on one line up to this width. */
+const HERO_CONF_MAX_PHONE = 92;
+
+/**
+ * Phones: true when "Conference USA 1-3" is too wide for one line in the hero meta, so the
+ * record goes under the conference name ("Conference USA" / "1-3"). The conference name itself
+ * never breaks ("Conference" / "USA 1-3" read as two different things).
+ */
+export function heroConfBreaks(conf: string, confRecord?: string): boolean {
+  return confRecord !== undefined && textWidth(`${conf} ${confRecord}`, 13, 600) > HERO_CONF_MAX_PHONE;
 }
 
 /** Best split of a name into two lines at a word boundary (the widest line minimized). */
@@ -75,7 +90,7 @@ function bestSplit(words: string[]): { parts: [string, string]; width: number } 
   for (let i = 1; i < words.length; i++) {
     const a = words.slice(0, i).join(' ');
     const b = words.slice(i).join(' ');
-    const w = Math.max(textWidth(a, 1, 700, 0.02), textWidth(b, 1, 700, 0.02));
+    const w = Math.max(textWidth(a, 1, 800, HERO_TRACK), textWidth(b, 1, 800, HERO_TRACK));
     if (!best || w < best.width) best = { parts: [a, b], width: w };
   }
   return best;
@@ -89,30 +104,40 @@ export interface HeroNameFit {
 }
 
 /**
- * Hero name sizing for the team page (TeamBlock size "hero"), from the real glyph widths so the
- * name is never truncated. The block is a size container; the name's font size is
+ * Hero name sizing for the team page (TeamBlock size "hero"), from the real Archivo 800 glyph
+ * widths of the name as printed (display case, -0.025em tracking), so it is never truncated and
+ * never touches the record. The block is a size container; the name's font size is
  * `min(max, (100cqi - M) / k)`: the full size when it fits, smaller only as much as needed,
- * where M = paddings + the record/conference meta and k = the name's width per px of font size.
+ * where M = name padding + the record/conference meta (its real width) + a 16px gutter, and
+ * k = the name's width per px of font size.
  * Phones: one line when that still gives >= 28px on a 360px screen, else two balanced lines (two
- * 32px lines fit the 72px block). From 640px: one line, up to 56px.
+ * 31px lines fit the 72px block). From 640px: one line, up to 52px. Parts keep the name's own case
+ * ("Texas A&M", "UL Monroe"): never change their case.
  */
-export function heroNameFit(name: string, meta: { record: string; conf: string }): HeroNameFit {
-  const caps = name.toUpperCase();
-  const k1 = textWidth(caps, 1, 700, 0.02);
-  const metaW = (rec: number, conf: number) =>
-    Math.max(textWidth(meta.record, rec, 700, rec * 0.02), textWidth(meta.conf.toUpperCase(), conf, 600, conf * 0.06));
+export function heroNameFit(name: string, meta: { record: string; conf: string; confRecord?: string }): HeroNameFit {
+  const k1 = textWidth(name, 1, 800, HERO_TRACK);
+  const confLine = meta.confRecord === undefined ? meta.conf : `${meta.conf} ${meta.confRecord}`;
+  // Phones: the conference line is one line, or the conference name over its record
+  // (heroConfBreaks); without a separate record it wraps inside 92px as before.
+  const confPhone =
+    meta.confRecord === undefined
+      ? Math.min(HERO_CONF_MAX_PHONE, textWidth(meta.conf, 13, 600))
+      : heroConfBreaks(meta.conf, meta.confRecord)
+        ? Math.max(textWidth(meta.conf, 13, 600), textWidth(meta.confRecord, 13, 600))
+        : textWidth(confLine, 13, 600);
+  const recW = (size: number) => textWidth(meta.record, size, 800, -0.01 * size);
   // 100cqi = the block's content box (its padding-right already excluded). M = name padding-left
-  // + meta margin + meta width + slack (px).
-  const mPhone = Math.ceil(16 + 12 + metaW(20, 13) + 6);
-  const mSm = Math.ceil(24 + 12 + metaW(28, 15) + 6);
-  const split = bestSplit(caps.split(/\s+/));
+  // + meta margin (12) + meta width + a 16px gutter that keeps the name off the record.
+  const mPhone = Math.ceil(16 + 12 + Math.max(recW(20), confPhone) + 16);
+  const mSm = Math.ceil(24 + 12 + Math.max(recW(28), textWidth(confLine, 15, 600)) + 16);
+  const split = bestSplit(name.split(/\s+/));
   const twoLines = split !== null && (360 - 32 - 16 - mPhone) / k1 < 28;
   const kPhone = twoLines ? split.width : k1;
   const r = (n: number) => n.toFixed(3);
   const style = [
-    `--hero-fs:min(32px, calc((100cqi - ${mPhone}px) / ${r(kPhone)}))`,
-    `--hero-lh:${twoLines ? '1' : '2rem'}`,
-    `--hero-fs-sm:min(56px, calc((100cqi - ${mSm}px) / ${r(k1)}))`,
+    `--hero-fs:min(31px, calc((100cqi - ${mPhone}px) / ${r(kPhone)}))`,
+    `--hero-lh:${twoLines ? '1' : '2.125rem'}`,
+    `--hero-fs-sm:min(52px, calc((100cqi - ${mSm}px) / ${r(k1)}))`,
   ].join(';');
   return { parts: twoLines ? split.parts : [name], style };
 }

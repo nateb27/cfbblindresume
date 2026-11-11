@@ -55,14 +55,16 @@ function splitTier(label: string): [string, string] {
 
 export type Place = 1 | 2 | 3 | undefined;
 
+/**
+ * The 1st/2nd/3rd pick stamp (DESIGN.md "Component classes"): solid violet / violet rule / graphite
+ * rule. It presses onto the header as it appears (game.css `stamp-in`, transform + opacity only).
+ */
 function PlaceBadge({ place }: { place: 1 | 2 | 3 }) {
-  const cls =
-    place === 1
-      ? 'bg-accent-fill text-on-accent'
-      : place === 2
-        ? 'bg-accent-tint text-accent shadow-[inset_0_0_0_1px_var(--color-accent-edge)]'
-        : 'bg-raised-2 text-fg-muted';
-  return <span className={`cond ml-auto flex-none animate-fade rounded-chip px-2.5 py-1 text-label-lg uppercase ${cls}`}>{ordinal(place)}</span>;
+  return (
+    <span className="pick-stamp" data-place={place}>
+      {ordinal(place)}
+    </span>
+  );
 }
 
 export const BlindCard = memo(function BlindCard(props: {
@@ -78,24 +80,23 @@ export const BlindCard = memo(function BlindCard(props: {
   const [open, setOpen] = useState<MetricKey | null>(null);
   const uid = useId();
   const { top10, r11to25, r26to50 } = card.quality;
-  const ring = place === 1 ? 'ring-2 ring-accent-fill' : place === 2 ? 'ring-1 ring-accent-edge' : '';
-  const plate = place === 1 ? 'bg-accent-fill text-on-accent' : place === 2 ? 'bg-accent-tint text-accent' : 'bg-fg text-page';
 
   return (
     <article
-      className={`@container flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card transition-shadow duration-(--duration-fast) ${ring}`}
+      className="blind-card @container flex h-full flex-col overflow-hidden rounded-card border bg-surface"
       aria-label={`Team ${letter}, ${recordSpoken(card.record)} record${place ? `, ranked ${ordinal(place)} by you` : ''}`}
       data-card={letter}
+      data-place={place}
     >
-      <header
-        className="team-block h-16 flex-none rounded-none pr-4"
-        style={{ '--team-bg': 'var(--color-raised)', '--team-ink': 'var(--color-fg)', '--team-rule': 'var(--color-line-strong)' } as CSSProperties}
-      >
-        <span className={`seed-plate w-16 rounded-none text-[2.75rem] transition-colors duration-(--duration-fast) ${plate}`} aria-hidden="true">
+      {/* The reveal slab with its name inked out: [file letter] Team A / [redaction bar] [record]. */}
+      <header className="card-header">
+        <span className="file-letter" aria-hidden="true">
           {letter}
         </span>
-        <h3 className="ml-4 flex min-w-0 flex-col">
-          <span className="label-caps text-fg-muted">Team {letter}</span>
+        <h3 className="card-header-title">
+          <span className="label-caps">Team {letter}</span>
+          {/* Fixed-width decoration: never sized from the hidden name, so it cannot leak its length. */}
+          <span data-redacted aria-hidden="true" />
           <span className="text-record" data-record aria-hidden="true">
             {recordText(card.record)}
           </span>
@@ -104,7 +105,7 @@ export const BlindCard = memo(function BlindCard(props: {
         {place && <PlaceBadge place={place} />}
       </header>
 
-      <div className="grid grid-cols-2 gap-x-5 gap-y-2.5 px-4 pt-3 pb-3.5 @max-[19rem]:gap-x-3">
+      <div className="grid grid-cols-2 gap-x-5 gap-y-2.5 px-4 pt-3.5 pb-3.5 @max-[19rem]:gap-x-3">
         <h4 className="sr-only">Ratings, rank among {fbsCount} FBS teams</h4>
         {METRICS.map((m) => {
           const rank = card.ranks[m.key];
@@ -149,13 +150,12 @@ export const BlindCard = memo(function BlindCard(props: {
               ['11-25', 'FEI 11 to 25', r11to25, '40'],
               ['26-50', 'FEI 26 to 50', r26to50, '30'],
             ] as const
-          ).map(([label, spoken, [w, l], tier]) => (
-            <li key={label} className="flex h-7 min-w-0 items-center gap-1 rounded-chip bg-raised px-1.5 @max-[19rem]:px-1">
-              <span className="tier-dot @max-[21rem]:hidden" data-tier={tier} style={{ '--tier-dot': '8px' } as CSSProperties} aria-hidden="true" />
-              <span className="label-caps flex-1 whitespace-nowrap tracking-[0.04em] text-fg-muted @max-[19rem]:tracking-normal" aria-hidden="true">
+          ).map(([label, spoken, [w, l]]) => (
+            <li key={label} className="flex h-7 min-w-0 items-center gap-1 rounded-slab border-b border-line-strong bg-raised px-1.5 @max-[19rem]:px-1">
+              <span className="label-caps flex-1 whitespace-nowrap text-[0.75rem] text-fg-muted" aria-hidden="true">
                 {label}
               </span>
-              <span className={`cond text-[1.0625rem] leading-none font-bold whitespace-nowrap ${w + l === 0 ? 'text-fg-faint' : 'text-fg'}`} aria-hidden="true">
+              <span className={`cond text-[1rem] leading-none font-bold whitespace-nowrap ${w + l === 0 ? 'text-fg-faint' : 'text-fg'}`} aria-hidden="true">
                 {w}-{l}
               </span>
               <span className="sr-only">
@@ -172,7 +172,7 @@ export const BlindCard = memo(function BlindCard(props: {
               <li key={i} className="w-4">
                 {/* Tooltip for mouse users on the hidden visual; screen readers get the sentence below once. */}
                 <span className="flex flex-col items-center gap-1" aria-hidden="true" title={`${result === 'W' ? 'Win' : 'Loss'} vs ${tier.label}`}>
-                  <span className="grid h-3.5 place-items-center">
+                  <span className="tick-slot">
                     <span className="tier-dot" data-tier={tierKey(tier.stars)} />
                   </span>
                   <span className={`cond text-[0.75rem] leading-none font-bold ${result === 'W' ? 'text-win' : 'text-loss'}`}>{result}</span>
@@ -194,12 +194,12 @@ export const BlindCard = memo(function BlindCard(props: {
             const [tierBase, tierWord] = splitTier(tier.label);
             return (
               <li key={i} className="grid min-h-7 grid-cols-[auto_1fr_auto_auto] items-center gap-x-2.5 border-t border-line py-0.5 first:border-t-0 @max-[19rem]:gap-x-1.5">
-                <span className="stars @max-[19rem]:[--star:10px]" data-tier={tierKey(tier.stars)} role="img" aria-label={`${tier.stars} of 5 stars`} />
-                <span className="cond min-w-0 text-[0.9375rem] leading-[1.125rem] font-semibold tracking-[0.01em] [overflow-wrap:anywhere]">
+                <span className="stars" data-tier={tierKey(tier.stars)} role="img" aria-label={`${tier.stars} of 5 pips`} />
+                <span className="min-w-0 text-[0.875rem] leading-[1.125rem] font-semibold [overflow-wrap:anywhere]">
                   {tierBase}
                   {tierWord && <span className="@max-[21rem]:hidden">{tierWord}</span>}
                 </span>
-                <span className="cond text-[0.9375rem] leading-5 font-semibold text-fg-muted">{SITE[site]}</span>
+                <span className="text-[0.8125rem] leading-5 text-fg-muted">{SITE[site]}</span>
                 <span className="result-chip" data-result={result}>
                   <span aria-hidden="true">{result}</span>
                   <span aria-hidden="true">{signedMargin(result, margin)}</span>
@@ -213,7 +213,7 @@ export const BlindCard = memo(function BlindCard(props: {
         </ol>
       </section>
 
-      <footer className="border-t border-line px-4 py-2 text-[0.75rem] leading-4 text-fg-faint" data-testid="card-credit">
+      <footer className="border-t border-line bg-raised px-4 py-2 text-[0.75rem] leading-4 text-fg-faint" data-testid="card-credit">
         <FeiCredit url={ratingsUrl} />
       </footer>
     </article>

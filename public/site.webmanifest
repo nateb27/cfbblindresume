@@ -2,10 +2,18 @@
   "name": "CFB Blind Resume",
   "short_name": "Blind Resume",
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
   ],
-  "theme_color": "#0e0f12",
-  "background_color": "#0e0f12",
+  "theme_color": "#fdfdfa",
+  "background_color": "#fdfdfa",
   "display": "browser"
 }

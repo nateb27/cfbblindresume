@@ -1,38 +1,46 @@
 ---
 /**
- * Resume strip (SPEC card + team page): one dot per game in date order, sized and colored by the
- * opponent's current tier, with the result letter (win/loss color) and margin under it.
- * Pure SVG, no JS. `full` adds the opponent (@ = away, vs = neutral) above each dot.
+ * Resume strip (SPEC card + team page): one tick per game in date order on a baseline, its height
+ * the opponent's current tier (a tiny bar chart in toner), with the result letter (win/loss
+ * color) and margin under it.
+ * Pure SVG, no JS. `full` adds the opponent (@ = away, vs = neutral) above each tick; its columns
+ * are as wide as the labels need (resume-strip.ts), or `minCol` when that is wider (the compare
+ * page gives both cards the same column so the two strips read as one chart).
  */
-import { gameRows } from '@lib/data';
 import type { WeekFile } from '@lib/types';
-import { TIER_DOT_PX, tierKey } from '../styles/tokens';
+import { TIER_TICK_PX, tierKey } from '../styles/tokens';
+import { STRIP_LABEL_PX, stripCol, stripGames, stripLabel, stripLabelWidths } from './resume-strip';
 import { fmtShortDate, signed, siteVs } from './site';
 
 interface Props {
   week: WeekFile;
   slug: string;
   variant?: 'full' | 'compact';
+  /** Full variant: the narrowest column (px). */
+  minCol?: number;
   class?: string;
 }
-const { week, slug, variant = 'full', class: cls } = Astro.props;
-const games = gameRows(week, slug).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.week - b.week));
+const { week, slug, variant = 'full', minCol = 0, class: cls } = Astro.props;
+const games = stripGames(week, slug);
 const full = variant === 'full';
-const col = full ? 40 : 20;
-const dotY = full ? 29 : 8;
-const height = full ? 74 : 32;
-const width = Math.max(col, games.length * col);
 const t = week.teams[slug]!;
-const oppLabel = (g: (typeof games)[number]): string => {
-  const abbr = g.opp.fbs ? (week.teams[g.opp.slug]?.short ?? g.opp.name) : 'FCS';
-  return g.site === 'away' ? `@${abbr}` : g.site === 'neutral' ? `vs ${abbr}` : abbr;
-};
+const col = full ? Math.max(minCol, stripCol(week, slug)) : 20;
+// Side room when the first or last label is wider than its column, so no label is cut at the edge.
+const labelW = full ? stripLabelWidths(week, games) : [];
+const edge = (w = 0) => Math.max(0, Math.ceil(w / 2 - col / 2));
+const padL = full ? edge(labelW[0]) : 0;
+const padR = full ? edge(labelW[labelW.length - 1]) : 0;
+const baseY = full ? 37 : 15; // ticks stand on this baseline
+const tickW = full ? 8 : 6;
+const height = full ? 74 : 32;
+const width = padL + Math.max(col, games.length * col) + padR;
 const summary = `${t.name} season in order: ${games
   .map((g) => `${g.result === 'W' ? 'win' : 'loss'} ${siteVs(g.site, g.opp.name)}, ${g.tier.label}, ${g.pf}-${g.pa}`)
   .join('; ')}.`;
 ---
 
-<div class:list={['overflow-x-auto', cls]}>
+<!-- Scrolls sideways when the season is wider than the card: focusable so keyboard users can scroll it. -->
+<div class:list={['overflow-x-auto', cls]} tabindex="0" role="group" aria-label="Season in order">
   <svg
     class="cond block"
     width={width}
@@ -42,20 +50,20 @@ const summary = `${t.name} season in order: ${games
     aria-label={summary}
     xmlns="http://www.w3.org/2000/svg"
   >
-    {games.length > 1 && <line x1={col / 2} x2={width - col / 2} y1={dotY} y2={dotY} class="stroke-line-strong" stroke-width="1" />}
+    <line x1={0} x2={width} y1={baseY + 0.5} y2={baseY + 0.5} class="stroke-line-strong" stroke-width="1" />
     {
       games.map((g, i) => {
-        const x = i * col + col / 2;
+        const x = padL + i * col + col / 2;
         const key = tierKey(g.tier.stars);
         return (
           <g>
             <title>{`${fmtShortDate(g.date)} · ${siteVs(g.site, g.opp.name)} (${g.tier.label}) · ${g.result} ${g.pf}-${g.pa}`}</title>
             {full && (
-              <text x={x} y="12" text-anchor="middle" font-size="12" font-weight="600" letter-spacing="0.3" class="fill-fg-muted">
-                {oppLabel(g)}
+              <text x={x} y="12" text-anchor="middle" font-size={STRIP_LABEL_PX} font-weight="600" class="fill-fg-muted">
+                {stripLabel(week, g)}
               </text>
             )}
-            <circle cx={x} cy={dotY} r={TIER_DOT_PX[key] / 2 + (full ? 1 : 0)} class={`fill-tier-${key} stroke-page`} stroke-width="2" />
+            <rect x={x - tickW / 2} y={baseY - TIER_TICK_PX[key] * (full ? 1.2 : 1)} width={tickW} height={TIER_TICK_PX[key] * (full ? 1.2 : 1)} class={`fill-tier-${key}`} />
             <text x={x} y={full ? 53 : 29} text-anchor="middle" font-size={full ? 15 : 12} font-weight="700" class={g.result === 'W' ? 'fill-win' : 'fill-loss'}>
               {g.result}
             </text>

@@ -20,7 +20,7 @@ import TeamBlock from '../../components/TeamBlock.astro';
 import TeamChip from '../../components/TeamChip.astro';
 import TeamLink from '../../components/TeamLink.astro';
 import UpcomingTable from '../../components/UpcomingTable.astro';
-import { heroNameFit } from '../../components/text-metrics';
+import { heroConfBreaks, heroNameFit } from '../../components/text-metrics';
 import { teamVars } from '../../styles/tokens';
 import {
   SOR,
@@ -87,7 +87,9 @@ const description = clampText([
   [`${t.name}, ${record(t)}${independent ? '' : ` (${confRecord(t)} ${t.conference})`}: ${standingWords}`, `${t.name}, ${record(t)}: ${standingWords}`],
   [' Game log, opponent tiers and playoff outlook.', ' Game log and playoff outlook.'],
 ]);
-const heroFit = heroNameFit(t.name, { record: record(t), conf: independent ? 'Independent' : `${t.conference} ${confRecord(t)}` });
+const heroConf = independent ? { conf: 'Independent' } : { conf: t.conference, confRecord: confRecord(t) };
+const heroFit = heroNameFit(t.name, { record: record(t), ...heroConf });
+const heroConfBreak = heroConfBreaks(heroConf.conf, heroConf.confRecord);
 
 // Callout
 const phrase = committeeVsFei(t, week);
@@ -180,8 +182,15 @@ const ld = {
     <TeamBlock team={t} size="hero" href={false} nameAs="h1" nameFit={heroFit} meta={record(t)} class="mt-2">
       <Fragment slot="meta">
         {record(t)}
-        <span class="block text-[0.8125rem] leading-4 font-semibold tracking-[0.06em] sm:text-[0.9375rem] sm:leading-5">
-          {independent ? 'Independent' : `${t.conference} ${confRecord(t)}`}
+        {/* Phones: one line, or the conference name over its record (never "Conference" / "USA 1-3"); heroNameFit reserves the same width. */}
+        <span class="hero-conf block max-w-none text-[0.8125rem] leading-4 font-semibold sm:text-[0.9375rem] sm:leading-5">
+          <span class="whitespace-nowrap">{heroConf.conf}</span>
+          {heroConf.confRecord && (
+            <>
+              {' '}
+              <span class:list={['whitespace-nowrap', heroConfBreak && 'max-sm:block']}>{heroConf.confRecord}</span>
+            </>
+          )}
         </span>
       </Fragment>
     </TeamBlock>
@@ -214,7 +223,7 @@ const ld = {
     <div class="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12">
       <div class="min-w-0">
         <section aria-labelledby="resume">
-          <h2 id="resume" class="cond text-heading uppercase">Resume</h2>
+          <h2 id="resume" class="cond text-heading">Resume</h2>
           <p class="mt-1 text-sm text-fg-muted">What the blind game shows for {t.name}, with the name on.</p>
           <dl class="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-3">
             {
@@ -264,20 +273,23 @@ const ld = {
             <div class="max-w-full min-w-0 flex-none">
               <h3 class="label-caps text-fg-muted">Season in order</h3>
               <ResumeStrip week={week} slug={slug} class="mt-2" />
+              {/* The key sits under the strip it explains, as wide as the strip (w-0 min-w-full: it never widens the column); the three samples wrap as one group. */}
+              <p class="mt-2 flex w-0 min-w-full flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] leading-5 text-fg-muted">
+                <span>Tick height = opponent tier</span>
+                <span class="flex items-center gap-x-3">
+                  <span class="flex items-center gap-1.5"><span class="tier-tick-cell"><span class="tier-dot" data-tier="50" aria-hidden="true"></span></span>FEI 1-5</span>
+                  <span class="flex items-center gap-1.5"><span class="tier-tick-cell"><span class="tier-dot" data-tier="30" aria-hidden="true"></span></span>26-50</span>
+                  <span class="flex items-center gap-1.5"><span class="tier-tick-cell"><span class="tier-dot" data-tier="10" aria-hidden="true"></span></span>101+</span>
+                </span>
+              </p>
             </div>
           </div>
-          <p class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-fg-muted">
-            <span>Dot size and color = opponent tier</span>
-            <span class="flex items-center gap-1.5"><span class="tier-dot" data-tier="50" aria-hidden="true"></span>FEI 1-5</span>
-            <span class="flex items-center gap-1.5"><span class="tier-dot" data-tier="30" aria-hidden="true"></span>26-50</span>
-            <span class="flex items-center gap-1.5"><span class="tier-dot" data-tier="10" aria-hidden="true"></span>101+</span>
-          </p>
         </section>
 
         <AdSlot kind="incontent" class="my-10" />
 
         <section aria-labelledby="stand" class="mt-10">
-          <h2 id="stand" class="cond text-heading uppercase">Where {t.name} stands</h2>
+          <h2 id="stand" class="cond text-heading">Where {t.name} stands</h2>
           <p class="mt-1 text-sm text-fg-muted">Projected fields if the season ended today, from each ranking.</p>
           <div class="table-wrap mt-3">
             <table class="data-table">
@@ -285,7 +297,8 @@ const ld = {
               <thead>
                 <tr>
                   <th scope="col" class="max-sm:hidden">Format</th>
-                  {orders.map((o) => <th scope="col">{o.title}</th>)}
+                  {/* Phones hide the Format column, so the first ranking column takes the table's flush-left edge. */}
+                  {orders.map((o, i) => <th scope="col" class:list={[i === 0 && 'max-sm:pl-0']}>{o.title}</th>)}
                 </tr>
               </thead>
               {
@@ -299,12 +312,12 @@ const ld = {
                     <tr>
                       <th scope="row" class="!border-b-line !align-middle !text-fg max-sm:hidden">
                         <span class="block">{f.label}</span>
-                        <span class="block !normal-case !tracking-normal font-sans text-[0.75rem] font-normal text-fg-muted">{formatStatus(f, week.season)}</span>
+                        <span class="block font-sans text-[0.75rem] font-normal text-fg-muted">{formatStatus(f, week.season)}</span>
                       </th>
-                      {orders.map((o) => {
+                      {orders.map((o, i) => {
                         const s = standingText(standingIn(o.res[f.id]!, slug), f, o.key, o.res);
                         return (
-                          <td class="!py-2">
+                          <td class:list={['!py-2', i === 0 && 'max-sm:pl-0']}>
                             <span class:list={['cond block text-[1.125rem] leading-6 font-bold', s.tone === 'out' && 'text-fg-muted']}>{s.main}</span>
                             {s.sub && <span class="block text-[0.8125rem] leading-4 text-fg-muted">{s.sub}</span>}
                           </td>
@@ -339,7 +352,7 @@ const ld = {
         </section>
 
         <section aria-labelledby="log" class="mt-10">
-          <h2 id="log" class="cond text-heading uppercase">Game log <span class="text-fg-muted">· toughest first</span></h2>
+          <h2 id="log" class="cond text-heading">Game log, toughest first</h2>
           <GameLogTable week={week} slug={slug} caption={`${t.name} game log, toughest opponent first`} />
           <p class="mt-2 text-[0.8125rem] text-fg-muted">Opponent tiers use this week's FEI ranks, so they move as the season goes on.</p>
         </section>
@@ -347,7 +360,7 @@ const ld = {
         {
           upcoming && (
             <section aria-labelledby="upcoming" class="mt-10">
-              <h2 id="upcoming" class="cond text-heading uppercase">
+              <h2 id="upcoming" class="cond text-heading">
                 Still to play
               </h2>
               <p class="mt-1 text-sm text-fg-muted">
@@ -372,7 +385,7 @@ const ld = {
         }
 
         <section aria-labelledby="history" class="mt-10">
-          <h2 id="history" class="cond text-heading uppercase">Rank by week</h2>
+          <h2 id="history" class="cond text-heading">Rank by week</h2>
           <ol class="mt-3 flex gap-1.5 overflow-x-auto pb-1">
             {
               history.map((h) => (
@@ -412,7 +425,7 @@ const ld = {
                   const other = week.teams[p.a === slug ? p.b : p.a]!;
                   return (
                     <li>
-                      <a href={compareHref(p.slug)} class="flex min-h-12 items-center justify-between gap-3 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface">
+                      <a href={compareHref(p.slug)} class="flex min-h-12 items-center justify-between gap-3 rounded-chip border border-line-strong px-3 py-2 transition-colors hover:border-control hover:bg-surface">
                         <span class="flex items-center gap-2 text-sm text-fg-muted">
                           vs
                           <span class="team-chip text-fg" style={teamVars(other.colors)}>
@@ -427,7 +440,7 @@ const ld = {
               </ul>
               {allCompares.length > compares.length && (
                 <details class="group mt-3">
-                  <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-chip border border-line px-3 text-sm font-semibold transition-colors hover:border-control hover:bg-surface [&::-webkit-details-marker]:hidden">
+                  <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-chip border border-line-strong px-3 text-sm font-semibold transition-colors hover:border-control hover:bg-surface [&::-webkit-details-marker]:hidden">
                     {`All ${allCompares.length} compares for ${t.name}`}
                     <span aria-hidden="true" class="text-fg-muted transition-transform group-open:rotate-45">
                       +

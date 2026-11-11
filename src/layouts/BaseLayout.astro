@@ -3,17 +3,20 @@
  * Every page's shell: <head> SEO (unique title + description, canonical without a trailing slash,
  * Open Graph + Twitter, JSON-LD), font preload, theme, site header and footer.
  *
- * Themes: content pages follow prefers-color-scheme; game pages (`game`) force dark with
- * <html data-theme="dark">. No client JavaScript is emitted here (the ad loader stub only when
- * PUBLIC_ADS=on, PUBLIC_AD_NETWORK is set and the page renders an ad slot: `ads`).
+ * Themes: every page follows prefers-color-scheme (light = paper, dark = photostat negative).
+ * Game pages (`game`) add <html data-surface="board">: white sheets on a grey board in light mode.
+ * No client JavaScript is emitted here (the ad loader stub only when PUBLIC_ADS=on,
+ * PUBLIC_AD_NETWORK is set and the page renders an ad slot: `ads`).
  *
- * Both Barlow Condensed weights are preloaded: 700 for headlines and numbers, 600 for labels,
- * table heads and team chips, whose late swap otherwise nudges auto-width table columns.
+ * All three Archivo files are preloaded (400 body, 600 labels and table heads, 800 numerals,
+ * names and headings): a late swap of any of them would re-measure auto-width table columns.
+ * The ?url imports resolve to the same fingerprinted files as the url() in global.css.
  * Share-image URLs carry the snapshot (`?v=2026-9`) so social caches refresh every week.
  */
 import '../styles/global.css';
-import barlow600 from '../assets/fonts/BarlowCondensed-600.woff2?url';
-import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url';
+import archivo400 from '../assets/fonts/archivo-latin-400-normal.woff2?url';
+import archivo600 from '../assets/fonts/archivo-latin-600-normal.woff2?url';
+import archivo800 from '../assets/fonts/archivo-latin-800-normal.woff2?url';
 import type { WeekFile } from '@lib/types';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
@@ -33,7 +36,7 @@ interface Props {
   ogType?: 'website' | 'article' | 'profile';
   /** JSON-LD object(s). */
   jsonLd?: unknown;
-  /** Game page (/ and /r): forced dark theme. */
+  /** Game page (/ and /r): the board surface (white sheets on a grey board in light mode). */
   game?: boolean;
   noindex?: boolean;
   /** The page renders at least one AdSlot (the ad loader is injected only then). */
@@ -69,7 +72,7 @@ const adNetwork = ads ? AD_NETWORK : undefined;
 ---
 
 <!doctype html>
-<html lang="en" data-theme={game ? 'dark' : undefined}>
+<html lang="en" data-surface={game ? 'board' : undefined}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -77,22 +80,13 @@ const adNetwork = ads ? AD_NETWORK : undefined;
     <meta name="description" content={description} />
     {withCanonical && <link rel="canonical" href={canonical} />}
     {noindex && <meta name="robots" content="noindex" />}
-    <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href={barlow600} as="font" type="font/woff2" crossorigin />
+    {[archivo400, archivo600, archivo800].map((href) => <link rel="preload" href={href} as="font" type="font/woff2" crossorigin />)}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    {
-      game ? (
-        <meta name="theme-color" content="#0e0f12" />
-      ) : (
-        <>
-          <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)" />
-          <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-        </>
-      )
-    }
-    <meta name="color-scheme" content={game ? 'dark' : 'light dark'} />
+    <meta name="theme-color" content={game ? '#e8e8e3' : '#fdfdfa'} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161615" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
 
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:type" content={ogType} />

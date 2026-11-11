@@ -1,539 +1,675 @@
-# cfbblindresume visual language
+# cfbblindresume visual language: DOSSIER
 
-Binding for every surface: content pages (Astro), the game island (React), OG/share images.
-Tokens live in `src/styles/tokens.css` (CSS) and `src/styles/tokens.ts` (same values for code that
-cannot read CSS). Shared component classes live in `src/styles/global.css`. Do not invent colors,
-fonts, radii or durations outside these files; if you need one, add a token there.
+Binding for every surface: content pages (Astro), the game island (React), OG and share images,
+icons. Tokens live in `src/styles/tokens.css` (CSS) and `src/styles/tokens.ts` (the same values for
+code that cannot read CSS). Shared component classes live in `src/styles/global.css`, game-only
+components in `src/styles/game.css`. Do not invent colours, fonts, radii or durations outside these
+files; if you need one, add a token there (and to the contrast test). SPEC.md owns flows, copy and
+data rules; this file owns how they look.
 
-**Identity: broadcast graphics without the broadcast.** Near-black stage, one electric green-gold
-accent, condensed numerals, team identity as lower-third slabs, one color ramp for opponent
-quality. Everything is orthogonal: rectangles, 2-8px radii, no skews, no glows, no gradients
-(except the one fade above the sticky rank bar), no textures.
+## 1. Identity
 
-## 1. Five rules
+**A redacted committee file.** The site is the selection committee's printed packet, handed to the
+fan with the names blacked out: paper sheets on a grey board, ink type, ruled form fields, toner
+bar charts. One violet stamp-pad ink marks everything the fan does (picks, their own numbers, the
+playoff field they asked to see, their next action, focus). One marker bar marks everything they
+are not allowed to know yet. Everything else stays quiet and exact, so the declassification (the
+bars lift off the names and the team colours arrive) is the one loud moment. Colour is the reward:
+during a round the file is black and white plus your violet marks. Light paper by default on every
+page; dark mode is a photostat negative, where the redactions print white. One grotesque (Archivo),
+sentence case everywhere, borders-only depth, 2-6px corners, no logos, no stars, no gradients, no
+glow, no shadows.
 
-1. **Accent means "you".** `accent` marks the user's picks, the current selection (tab, segment,
-   toggle), the primary action, focus, and the user's own numbers. Never decorate with it, never
-   use it for data about teams.
-2. **The tier ramp means "how good".** Opponent tiers (stars, resume-strip dots) and rank bars all
-   use the same 8-step ramp. Gold = elite, grey = weak, everywhere.
-3. **Win/loss colors only mean W and L** (and up/down rank deltas). Always paired with the letter
-   or a drawn triangle, never color alone.
-4. **Teams are lower-thirds.** Primary color block + condensed caps name + 4px secondary rule,
-   built with `.team-block` / `.team-chip` + `teamVars()`. No logos, ever.
-5. **Numbers are condensed and tabular.** Ranks, records, margins, seeds: Barlow Condensed 700.
+What it rejects (the competitor's look and the generic defaults):
 
-## 2. Wiring
+| Default | Instead |
+| --- | --- |
+| Near-black stage + one loud accent | Paper file by default; dark = photostat negative, by the OS |
+| Red accent, red stamps | Violet stamp ink means you; red only ever means L |
+| Condensed ALL-CAPS labels, tracked eyebrows | One grotesque, sentence case; labels are small semibold form-field labels |
+| Gold 5-star opponent ratings | Five square pips inked in toner; empty pips are blank form boxes |
+| Coloured tier ramp | Monochrome toner ramp: more ink = better opponent |
+| Filled red/green W/L chip on every row | Wins print quiet (green W, no fill); losses are flagged (red wash) |
+| Dark rounded cards with glow | Sheets on a board, ink rules, 4px corners, no shadows |
+| "?" plate on Team A | Ink file-letter plate + a redaction bar where the name prints |
+| Team colour slabs everywhere | Covers for the big moments (reveal, team hero, compare); index tabs for lists |
+| Underline tabs | Folder tabs |
+| Accenting a word in a headline | The one treated phrase ("Names hidden.") is redacted because it says what it does |
+
+## 2. Five rules
+
+1. **Violet means you.** `accent` (violet stamp ink) marks only the fan's own marks: picks (1st /
+   2nd stamps, picked cards, rank buttons, the 1st/2nd file letters), the fan's own numbers
+   (headline and agreement counts, reveal values that match their pick, the "15" on the done
+   panel), the playoff field they turned on (`data-in-field`), the you-are-here progress tick, the
+   primary action and focus. **Selection chrome is ink, not violet**: the open folder tab, the
+   chosen segment, a checked box, the current nav item, the current archive week. Never use violet
+   for data about teams, for links, for kickers or for decoration.
+2. **More ink means a better opponent.** Opponent tiers (pips, season ticks) and rank bars use one
+   8-step monochrome toner ramp (`tier-50` darkest on paper = FEI 1-5 ... `tier-05` lightest = FCS).
+   The pip **count** and the **band text** ("FEI 11-25") carry the tier on every row; the grey steps
+   reinforce, they are never the only cue.
+3. **Green and red only mean W and L** (and up/down rank deltas), always with the letter or a
+   drawn triangle. Wins print quiet (green letter, ink margin, no fill); losses are flagged (red
+   letter and margin on `loss-tint`), because fans scan a resume for its losses.
+4. **Teams are covers or index tabs.** A cover is the team's primary in full with the name in
+   `teamInk` and the secondary rule: only the reveal, the team-page hero and compare cards. An index
+   tab is the rank on a small team-colour tab (primary + secondary rule) with the name typed in ink
+   on paper: every list (results, bracket, home lists). Inline mentions use `.team-chip` (a 10x18
+   tab). Name + colours only. No logos, ever.
+5. **Numbers are Archivo 800, tabular.** Ranks, records, margins, seeds, stats. Labels are Archivo
+   600, meta 400. `body` sets tabular figures; `proportional-nums` opts out.
+
+## 3. World
+
+Domain: the committee's printed data packet; redacted case files (marker bars, declassification);
+ballots ("rank these three"); file folders with index tabs; office forms (ruled boxes, a small field
+label, the value typed in); violet stamp pads; photostat negatives; the dashed "cut here" line.
+
+Colour world: copy paper `#fdfdfa`, cool grey folder board `#e8e8e3` (not cream, not manila),
+toner/ink `#18191d`, redaction marker `#121317`, violet stamp ink `#4b2c92`, green ink `#17683a`,
+red correction pencil `#a3262b`, form-field shading `#f1f1ec`, photostat negative `#161615` /
+`#ecebe4`. Team colours appear only on declassified things.
+
+## 4. Wiring
 
 ```astro
 ---
-// layouts: import once
+// BaseLayout.astro
 import '../styles/global.css';
-import barlow700 from '../assets/fonts/BarlowCondensed-700.woff2?url'; // same hashed file as the CSS url()
-import barlow600 from '../assets/fonts/BarlowCondensed-600.woff2?url';
+import archivo400 from '../assets/fonts/archivo-latin-400-normal.woff2?url'; // same hashed files as the CSS url()
+import archivo600 from '../assets/fonts/archivo-latin-600-normal.woff2?url';
+import archivo800 from '../assets/fonts/archivo-latin-800-normal.woff2?url';
 ---
-<html lang="en" data-theme="dark">          <!-- game pages (/ and /r/*) only; content pages omit it -->
+<html lang="en" data-surface={game ? 'board' : undefined}>
 <head>
-  <link rel="preload" href={barlow700} as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href={barlow600} as="font" type="font/woff2" crossorigin />
+  {[archivo400, archivo600, archivo800].map((href) => <link rel="preload" href={href} as="font" type="font/woff2" crossorigin />)}
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
-  <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" /> <!-- content pages -->
-</head>
+  <meta name="theme-color" content={game ? '#e8e8e3' : '#fdfdfa'} media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#161615" media="(prefers-color-scheme: dark)" />
+  <meta name="color-scheme" content="light dark" />
 ```
 
-- Built output: `/_astro/BarlowCondensed-700.<hash>.woff2` (+ 600). Preload both: 700 (headline,
-  records, ranks) and 600 (labels, table heads, team chips). A late 600 swap re-measured auto-width
-  table columns (small CLS on /teams and /rankings); the metric-matched fallback face covers the rest.
-- Themes: `@theme` = dark (default, game). Content pages follow `prefers-color-scheme`.
-  `data-theme="light|dark"` on any element forces that theme for the subtree.
-- `tokens.ts` exports `colors.dark/light`, `tierKey(stars)`, `tierColor(stars, theme)`,
-  `TIER_DOT_PX`, `contrast()`, `teamInk()`, `teamRule()`, `teamVars(colors)` (style object for
-  `.team-block`/`.team-chip`), `teamPaint(colors)` (hex for raster), `fonts.ttf`, `motion`, `og`.
-  React: `style={teamVars(team.colors) as React.CSSProperties}`. Astro: `style={teamVars(team.colors)}`.
-- Never re-implement tiers/ranks: tier = `tierFor()` from `@lib/tiers`, bar fill = `rankFill(rank, week.fbsCount)`,
-  bar color = `tierKey(tierFor({ fbs: true, feiRank: rank }).stars)`.
-- `tests/design-tokens.test.ts` checks CSS/TS parity and every contrast pair below.
-- Tailwind's default palette still compiles, but do not use it (`bg-gray-800`, `text-red-500`...).
-  Only the token utilities listed here.
+- **Every page follows `prefers-color-scheme`.** Light (paper) is the default; dark = photostat.
+  There is no forced theme and no `data-theme` attribute.
+- **Two light surfaces.** Content pages are the sheet itself (`light-sheet`). Game pages (`/` and
+  `/r/*`) are white sheets on a grey board (`light-board`): `<html data-surface="board">` and the
+  island root `<section class="game-root" data-surface="board">` select it. Dark is one set for both.
+- **tokens.css structure.** World tokens (`--board`, `--sheet`, `--ink`, `--stamp`, `--redaction`,
+  `--toner-50` ...) are plain custom properties in three blocks: `:root` (light-sheet),
+  `[data-surface="board"]` (light-board) and `@media (prefers-color-scheme: dark)` on
+  `:root, [data-surface="board"]` (dark). The `@theme static` block maps every system token onto
+  them (`--color-page: var(--board)` ...), so the utilities (`bg-page`, `text-fg-muted`,
+  `border-line-strong`, `bg-tier-45` ...) follow the scheme with no markup change. The mapping is
+  declared again on `[data-surface="board"]` (a custom property resolves where it is declared).
+  Each world block sits between `@tokens <set>` and `@end` comments that the test parses.
+- `:root { color-scheme: light }`, dark media `color-scheme: dark`; the reveal dialog inherits.
+- **Fonts**: three Archivo woff2 files, all preloaded; metric-matched fallbacks (section 7).
+- **tokens.ts** exports `colors.light` (sheet), `colors.board`, `colors.dark` (every key of section
+  5, values equal to tokens.css), `tierKey(stars)`, `tierColor(stars, theme = 'light')`,
+  `TIER_TICK_PX`, `contrast()`, `luminance()`, `teamInk()`, `teamRule()`, `teamVars(colors)` (style
+  object for `.team-block` / `.team-chip`), `teamPaint(colors)` (hex for raster renderers:
+  `{ bg, ink, rule, edge, redact }`), `fonts` (`family: 'Archivo'`, `ttf: { 400, 600, 800 }`),
+  `motion`, `og`. React: `style={teamVars(team.colors) as React.CSSProperties}`. Astro:
+  `style={teamVars(team.colors)}`.
+- Never re-implement tiers or ranks: tier = `tierFor()` from `@lib/tiers`, bar fill =
+  `rankFill(rank, week.fbsCount)`, bar colour = `tierKey(tierFor({ fbs: true, feiRank: rank }).stars)`.
+- Tests: `tests/design-tokens.test.ts` (CSS/TS parity for all three sets, every pair of section 6
+  at its minimum, toner ramp grey and monotonic, tick heights), `tests/team-redact.test.ts` (every
+  FBS team of every committed week: reveal bar >= 3:1 on the primary, edge when the primary vanishes
+  into the page).
+- Tailwind's default palette still compiles; do not use it (`bg-gray-800`, `text-red-500` ...).
+  Only the token utilities.
 
-## 3. Palette
+## 5. Colour tokens
 
-Utilities: `bg-*`, `text-*`, `border-*`, `ring-*`, `outline-*`, `fill-*` with the names below.
+Utilities: `bg-*`, `text-*`, `border-*`, `ring-*`, `outline-*`, `fill-*`, `stroke-*` with the
+system names below.
 
-| Token | Dark | Light | Use |
-| --- | --- | --- | --- |
-| `page` | `#0e0f12` | `#ffffff` | page background (`html`/`body` set explicitly) |
-| `surface` | `#16181d` | `#f5f6f8` | cards, panels, callouts, sticky footer |
-| `raised` | `#1e2128` | `#ebedf0` | card header slab, chips, TBD bracket slots, hover |
-| `raised-2` | `#272b33` | `#e1e4e8` | seed plates, pressed |
-| `line` | `#2a2e36` | `#e1e4e8` | hairlines (decorative) |
-| `line-strong` | `#3a3f49` | `#c5cad1` | table head rule, blind header rule, empty stars |
-| `control` | `#7a808a` | `#6e7581` | boundaries of interactive controls (>= 3:1) |
-| `track` | `#2b2f37` | `#e1e4e8` | empty part of bars, upcoming progress |
-| `fg` | `#ecedee` | `#121317` | primary text |
-| `fg-muted` | `#9ba1ab` | `#555b66` | labels, secondary text |
-| `fg-faint` | `#878d97` | `#5f6570` | meta, disabled; not on `raised-2` |
-| `accent` | `#c8f135` | `#4a6b00` | accent as text/icon |
-| `accent-fill` | `#c8f135` | `#c8f135` | primary buttons, picked plate, active underline, field plates |
-| `on-accent` | `#0e0f12` | `#0e0f12` | text on `accent-fill` |
-| `accent-tint` | `#333f22` | `#eef8d4` | selected background (segment, 2nd pick, hover on rank button) |
-| `accent-edge` | `#c8f135` | `#5f8700` | accent borders/rules that must stay visible (callout, cut lines, outlines) |
-| `focus` | `#c8f135` | `#4a6b00` | focus ring |
-| `win` / `win-tint` | `#3dd68c` / `#1b3a2f` | `#087040` / `#e3f3e9` | W text / W chip |
-| `loss` / `loss-tint` | `#ff6b6b` / `#3e2329` | `#b91e2a` / `#fbe7e8` | L text / L chip |
-| `selection` | `#c8f135` | `#d9f27a` | `::selection` (text `on-selection` `#0e0f12`) |
-| `scrim` | `rgb(6 7 9 / .8)` | `rgb(14 15 18 / .55)` | modal backdrop |
-| `ink` / `paper` | `#0e0f12` / `#ffffff` | same | constant inks for team blocks and OG |
-
-### Measured contrast (WCAG 2.x; enforced by the test)
-
-| Pair | Min | Dark | Light |
-| --- | --- | --- | --- |
-| `fg` on `page` / `surface` / `raised` / `raised-2` | 4.5:1 | 16.35 / 15.15 / 13.74 / 12.11 | 18.56 / 17.17 / 15.83 / 14.55 |
-| `fg-muted` on `page` / `surface` / `raised` / `raised-2` | 4.5:1 | 7.37 / 6.83 / 6.20 / 5.46 | 6.83 / 6.32 / 5.82 / 5.35 |
-| `fg-faint` on `page` / `surface` / `raised` | 4.5:1 | 5.74 / 5.32 / 4.82 | 5.86 / 5.42 / 5.00 |
-| `accent` on `page` / `surface` / `raised` | 4.5:1 | 14.68 / 13.61 / 12.34 | 6.19 / 5.72 / 5.27 |
-| `on-accent` on `accent-fill` | 4.5:1 | 14.68 | 14.68 |
-| `accent` on `accent-tint` | 4.5:1 | 8.58 | 5.60 |
-| `win` on `page` / `surface` / `raised` | 4.5:1 | 10.22 / 9.47 / 8.59 | 6.17 / 5.71 / 5.26 |
-| `win` on `win-tint` | 4.5:1 | 6.61 | 5.37 |
-| `loss` on `page` / `surface` / `raised` | 4.5:1 | 6.91 / 6.40 / 5.81 | 6.40 / 5.92 / 5.46 |
-| `loss` on `loss-tint` | 4.5:1 | 5.12 | 5.39 |
-| `on-selection` on `selection` | 4.5:1 | 14.68 | 15.45 |
-| `control` on `page` / `surface` / `raised` | 3:1 | 4.82 / 4.47 / 4.05 | 4.64 / 4.29 / 3.96 |
-| `focus` on `page` / `surface` / `raised` | 3:1 | 14.68 / 13.61 / 12.34 | 6.19 / 5.72 / 5.27 |
-| `accent-edge` on `page` / `surface` / `raised` | 3:1 | 14.68 / 13.61 / 12.34 | 4.24 / 3.92 / 3.62 |
-| `tier-50` on `page` / `surface` / `raised` | 3:1 | 12.81 / 11.87 / 10.77 | 4.22 / 3.90 / 3.60 |
-| `tier-45` | 3:1 | 10.43 / 9.66 / 8.77 | 4.72 / 4.36 / 4.02 |
-| `tier-40` | 3:1 | 8.61 / 7.98 / 7.24 | 4.82 / 4.46 / 4.11 |
-| `tier-30` | 3:1 | 7.84 / 7.26 / 6.59 | 4.61 / 4.26 / 3.93 |
-| `tier-20` | 3:1 | 6.28 / 5.82 / 5.28 | 4.08 / 3.78 / 3.48 |
-| `tier-15` | 3:1 | 5.38 / 4.99 / 4.52 | 3.87 / 3.58 / 3.30 |
-| `tier-10` | 3:1 | 4.67 / 4.33 / 3.93 | 3.73 / 3.45 / 3.18 |
-| `tier-05` | 3:1 | 4.13 / 3.82 / 3.47 | 3.57 / 3.30 / 3.04 |
-| team name on its block (`teamInk`) | 4.5:1 | >= 4.58 for any color (swept in the test) | same |
-
-`accent-fill` on a light page is 1.3:1 by design: light-theme primary buttons carry an
-`accent-edge` border, and accent is never the only cue for state.
-
-## 4. Opponent-tier ramp
-
-Key = stars x 10 (`tierKey(stars)`): `data-tier="50|45|40|30|20|15|10|05"` on any element sets
-`--tier` (color), `--stars` and `--tier-dot`. Utilities `bg-tier-45`, `text-tier-45`... always exist.
-
-| Key | Stars | Tier (FEI rank) | Dark | Light | Dot |
+| World token | System token (utility) | light-sheet (content) | light-board (game) | dark (photostat) | Role |
 | --- | --- | --- | --- | --- | --- |
-| `50` | 5 | 1-5 | `#ffcd34` gold | `#937900` | 14px |
-| `45` | 4.5 | 6-10 | `#f8b23d` amber | `#b65a00` | 12px |
-| `40` | 4 | 11-25 | `#d9a461` bronze | `#8c6b56` | 11px |
-| `30` | 3 | 26-50 | `#77abd7` steel | `#4479a9` | 10px |
-| `20` | 2 | 51-75 | `#7f96af` slate | `#698098` | 9px |
-| `15` | 1.5 | 76-100 | `#7c8999` | `#768392` | 8px |
-| `10` | 1 | 101+ | `#777e87` | `#7e858e` | 7px |
-| `05` | 0.5 | FCS / non-FBS | `#717579` | `#84888c` | 6px |
+| `--board` | `page` | `#fdfdfa` | `#e8e8e3` | `#161615` | page; on game pages the desk under the sheets |
+| `--sheet` | `surface` | `#f4f4ef` | `#fdfdfa` | `#1f1f1d` | cards, panels, reveal, footer bar, index-tab labels, callout |
+| `--field` | `raised` | `#ecece6` | `#f1f1ec` | `#282826` | form-field shading: quality wins, reveal cells, bracket slots, segmented field, hover |
+| `--field-2` | `raised-2` | `#e2e2db` | `#e6e6e0` | `#32322f` | pressed, quiet fills |
+| `--rule` | `line` | `#d9d9d1` | `#dadad3` | `#34342f` | hairline rules (decorative) |
+| `--rule-strong` | `line-strong` | `#b2b3aa` | `#b4b5ad` | `#4c4c46` | card/panel/table frames, index-tab outline, empty pip boxes, upcoming progress ticks, season baseline |
+| `--edge` | `control` | `#74756d` | `#74756d` | `#8a8a82` | control boundaries (>= 3:1): checkbox, secondary button, segmented frame, 3rd stamp |
+| `--track` | `track` | `#e2e2db` | `#e3e3dd` | `#33332f` | empty part of rank bars |
+| `--ink` | `fg` | `#18191d` | `#18191d` | `#ecebe4` | type; ink plates; 2px header rule; table head rule; cut line; selection chrome; team-block focus |
+| `--carbon` | `fg-muted` | `#50524b` | `#50524b` | `#aeada4` | labels, secondary text |
+| `--graphite` | `fg-faint` | `#5f615a` | `#5d5f58` | `#9d9c93` | meta, captions, disabled |
+| `--stamp` | `accent`, `focus` | `#4b2c92` | `#4b2c92` | `#b9a7f1` | you, as text/icon; focus ring |
+| `--stamp-fill` | `accent-fill` | `#4b2c92` | `#4b2c92` | `#b9a7f1` | you, as a fill: primary button, 1st plate/stamp, you-are-here tick |
+| `--on-stamp` | `on-accent` | `#fdfdfa` | `#fdfdfa` | `#161615` | text on violet fill |
+| `--stamp-wash` | `accent-tint` | `#e9e3f5` | `#ebe5f6` | `#2d2742` | 2nd-pick plate, rank-button hover, "Matches ..." chip |
+| `--stamp-edge` | `accent-edge` | `#5a3aa3` | `#5a3aa3` | `#b9a7f1` | your rules: in-field rule, 2nd stamp, match stamp, rank-button border, legend swatch |
+| `--redaction` | `redaction` | `#121317` | `#121317` | `#e6e3d8` | THE bar (blind header, reveal, demo slabs, pitch, wordmark, hero phrase) |
+| `--on-redaction` | `on-redaction` | `#fdfdfa` | `#fdfdfa` | `#161615` | type reversed out of a bar |
+| `--won` / `--won-wash` | `win` / `win-tint` | `#17683a` / `#e0eee3` | `#17683a` / `#e2efe5` | `#78d39c` / `#1d3326` | W letter, up deltas / W wash (unused by chips) |
+| `--lost` / `--lost-wash` | `loss` / `loss-tint` | `#a3262b` / `#f6e0dd` | `#a3262b` / `#f7e2df` | `#f3968c` / `#3f2523` | L letter + margin / the flagged L chip |
+| `--toner-50` | `tier-50` | `#25262b` | `#25262b` | `#f3f2ec` | FEI 1-5 |
+| `--toner-45` | `tier-45` | `#34363a` | `#34363a` | `#dad9d2` | FEI 6-10 |
+| `--toner-40` | `tier-40` | `#43454a` | `#43454a` | `#c3c2bb` | FEI 11-25 |
+| `--toner-30` | `tier-30` | `#505257` | `#505257` | `#acaba4` | FEI 26-50 |
+| `--toner-20` | `tier-20` | `#5c5e63` | `#5f6166` | `#9a9991` | FEI 51-75 |
+| `--toner-15` | `tier-15` | `#66686c` | `#686a6e` | `#8e8d86` | FEI 76-100 |
+| `--toner-10` | `tier-10` | `#6f7175` | `#707276` | `#8a8982` | FEI 101+ |
+| `--toner-05` | `tier-05` | `#76787c` | `#77797d` | `#82817b` | FCS / non-FBS |
+| `--selection` / `--on-selection` | `selection` / `on-selection` | `#d9cdf3` / `#18191d` | same | `#4a3d78` / `#ecebe4` | `::selection` |
+| (none) | `scrim` | `rgb(24 25 29 / 0.5)` | same | `rgb(0 0 0 / 0.62)` | modal backdrop |
+| (none) | `ink` / `paper` | `#0e0f12` / `#ffffff` | same | same | constant inks: team names on team colours (`teamInk`) only |
 
-- **Stars:** `<span class="stars" data-tier="45" role="img" aria-label="4.5 of 5 stars"></span>`
-  (60x12, half stars automatic, empty stars `line-strong`). Never use star glyphs from a font.
-- **Rank bars:** the bar for rank N uses the tier of that rank band (a #3 offense is gold, #61 is
-  slate). `<div class="meter" data-tier="50" style="--fill:.985"><span></span></div>`, 6px tall.
-- **Resume-strip dots:** `<span class="tier-dot" data-tier="30"></span>`, sized by tier, with the
-  W/L letter under it (section 7).
-- **Quality-win chips:** Top 10 = `50`, 11-25 = `40`, 26-50 = `30` dot (8px). Labels "Top 10" /
-  "11-25" / "26-50" everywhere (game card, team page, compare card); the heading names the scale
-  ("Quality wins (by FEI rank)"), so labels never truncate.
-- Light theme: gold `50` leans yellow, amber `45` leans orange and bronze `40` is muted, so the
-  three top tiers stay distinguishable after darkening for contrast on white.
+The toner top step is deliberately lighter than `--redaction`, so the bar stays the blackest mark.
 
-## 5. Type
+## 6. Measured contrast
 
-| Role | Utility | Spec |
+Enforced by `tests/design-tokens.test.ts`: **3 token sets x 81 pairs, 0 failing, no exceptions**.
+Text >= 4.5:1; graphics, control boundaries and focus >= 3:1.
+
+| Pair | Min | light-sheet | light-board | dark | Use |
+| --- | --- | --- | --- | --- | --- |
+| `fg` on `page` / `surface` / `raised` | 4.5 | 17.24 / 15.92 / 14.81 | 14.29 / 17.24 / 15.50 | 15.15 / 13.81 / 12.36 | text, values, names on paper |
+| `fg` on `raised-2` / `accent-tint` / `win-tint` / `loss-tint` | 4.5 | 13.50 / 14.03 / 14.64 / 13.90 | 14.02 / 14.28 / 14.81 / 14.13 | 10.76 / 11.87 / 11.31 / 11.71 | text on fills |
+| `fg-muted` on `page` / `surface` / `raised` / `raised-2` | 4.5 | 7.78 / 7.18 / 6.68 / 6.09 | 6.45 / 7.78 / 6.99 / 6.33 | 8.03 / 7.32 / 6.55 / 5.70 | labels |
+| `fg-faint` on `page` / `surface` / `raised` | 4.5 | 6.16 / 5.69 / 5.30 | 5.27 / 6.35 / 5.71 | 6.56 / 5.98 / 5.35 | meta |
+| `accent` on `page` / `surface` / `raised` / `accent-tint` | 4.5 | 9.93 / 9.17 / 8.54 / 8.08 | 8.23 / 9.93 / 8.93 / 8.23 | 8.50 / 7.75 / 6.94 / 6.66 | your marks as text |
+| `on-accent` on `accent-fill` | 4.5 | 9.93 | 9.93 | 8.50 | text on violet |
+| `win` on `page` / `surface` / `raised` / `win-tint` | 4.5 | 6.70 / 6.18 / 5.75 / 5.69 | 5.55 / 6.70 / 6.02 / 5.75 | 10.00 / 9.12 / 8.16 / 7.46 | W |
+| `loss` on `page` / `surface` / `raised` / `loss-tint` | 4.5 | 7.18 / 6.63 / 6.17 / 5.79 | 5.95 / 7.18 / 6.46 / 5.89 | 8.24 / 7.51 / 6.72 / 6.37 | L |
+| `on-redaction` on `redaction` | 4.5 | 18.22 | 18.22 | 14.09 | wordmark, hero phrase |
+| `surface` on `fg` / `page` on `fg` | 4.5 | 15.92 / 17.24 | 17.24 / 14.29 | 13.81 / 15.15 | file letters, H2H tag |
+| `on-selection` on `selection` | 4.5 | 11.69 | 11.69 | 7.88 | selection |
+| `control` on `page` / `surface` / `raised` | 3 | 4.57 / 4.22 / 3.93 | 3.79 / 4.57 / 4.11 | 5.21 / 4.75 / 4.25 | control boundaries |
+| `focus` on `page` / `surface` / `raised` | 3 | 9.93 / 9.17 / 8.54 | 8.23 / 9.93 / 8.93 | 8.50 / 7.75 / 6.94 | focus ring |
+| `fg` (graphic) on `page` / `surface` / `raised` | 3 | 17.24 / 15.92 / 14.81 | 14.29 / 17.24 / 15.50 | 15.15 / 13.81 / 12.36 | plates, rules, selection chrome, team focus |
+| `accent-edge` on `page` / `surface` / `raised` | 3 | 8.02 / 7.41 / 6.89 | 6.65 / 8.02 / 7.21 | 8.50 / 7.75 / 6.94 | in-field rule, stamps, rank border |
+| `accent-fill` on `page` / `surface` / `raised` | 3 | 9.93 / 9.17 / 8.54 | 8.23 / 9.93 / 8.93 | 8.50 / 7.75 / 6.94 | primary button, 1st plate, you-are-here |
+| `redaction` on `page` / `surface` / `raised` | 3 | 18.22 / 16.83 / 15.65 | 15.10 / 18.22 / 16.38 | 14.09 / 12.85 / 11.50 | the bar |
+| `tier-50` on `page` / `surface` / `raised` / `track` | 3 | 14.82 / 13.69 / 12.73 / 11.60 | 12.28 / 14.82 / 13.33 / 11.72 | 16.14 / 14.72 / 13.17 / 11.31 | pips, ticks, bars |
+| `tier-45` | 3 | 11.88 / 10.97 / 10.21 / 9.30 | 9.85 / 11.88 / 10.68 / 9.39 | 12.79 / 11.66 / 10.44 / 8.96 | |
+| `tier-40` | 3 | 9.41 / 8.70 / 8.09 / 7.37 | 7.80 / 9.41 / 8.47 / 7.45 | 10.14 / 9.24 / 8.27 / 7.10 | |
+| `tier-30` | 3 | 7.67 / 7.09 / 6.59 / 6.01 | 6.36 / 7.67 / 6.90 / 6.07 | 7.86 / 7.17 / 6.41 / 5.51 | |
+| `tier-20` | 3 | 6.37 / 5.88 / 5.47 / 4.99 | 5.04 / 6.08 / 5.47 / 4.81 | 6.33 / 5.77 / 5.16 / 4.43 | |
+| `tier-15` | 3 | 5.48 / 5.06 / 4.71 / 4.29 | 4.41 / 5.32 / 4.78 / 4.21 | 5.44 / 4.96 / 4.43 / 3.81 | |
+| `tier-10` | 3 | 4.80 / 4.43 / 4.12 / 3.76 | 3.92 / 4.73 / 4.25 / 3.74 | 5.16 / 4.70 / 4.21 / 3.61 | |
+| `tier-05` | 3 | 4.34 / 4.01 / 3.73 / 3.40 | 3.55 / 4.28 / 3.85 / 3.38 | 4.64 / 4.23 / 3.78 / 3.25 | |
+| team name on its colour (`teamInk`) | 4.5 | >= 4.58 for any colour (swept in the test) | same | same | covers, seed plates |
+
+Not contrast-bearing by design (decorative, never the only cue): `line` hairlines; `line-strong`
+empty pip outlines (the count is carried by the filled pips and the band text), upcoming progress
+ticks (the text "Round 3 of 15" carries it), frames; `raised` shading.
+
+Team colours: the reveal bar on a primary is `--team-redact-*` = `var(--redaction)` when that is
+>= 3:1 on the primary, else `teamInk(primary)` (>= 4.5:1). A primary within 1.5:1 of a page or sheet
+it can sit on gets a 1px edge (`--team-edge-light: rgb(24 25 29 / .34)` against `#fdfdfa` /
+`#e8e8e3`; `--team-edge-dark: rgb(236 235 228 / .42)` against `#161615` / `#1f1f1d`).
+
+## 7. Type
+
+**Archivo** (Omnibus-Type / The Archivo Project Authors, SIL OFL 1.1). One family, static weights
+400 / 600 / 800: a grotesque made for print and screen, slightly narrow, with heavy weights that
+read like filled-in form values. No condensed face, no mono, no second family.
+
+| File (`src/assets/fonts/`) | Bytes | Use |
 | --- | --- | --- |
-| Label (metric names, column heads, kickers) | `label-caps` | Barlow Condensed 600, 12/16, +0.08em, caps |
-| Tab / button / table team name | `cond text-label-lg uppercase` | 600, 15/20, +0.06em |
-| Team name on tiles / slots | `text-team` (inside `.team-block`) | 700, 16/17, +0.02em, caps |
-| Card rank "#N" | `cond text-stat` | 700, 22/24 |
-| Panel title, h2 | `cond text-heading uppercase` | 700, 24/26 |
-| h1 phone, section title | `cond text-title uppercase` | 700, 32/32 |
-| Stat row numeral (content) | `cond text-stat-lg` | 700, 36/36 |
-| Card record | `text-record` (in `.team-block`) | 700, 44/40 |
-| h1 desktop, team hero name | `cond text-display uppercase` | 700, 56/52 |
-| "15" numeral | `cond text-hero` | 700, 96/88 |
-| Body | `text-base` / `text-sm` / `text-lg` | system UI sans 16/24, 14/20, 18/28 |
+| `archivo-latin-400-normal.woff2` | 14,700 | body, meta, title-sub |
+| `archivo-latin-600-normal.woff2` | 13,820 | labels, tabs, table heads, team chips, secondary buttons |
+| `archivo-latin-800-normal.woff2` | 14,416 | numerals, records, ranks, headings, team names, primary buttons |
+| `Archivo-{400,600,800}.ttf` + `Archivo-OFL.txt` | ~120k each | build-time images only (OG, glyph atlas); never shipped |
 
-- Fonts: `font-condensed` (Barlow Condensed 600/700 only, self-hosted, `font-display: swap`) and
-  `font-sans` (system UI). Never another family; never 400/500 weights of the condensed face.
-- `body` sets `tabular-nums`; `proportional-nums` opts out. `cond` = condensed + tabular.
-- Minimum text: 12px (labels), 13px sans meta, 14px body in tables, 16px body copy.
-- The condensed font has no arrows or stars: deltas use `.delta` (drawn triangle), minus is
-  U+2212 (`−`), the separator is ` · `.
-- Copy casing: condensed text is uppercase via CSS (`uppercase`); write strings in normal case.
+- The woff2 files are the `@fontsource/archivo@5.3.0` latin files; the TTFs are the matching static
+  instances (`@expo-google-fonts/archivo@0.4.2`: same unitsPerEm 1000, hhea 878 / -210 / 0,
+  identical advance widths). All three woff2 are preloaded (42,936 bytes on the critical path).
+- `font-weight: 700` (`font-bold`) resolves to the 800 file: no 700 face is declared.
+- Metric-matched fallbacks in global.css, one per weight band (`Archivo Fallback` over Arial /
+  Liberation Sans: 100-500 size-adjust 98.5%, 600 96%, 700-900 103.7%, with ascent/descent
+  overrides), so the swap moves nothing (CLS 0).
 
-## 6. Space, radius, shadow, motion
+Type scale (ratio 1.25 from 16; hierarchy by weight and colour first). Utility = `text-<role>`.
+
+| Role | Size / line-height | Weight | Tracking | Use |
+| --- | --- | --- | --- | --- |
+| `label` (and `label-caps`) | 13 / 16 | 600 | 0 | field labels, column heads, kickers, tags |
+| `label-lg` | 15 / 20 | 600 | 0 | tabs, secondary buttons, table team names |
+| `team` | 16 / 18 | 800 | -0.005em | team names on tiles / slots |
+| `stat` | 22 / 24 | 800 | -0.01em | card ranks "#18" |
+| `heading` | 25 / 28 | 800 | -0.015em | h2, panel titles, reveal names, pitch question |
+| `title` | 31 / 34 | 800 | -0.02em | h1 phones, results title phones |
+| `stat-lg` | 36 / 40 | 800 | -0.02em | content stat-row numerals |
+| `record` | 38 / 38 | 800 | -0.025em | blind-card record |
+| `display` | 52 / 54 | 800 | -0.03em | h1 desktop, team hero max |
+| `hero` | 88 / 88 | 800 | -0.04em | the "15" numeral |
+| body | 16 / 24, 15 / 24, 14 / 20, 13 / 20 | 400 | 0 | copy, meta (`text-fg-faint` 13px) |
+
+- **Sentence case everywhere.** No `uppercase` class, no `tracking-*` class (`rg -n
+  "uppercase|tracking-\[" src` returns nothing). Acronyms in the copy (SoR, FEI, CFP, H2H, AQ, NR)
+  stay as written.
+- `label-caps` (the historical name) is the form-field label: 13/16 600, no caps, no tracking.
+  `cond` only keeps tabular figures (the family is Archivo everywhere); `font-condensed` is an
+  alias of `font-sans`. New code uses neither.
+- Minimum text 12px (tags, quality-win labels; the phone footer's 11px record digits are a
+  non-essential duplicate of the card's record inside a 40px tap target).
+- Headings get `text-wrap: balance`, paragraphs `text-wrap: pretty` (global).
+- A heading is one colour. A second line is `.title-sub` (block, same ink, weight 400, -0.015em).
+  No muted or accented words inside headings; the redacted "Names hidden." is the only single-phrase
+  treatment on the site.
+- Wordmark `.wordmark`: Archivo 800 18px/1, -0.015em: `CFB <span class="wm-redacted">Blind</span> Resume`.
+- The font has no arrows or stars: deltas use `.delta` (drawn triangle), minus is U+2212 (`−`), the
+  separator is ` · `.
+
+## 8. Space, radius, depth, motion
 
 - Base unit 4px (`p-1` = 4px). Gutter `px-gutter` (16px) on phones, `lg:px-gutter-lg` (32px).
   Containers: `max-w-read` 672px prose, `max-w-page` 1216px content, `max-w-game` 1216px game (the
   same as page, so the home hero, game panel, "This week" and header share one left edge).
-- Radius: `rounded-slab` 2px (team blocks, plates, bars), `rounded-chip` 4px (chips, buttons,
-  tiles, inputs), `rounded-card` 8px (cards, table frames), `rounded-panel` 12px (modals).
-- Shadow: `shadow-card` (cards), `shadow-panel` (modals), `shadow-footer` (sticky bars). Flat
-  otherwise; no colored glows.
-- Motion (all < 300ms; zeroed under `prefers-reduced-motion` by global.css):
-  `--duration-instant` 90ms (press), `--duration-fast` 140ms (hover, toggles), `--duration-base`
-  200ms (pick, panel fade, tab change), `--duration-slow` 280ms (reveal wipe, bar fill, modal
-  enter). Easing `ease-out` (default), `ease-snap` (pick press overshoot). Animations:
-  `animate-rise` (8px up + fade), `animate-fade`, `animate-wipe` (left-to-right clip reveal),
-  `meter[data-animate]` (bar fill). Use `duration-(--duration-base)` for custom transitions.
-- Focus: 2px `focus` outline, 2px offset, on `:focus-visible` (global). Do not remove it.
-- `html` sets `scrollbar-gutter: stable`: on desktops with classic scrollbars the centered page never
-  shifts when the scrollbar appears mid-load (no effect with overlay scrollbars). Never size with `100vw`.
-- Touch targets: 44px minimum (`.btn`, `.switch`, `.tab`); segments 40px inside a 48px control.
+- Radius: `rounded-slab` 2px (team plates, bars, stamps, tags), `rounded-chip` 3px (buttons, chips,
+  inputs, bracket boxes), `rounded-card` 4px (cards, table frames, segmented), `rounded-panel` 6px
+  (reveal, intro, done, error panels). Folder tabs 5px on top.
+- **Depth is borders only.** There are no shadow tokens and no `shadow-card/panel/footer` classes.
+  Inset 1-2px `shadow-[inset_…]` rules that act as borders (match chips, rank-history current week)
+  are fine; drop shadows and glows are not.
+- Motion (all < 300ms; zeroed under `prefers-reduced-motion` by global.css): `--duration-instant`
+  90ms (press), `--duration-fast` 140ms (hover, toggles), `--duration-base` 200ms (pick, panel fade,
+  tab change), `--duration-slow` 280ms (bar fill, modal enter). Easing `ease-out` (default),
+  `ease-snap` (pick press). Animations: `animate-rise` (8px up + fade), `animate-fade`,
+  `meter[data-animate]` (bar fill). The reveal's declassify sequence has its own tokens
+  (`--declassify-duration` 240ms, `--declassify-start` 80ms, `--declassify-stagger` 100ms,
+  `--ease-declassify` `cubic-bezier(0.77, 0, 0.175, 1)`), section 9.
+- Focus: `:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px }` (violet,
+  global). On team blocks a 3px `fg` outline, offset 3px (4px inside the island). Do not remove it.
+- `html` sets `scrollbar-gutter: stable`. Never size with `100vw`.
+- Touch targets: 44px minimum (`.btn`, `.switch` rows, `.tab`, jump-nav chips); segments 40px
+  inside the control.
 
-## 7. Component classes (global.css)
+## 9. The signature: the redaction bar
 
-| Class | Markup / states |
+| Where | How |
 | --- | --- |
-| `.team-block` | flex row; `style={teamVars(c)}`; children `.seed-plate` + name + meta; `data-in-field` = accent ring (box-shadow: 2px `page` gap + 2px `accent-edge`) + accent plate; a focused in-field block adds a 3px `fg` outline outside the ring |
-| `.team-chip` | inline name with a 12x20 color block + 4px rule; tables, lists, prose |
-| `.seed-plate` | left plate in a team block: `raised-2`, condensed 700 numeral |
-| `.meter` | rank bar, `data-tier`, `--fill`; `data-animate` to grow on mount |
-| `.stars`, `.tier-dot` | see section 4 |
-| `.result-chip` | `data-result="W|L"`: `<span class="result-chip" data-result="W"><span>W</span><span>+16</span></span>`, min 60x24 |
-| `.delta` | `data-dir="up|down"` + number; add sr-only text ("up 3 from the committee"); omit when equal (sr-only "agree" text stays; tables show a muted `=` so the cell does not read as missing). Direction is always from the side of the label beside it (`Delta` `subject`/`ref`) |
-| `.btn` + `.btn-primary` / `.btn-secondary` / `.btn-ghost` / `.btn-rank` | 44px min, condensed 700 17px caps |
-| `.switch` + `.switch-track` | `<button role="switch" aria-checked>`; on = accent track |
-| `.segmented` | children `[aria-pressed]` / `[aria-selected]` / `[aria-current]`; selected = `accent-tint` + accent text + 1px `accent-edge` |
-| `.tabs` + `.tab` | `[aria-selected=true]` = `fg` + 3px `accent-fill` underline |
-| `.link` | `fg` text, 2px `accent-edge` underline, hover `accent` text |
-| `.table-wrap` + `.data-table` | `th[data-num]`, `td[data-num]` right-aligned condensed; `tr[data-cut]` = 2px accent cut line. `.table-wrap` is `position: relative` so `.sr-only` cell text scrolls with the table instead of widening the page |
-| `.team-chip-tap` | team link in a table row (`TeamChip tap`): 44px-tall hit area with -8px block margins, so the row height does not change |
-| `.hero-name` | team-page hero name (`TeamBlock` `nameFit` from `heroNameFit()`): size container + `min(max, (100cqi - meta) / width-per-px)`, two stacked `.hero-line`s for long names on phones; never truncates |
-| `.callout` | `surface`, 4px `accent-edge` left rule |
-| `.ad-slot` + `.ad-label` + `.ad-box` | section 13 |
+| Blind card header | An empty `<span data-redacted aria-hidden="true">` in `h3.card-header-title`: 22px tall, it fills the free grid column next to the record, min 48px. **Its width comes from the card, never from the hidden name**: no name, slug, colour or conference reaches the DOM before lock-in (the e2e asserts "no team name in the island before lock-in"). The h3's accessible name stays "Team A, 6 wins 2 losses". |
+| Reveal ("Your order, revealed") | The same ink file letter and record stay put; the name (now in the DOM) shrink-wraps its text and `.team-name::after` covers it (`inset: 18% -0.25rem 18% 0.375rem`, marker-swipe clip-path, colour `--team-redact`). It **lifts**: `transform: scaleX(1 -> 0)`, `transform-origin: right`, 240ms `--ease-declassify`, delays 80 / 180 / 280ms: all three declassified by **520ms**. Transform only; `pointer-events: none` (Next round, Esc, Enter work throughout); screen readers get the names at once (the bar is a pseudo-element). The cover colour shows for the first time. Tests and the share capture wait for idle animations (`document.getAnimations()`; `scripts/e2e-game.mjs` `animationsDone()`). |
+| Wordmark (header and footer, every page) | `CFB <span class="wm-redacted">Blind</span> Resume`: static markup, no script. `.wm-redacted`: `redaction` bg, `on-redaction` text, padding .06em .16em .08em, radius 1px. |
+| Home hero | `Rank the resumes. <span class="hero-redacted">Names hidden.</span>`: reversed out of a bar because it says what it does (`box-decoration-break: clone`). The only single-phrase treatment on the site. |
+| Intro demo slabs | Redacted names (14px bars, widths 82 / 64 / 47%) with 1st / 2nd / 3rd stamps. |
+| Play pitch (team, compare, bubble pages) | A miniature redacted card header (section 19). |
+| Dark mode | Photostat negative: bars and ink plates print paper-white (`--redaction: #e6e3d8`). |
+| OG and share images | The wordmark with "Blind" reversed out of a bar on every image (section 22). |
 
-`.btn-rank` states: default (2px `accent-edge` border, `accent` text, hover `accent-tint`);
-`data-place="1"` picked 1st (`accent-fill`, `on-accent`, `aria-pressed="true"`, label
-"1st · tap to undo"); `data-place="2"` (`accent-tint` + accent border + text "2nd");
-`data-place="3"` implied 3rd (`raised`, `fg-muted`, "3rd"); `disabled` while the round locks
-(transparent, `line-strong` border, `fg-faint`, `cursor: not-allowed`).
+Marker-swipe shape (every bar except the inline wordmark / hero spans and raster images):
+`clip-path: polygon(0.8% 9%, 6% 2%, 97% 0, 100% 14%, 99.3% 91%, 94% 100%, 2% 97%, 0 82%)`.
 
-## 8. Team block (lower-third)
+## 10. Opponent-tier indicator
 
-Color block in `primary` (`--team-bg`), name in condensed caps in `teamInk(primary)` (white or
-ink, always >= 4.5:1), a 4px bottom rule in `secondary` (`teamRule`: falls back to the ink color
-when secondary is within 1.5:1 of primary, e.g. BYU). If the primary vanishes into the page
-(< 1.5:1, 41 of 138 teams on dark: navy/black/maroon) `teamVars` adds a 1px hairline edge; the
-secondary rule carries identity (Michigan maize, Iowa gold). Seed plate sits left, meta right.
+| Key (`data-tier`) | Stars value | Tier | Pips filled | Tick px | Toner light-sheet / board / dark |
+| --- | --- | --- | --- | --- | --- |
+| `50` | 5 | FEI 1-5 | 5 | 14 | `#25262b` / `#25262b` / `#f3f2ec` |
+| `45` | 4.5 | FEI 6-10 | 4.5 | 12 | `#34363a` / `#34363a` / `#dad9d2` |
+| `40` | 4 | FEI 11-25 | 4 | 10 | `#43454a` / `#43454a` / `#c3c2bb` |
+| `30` | 3 | FEI 26-50 | 3 | 8 | `#505257` / `#505257` / `#acaba4` |
+| `20` | 2 | FEI 51-75 | 2 | 6 | `#5c5e63` / `#5f6166` / `#9a9991` |
+| `15` | 1.5 | FEI 76-100 | 1.5 | 5 | `#66686c` / `#686a6e` / `#8e8d86` |
+| `10` | 1 | FEI 101+ | 1 | 4 | `#6f7175` / `#707276` / `#8a8982` |
+| `05` | 0.5 | FCS / non-FBS | 0.5 | 3 | `#76787c` / `#77797d` / `#82817b` |
+
+`data-tier` on any element sets `--tier` (toner), `--stars` and `--tier-tick`. Data stays `tierFor()`
+/ `tierKey()`. Utilities `bg-tier-45`, `text-tier-45` ... always exist.
+
+- **Pips** (`<span class="stars" data-tier="45" role="img" aria-label="4.5 of 5 pips, FEI 6-10">`):
+  5 cells of 9px (8px in a `@container (max-width: 19rem)`), 10px tall. `::before` = five empty
+  boxes (1px `line-strong` outline), `::after` = filled pips in toner up to `--stars`, so half tiers
+  show a half-inked box. Filled vs empty is a **shape** difference, not only grey. The band text is
+  on every row (blind card, game log, still to play, compare). Never use star glyphs.
+- **Season ticks** (`<span class="tier-dot" data-tier="30">`): 8px wide, `height: var(--tier-tick)`,
+  square, toner, `align-self: end`. In the blind card each sits in `.tick-slot` (14px tall, items at
+  the bottom, `margin: 0 -3px`, 1px `line-strong` bottom border) so the slots join into one
+  baseline: a tiny printed bar chart, the W/L letter under it. In SVG (`ResumeStrip.astro`):
+  `<rect>` 8px (full) / 6px (compact) wide, height `TIER_TICK_PX * 1.2` / `* 1`, on a 1px
+  `line-strong` baseline. Legends and the how-it-works table use `.tier-tick-cell` (16x14 sample).
+- **Rank bars** (`<div class="meter" data-tier="50" style="--fill:.985"><span></span></div>`): 5px
+  tall, square ends, `track` + toner fill of the rank band (a #3 offense is near-black, #61 is mid
+  grey), `rankFill`.
+- **Quality wins**: no tier mark; the labels "Top 10" / "11-25" / "26-50" say it, and the heading
+  names the scale.
+- **How it works** copy: "Pips, tick heights and ink density all follow the same scale: the better
+  the opponent, the more ink."
+
+## 11. Team identity (`.team-block`, `.team-chip`, `teamVars`)
+
+`teamVars(colors)` returns `--team-bg` (primary), `--team-ink` (`teamInk`), `--team-rule`
+(`teamRule`: the secondary, or the ink when the secondary is within 1.5:1 of the primary, e.g. BYU),
+`--team-edge-light` / `--team-edge-dark` and `--team-redact-light` / `--team-redact-dark` (section
+6). CSS picks the scheme (`--team-edge`, `--team-redact`).
+
+Markup (`src/game/ui.tsx TeamBlock` and `src/components/TeamBlock.astro`): `data-variant="tab"` when
+a seed plate is shown and the size is not `reveal`, else `"cover"`; `data-size` = size; the name
+element has class `team-name`, the meta `team-meta`.
+
+| Variant | Look | Used by |
+| --- | --- | --- |
+| **cover** | `team-bg` background, `team-ink` name 800 sentence case -0.01em, 4px `team-rule` bottom border, inset 1px `team-edge`; hover `brightness(1.06)` | reveal (rule drawn as `inset 0 -4px 0`, ink file letter), team hero (6px rule, radius 4px 4px 0 0), compare cards, any block without a seed |
+| **tab** | label: `surface` bg, `fg` text, no bottom border, inset 1px `line-strong`; `.seed-plate`: `team-bg` bg, `team-ink` numeral 800, `inset 0 -4px 0 team-rule` + inset 1px `team-edge`; meta 600 `fg-muted`; hover label `raised`; in field: inset 2px `accent-edge` | results rows/tiles, next five, bracket slots (as fields), home "This week" lists |
+| chip | `.team-chip::before` 10x18, radius 1px, `team-bg`, 3px `team-rule` bottom, inset 1px `team-edge`; name 15px 600 (14px in phone tables) | tables, prose, bid lists |
 
 | Size | Height | Plate | Name | Use |
 | --- | --- | --- | --- | --- |
 | slot | `h-9` 36 | `min-w-8` 18px | 15px | bracket slots |
-| row | `h-12` 48 | `min-w-10` 22px | 18px | phone results list, rankings lists |
+| row | `h-12` 48 | `min-w-10` 22px | 18px | phone results list, home lists |
 | tile | `min-h-16` 64 | `min-w-9` 22px | `text-team` 16px, 2 lines max | results grid |
-| reveal | `h-14` 56 | `min-w-12` 28px | `text-heading` 24px | reveal panel |
-| hero | `min-h-[4.5rem] sm:min-h-24` | none | `.hero-name`: up to 32px phones / 56px from 640px, sized to fit (two lines on phones for long names) | team page header |
+| reveal | `h-14` 56 (phones `h-12`) | `min-w-12` 28px | `text-heading` 25px (phones 20px) | reveal panel |
+| hero | `min-h-[4.5rem] sm:min-h-24` | none | `.hero-name`, sized by `heroNameFit` | team page header |
 
 ```html
-<a href="/teams/miami" class="team-block min-h-16 pr-3" style="--team-bg:#f47321;--team-ink:#0e0f12;--team-rule:#005030;--team-edge-dark:transparent;--team-edge-light:transparent">
+<a href="/teams/miami" class="team-block min-h-16 pr-3" data-variant="tab" data-size="tile" style="--team-bg:#f47321;--team-ink:#0e0f12;--team-rule:#005030;…">
   <span class="seed-plate min-w-9">1</span>
-  <span class="text-team line-clamp-2 min-w-0 flex-1 pl-2.5">Miami</span>
-  <span class="ml-2 flex-none text-[1.0625rem]">8-0</span>   <!-- optional meta (record) -->
+  <span class="team-name text-team line-clamp-2 min-w-0 flex-1 pl-2.5">Miami</span>
+  <span class="team-meta ml-2 flex-none">8-0</span>   <!-- optional meta (record) -->
 </a>
 ```
 
-Every team name links to `/teams/{slug}` (block or chip). Hover: `brightness(1.1)` (built in).
-Text placed over a team color is only the name and record in `--team-ink`; anything else
-(committee rank, deltas, tags) goes outside the block on `page`/`surface`.
+Every team name links to `/teams/{slug}` (block or chip). Text over a team colour is only the name
+and the record in `--team-ink`; anything else (committee rank, deltas, tags) goes outside the block.
 
-## 9. Blind card
+## 12. Component classes
 
-Width: 1/3 of the row on desktop (>= 1024px, gap 20px), 88% of the viewport (max 416px) on
-phones/tablets. Card: `rounded-card border border-line bg-surface shadow-card overflow-hidden`.
-Header = a team block with the identity redacted: `--team-bg: raised`, `--team-rule: line-strong`.
-The reveal panel shows the same slab painted in team colors.
+global.css (`@layer components`, so a utility on the same element wins):
+
+| Class | Markup / states |
+| --- | --- |
+| `[data-redacted]`, `.wordmark`, `.wm-redacted`, `.hero-redacted`, `.title-sub` | section 9, section 7 |
+| `.stars`, `.tier-dot`, `.tick-slot`, `.tier-tick-cell`, `.meter` | section 10 |
+| `.result-chip` | `<span class="result-chip" data-result="W"><span>W</span><span>+16</span></span>`: 22px tall, min 56px, 14px 800. W: transparent, green letter, ink margin. L: `loss-tint` bg, `loss` text |
+| `.delta` | `data-dir="up|down"` + number, drawn triangle; add sr-only text ("up 3 from the committee"); omit when equal (tables show a muted `=`). Direction is from the side of the label beside it (`Delta` `subject`/`ref`) |
+| `.tier-cell`, `.tier-band` | game-log tier cell: pips + band text beside them; under the pips (12/16) below 640px |
+| `.team-block`, `.seed-plate`, `.team-chip`, `.team-chip-tap`, `.hero-name`, `.hero-conf` | section 11; `.team-chip-tap` = a 44px hit area in a table row with -8px block margins |
+| `.file-letter` | the ink plate naming a resume: `fg` bg, `surface` letter, 800. Picked `data-place="1"` (or inside `.blind-card` / `.demo-slab[data-place="1"]`) `accent-fill` + `on-accent`; `2` `accent-tint` + `accent` + inset 2px `accent-edge`; `3` `raised` + `fg-muted` + inset 1.5px `control` |
+| `.pick-stamp` | 1st / 2nd / 3rd: 2px `accent-edge` border, radius 2px, 14/18 800 `accent`; `data-place="1"` solid `accent-fill`; `3` 1.5px `control` border, `fg-muted`. Upright, ruled, never rotated |
+| `.file-tag` | AQ / Unseen / Not shown: 12/16 600, `surface`, `fg`, inset 1px `fg-muted`; `data-tone="quiet"` transparent, `fg-muted`, inset 1px `line-strong` |
+| `.field-swatch` | legend swatch: 18x14, `surface`, inset 2px `accent-edge` (= the in-field rule) |
+| `.btn` + `.btn-primary` / `.btn-secondary` / `.btn-ghost` / `.btn-rank` | 44px min, Archivo 800 16px, radius 3px, `scale(.97)` on press. Primary `accent-fill`; secondary 1.5px `control` border, 600, hover `raised` + `fg` border; ghost 600 `fg-muted` |
+| `.switch` + `.switch-track` | `<button role="switch" aria-checked>`: an 18x18 form box (1.5px `control` border, radius 2px, `surface`); checked = `fg` border + an ink check mark; hover `fg` border. No pill, no knob, no violet |
+| `.segmented` | frame 1px `control`, radius 4px, `raised` bg, 3px padding; options 15px 600 `fg-muted`; selected (`aria-pressed|selected|current`) = `surface` + `fg` + inset 2px `fg`. Below 640px options 14/16, padding 0 6px, wrap balanced inside the 40px segment |
+| `.tabs` + `.tab` | folder tabs: 15px 600, 1px `line-strong` border without bottom, radius 5px 5px 0 0, `fg-muted`; hover `raised`; selected = `surface` + `fg` + `inset 0 3px 0 fg` (weight never changes). Below 640px the tabs share the row (14px, padding 0 6px; 13px / 4px below 360px) |
+| `.link` | inherits colour; 1px `fg-faint` underline, offset 3px; hover `fg` text + 2px `fg` underline. No violet |
+| `.table-wrap` + `.data-table` | head 13/16 600 `fg-muted` with a 1px `fg` rule; `td[data-num]` 16px 600 right-aligned; hairline rows; row hover `raised`; `tr[data-cut]` = 2px dashed `fg` line + `.cut-note` (13px 600 `fg`, scissors icon). Below 640px cell padding 6px. `.table-wrap` is `position: relative` so `.sr-only` cell text scrolls with the table |
+| `.callout` | a memo: 3px `fg` left rule, radius 0 4px 4px 0, `surface` |
+| `.pitch-file` (+ `-title`, `-rec`) | the play pitch's miniature redacted card header (section 19) |
+| `.ad-slot` + `.ad-label` + `.ad-box` | section 20 |
+
+game.css (island only; components in `@layer components`, then unlayered extras):
+
+| Class | Markup / states |
+| --- | --- |
+| `.round-ticks` + `.round-tick[data-state]` | progress: `todo` 4px `line-strong`, `done` 4px `fg`, `current` 8px `accent-fill` |
+| `.h2h-tag` | 12/16 800, `fg` bg, `page` text |
+| `.blind-card[data-place]`, `.card-header`, `.card-header-title` | section 13 |
+| `.file-letter-sm` / `-md` / `-rec`, `.file-letter-tick[data-current]` | glance table 28x24, confirm bar 32x32, phone footer 40x40 (letter over record; the card in view solid ink) + 20x2 ink tick |
+| `.reveal-panel`, `.reveal-cell[data-match]`, `.reveal-value` | section 15 |
+| `.step-no`, `.demo-slab[data-place]` | section 17 |
+| bracket fields | `.game-root [data-testid="bracket"] .team-block[data-variant="tab"]`: `raised` bg, no frame; hover `raised-2` |
+| `.game-carousel`, `.game-dialog::backdrop`, `.game-countdown`, viewport reservation, `cfbbr-play-pending` | unlayered extras |
+| `.game-root .team-block[data-in-field]` | the in-field rule again, unlayered so it wins over the bracket fields; focus 3px `fg`, offset 4px |
+
+`.btn-rank` states: default (`surface` bg, 2px `accent-edge` border, `accent` text 800, hover
+`accent-tint`); `data-place="1"` picked 1st (`accent-fill`, `on-accent`, `aria-pressed="true"`,
+label "1st · tap to undo"); `data-place="2"` (`accent-tint` + `accent-edge` border + `accent` text
+"2nd"); `data-place="3"` implied 3rd (`raised` bg and border, `fg-muted`, "3rd"); `disabled` while
+the round locks (transparent, `line-strong` border, `fg-faint`, `cursor: not-allowed`).
+
+## 13. Blind card
+
+Width: 1/3 of the row on desktop (>= 1024px, gap 20px), 88% of the viewport (max 416px) on phones
+and tablets. The card is a resume form: `blind-card @container flex flex-col overflow-hidden
+rounded-card border bg-surface` (no border-colour utility: the picked state must win).
 
 ```html
-<article class="flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card" aria-label="Team A, record 6-2">
-  <header class="team-block h-16 rounded-none pr-4" style="--team-bg:var(--color-raised);--team-ink:var(--color-fg);--team-rule:var(--color-line-strong)">
-    <span class="seed-plate w-16 rounded-none bg-fg text-[2.75rem] text-page" aria-hidden="true">A</span>
-    <div class="ml-4 flex flex-col"><span class="label-caps text-fg-muted">Team A</span><span class="text-record">6-2</span></div>
-    <!-- picked: <span class="ml-auto rounded-chip bg-accent-fill px-2.5 py-1 text-label-lg text-on-accent">1st</span> -->
+<article class="blind-card @container flex h-full flex-col overflow-hidden rounded-card border bg-surface" data-card="A" data-place="1" aria-label="Team A, 6 wins 2 losses record, ranked 1st by you">
+  <header class="card-header">
+    <span class="file-letter" aria-hidden="true">A</span>
+    <h3 class="card-header-title">
+      <span class="label-caps">Team A</span>
+      <span data-redacted aria-hidden="true"></span>
+      <span class="text-record" data-record aria-hidden="true">6-2</span>
+      <span class="sr-only">, 6 wins 2 losses</span>
+    </h3>
+    <span class="pick-stamp animate-fade" data-place="1">1st</span>   <!-- once picked -->
   </header>
-  <section class="grid grid-cols-2 gap-x-5 gap-y-2.5 px-4 pt-3 pb-3.5" aria-label="Ratings (rank among FBS teams)">
-    <div class="col-span-2">   <!-- Strength of record; then Offense | Defense (one column each); then Schedule (col-span-2) -->
-      <div class="flex items-baseline justify-between gap-2">
-        <button type="button" aria-expanded="false" class="label-caps text-fg-muted underline decoration-line-strong decoration-dotted decoration-1 underline-offset-[5px] hover:text-fg">Strength of record</button>
-        <span class="cond text-stat">#2</span>
-      </div>
-      <div class="meter mt-1.5" data-tier="50" style="--fill:.993"><span></span></div>
-      <!-- expanded: <p class="mt-1.5 text-[0.8125rem] leading-5 text-fg-muted">one-line definition</p> -->
-    </div>
-  </section>
-  <section class="border-t border-line px-4 py-3">
-    <h3 class="label-caps text-fg-muted">Quality wins</h3>
-    <ul class="mt-1.5 grid grid-cols-3 gap-1.5">
-      <li class="flex h-7 min-w-0 items-center gap-1 rounded-chip bg-raised px-1.5">
-        <span class="tier-dot" data-tier="50" style="--tier-dot:8px"></span>
-        <span class="label-caps flex-1 whitespace-nowrap tracking-[0.04em] text-fg-muted">Top 10</span>
-        <span class="cond whitespace-nowrap text-[1.0625rem] leading-none font-bold">0-1</span>  <!-- 0-0: text-fg-faint -->
-      </li>
-    </ul>
-    <h3 class="label-caps mt-2.5 text-fg-muted">Season</h3>
-    <ol class="mt-1.5 flex gap-1.5" aria-label="Results in order">
-      <li class="flex w-4 flex-col items-center gap-1">
-        <span class="grid h-3.5 place-items-center"><span class="tier-dot" data-tier="30"></span></span>
-        <span class="cond text-[0.75rem] leading-none font-bold text-win">W</span>   <!-- L: text-loss -->
-      </li>
-    </ol>
-  </section>
-  <section class="border-t border-line px-4 pt-3 pb-2">
-    <h3 class="label-caps text-fg-muted">Toughest opponent first</h3>
-    <ol class="mt-1">
-      <li class="grid h-7 grid-cols-[auto_1fr_auto_auto] items-center gap-x-2.5 border-t border-line first:border-t-0">
-        <span class="stars" data-tier="50" role="img" aria-label="5 of 5 stars"></span>
-        <span class="cond truncate text-[0.9375rem] leading-5 font-semibold">FEI 1-5 team</span>
-        <span class="cond text-[0.9375rem] leading-5 font-semibold text-fg-muted">Home</span>
-        <span class="result-chip" data-result="L"><span>L</span><span>−3</span></span>
-      </li>
-    </ol>
-  </section>
+  <!-- metrics grid px-4 pt-3.5 pb-3.5: Strength of record; Offense | Defense; Schedule -->
+  <!-- Quality wins: three fields "rounded-slab border-b border-line-strong bg-raised" h-7 -->
+  <!-- Season, in order: .tick-slot > .tier-dot per game, W/L letter 12px 800 under it -->
+  <!-- Toughest opponent first: [pips][band][site][result-chip] rows -->
+  <footer class="border-t border-line bg-raised px-4 py-2 text-[0.75rem] leading-4 text-fg-faint">Ratings: FEI by Brian Fremeau</footer>
 </article>
 ```
 
-- Labels: "Strength of record", "Offense", "Defense", "Schedule"; "#N" = rank among
-  `fbsCount` teams. A tap on a label toggles a one-line definition under that bar.
-- Picked 1st: `ring-2 ring-accent-fill` on the card, letter plate `bg-accent-fill text-on-accent`,
-  "1st" badge in the header. Picked 2nd: `ring-1 ring-accent-edge`, plate `bg-accent-tint
-  text-accent`, "2nd" badge (`accent-tint` + inset `accent-edge`). Implied 3rd: badge "3rd" on
-  `raised-2`, `fg-muted`. Pick feedback: card `scale(.98)` for `--duration-instant` with
-  `ease-snap` back; ring/plate change over `--duration-fast`.
+- **Card**: 1px `line-strong` border, radius 4px, `surface`. `data-place="1"`: border
+  `accent-fill` + `box-shadow: 0 0 0 1px accent-fill` (a 2px violet edge); `"2"`: border
+  `accent-edge`. Pick feedback over `--duration-fast`.
+- **Header** `.card-header`: min-height 72px, padding-right 16px, `surface`, a 2px `fg` bottom rule.
+  `.file-letter` 56px wide, full height, 40px glyph, radius 0. `h3.card-header-title`: grid
+  `minmax(0,1fr) auto` x 2 rows, gaps 12px / 5px, margin-left 14px. Row 1: "Team A" (`label-caps`,
+  `fg-muted`, both columns). Row 2: the redaction bar (column 1, 22px tall, min 48px) and the record
+  (`text-record`, column 2). The `.pick-stamp` is absolute (top 7px, right 12px) so it never reflows
+  the header.
+- **Metrics**: labels "Strength of record", "Offense", "Defense", "Schedule" are buttons (13/16
+  600 `fg-muted`, dotted `control` underline; open: `fg`) that toggle a one-line definition under
+  the bar; rank "#N" `text-stat` = rank among `fbsCount` teams; `.meter` 5px.
+- **Quality wins**: three shaded fields, label 12px 600 `fg-muted`, value 16px 800 (`fg-faint` for
+  0-0). No tier mark.
+- **Season, in order**: one tick per game in `.tick-slot`, W/L letter 12px 800 in `win` / `loss`.
+- **Game log** ("Toughest opponent first"): rows min-h 28px, hairline rules,
+  `[pips][band][site][result]`: band "FEI 11-25 team" 14/18 600 `fg` (the word "team" drops below a
+  21rem container), site 13/20 400 `fg-muted`, `.result-chip`. Pips `aria-label="{stars} of 5 pips"`.
+- **Credit footer**: `bg-raised`, 12/16 `fg-faint`, "Ratings: FEI by Brian Fremeau" (`.link` to the
+  season's FEI page; never wraps).
 
-## 10. Game screen
+## 14. Game screen
 
-- **Progress row:** `label-caps` "Round 3 of 15" (number in `fg`, words `fg-muted`); 15 segments
-  `h-1.5 flex-1 gap-1 rounded-slab` (done `accent-fill`, current `fg`, upcoming `track`); right
-  `btn btn-ghost` "Skip to results" (`disabled` until round 5). Rounds 16-30: "Round 17 of 30",
-  30 segments. Phones: label + skip on one line, segments full width below.
-- **Head-to-head flag** (centered above the cards, one per meeting, stacked with `gap-1.5`):
-  `inline-flex gap-2.5 rounded-chip border border-line bg-surface py-1.5 pr-3 pl-2` with
-  `<span class="label-caps rounded-slab bg-raised-2 px-1.5 py-0.5">H2H</span>` + condensed 600 17px
-  "B beat A head-to-head · +16".
-- **Desktop (>= 1024px):** `grid grid-cols-3 gap-x-5`. Rank buttons live in a sticky bar that is
-  the grid's last row: `sticky bottom-0 col-span-3 grid grid-cols-3 gap-x-5 bg-page pt-3 pb-4`
-  with a 24px `page`-to-transparent fade above (`before:` pseudo). Each button is aligned with its
-  card ("Rank A 1st", then "Rank B 2nd"). The buttons never scroll out of view, even with
-  13-game logs; when the cards fit, the bar sits right under them.
-- **Phones/tablets (< 1024px):** `flex snap-x snap-mandatory gap-3 overflow-x-auto px-gutter
-  scroll-px-gutter`; cards `w-[88%] max-w-[26rem] flex-none snap-center`; no per-card button.
-  Sticky footer `fixed inset-x-0 bottom-0 border-t border-line bg-surface shadow-footer
-  pb-[env(safe-area-inset-bottom)]`, inner `max-w-[30rem] px-gutter py-3 flex items-center gap-4`:
-  three dots (`role="tab"`, current `h-2 w-6 bg-accent-fill`, others `size-2 bg-control`; tap
-  scrolls to that card) + `btn btn-rank flex-1` for the card in view ("Rank B 1st"; after a pick
-  on that card: "1st · tap to undo" filled). Main content gets `pb-28`.
-- **Phone ranking is two deliberate taps:** "Rank B 1st" for the card in view, then two buttons
-  "Rank A 2nd" / "Rank C 2nd"; Undo stays in the same left-hand spot and the footer is a fixed 68px
-  tall in every state. After locking, the bar stays visible but disabled ("Locked in"). Any control
-  that appears or changes under the finger ignores taps for 400 ms (keyboard never blocked).
-- **At-a-glance table (phones):** above the cards, one row per team (record, SoR, Off, Def, Sched,
-  vs top 25), the best value per column highlighted; tapping a row scrolls to that card. The A/B/C
-  footer buttons show each team's record.
-- **Card credit:** every blind card ends with a one-line footer "Ratings: FEI by Brian Fremeau"
-  (`.link` to the season's FEI page; the link never wraps).
+- **Progress row**: `label-caps` "Round 3 of 15" (number `fg`, words `fg-muted`); `ol.round-ticks`
+  with one `li.round-tick[data-state]` per round (`todo` / `done` / `current`); right `btn btn-ghost`
+  "Skip after round 5" (disabled until round 5). Rounds 16-30: "Round 17 of 30", 30 ticks. Phones:
+  label + skip on one line, ticks full width below.
+- **Head-to-head flag** (centered above the cards, one per meeting): a box with a 1px `line-strong`
+  border holding `<span class="h2h-tag">H2H</span>` + 15px 600 "B beat A head-to-head · +16".
+- **Desktop (>= 1024px)**: `grid grid-cols-3 gap-x-5`. Rank buttons live in a sticky bar, the grid's
+  last row (`sticky bottom-0 col-span-3 grid grid-cols-3 gap-x-5 bg-page pt-3 pb-4`, a 24px
+  `page`-to-transparent fade above). Each `.btn-rank` is aligned with its card ("Rank A 1st", then
+  "Rank B 2nd"). The confirm bar shows the order as `.file-letter.file-letter-md[data-place]`
+  plates. Keyboard hint 13px `fg-faint` ("Keys: A B C rank a card · Backspace undo · Enter lock
+  in"), each `kbd` 600 Archivo.
+- **Phones/tablets (< 1024px)**: a snap carousel (`.game-carousel`, cards `w-[88%] max-w-[26rem]`),
+  no per-card button. Fixed footer `border-t border-line-strong bg-surface`, 68px in every state, no
+  shadow: card switchers `.file-letter.file-letter-rec` (letter 17px 800 over the record 11px 600;
+  the card in view `data-current` is solid ink, the others `raised` + `fg-muted` + inset 1px
+  `line-strong`, with a 20x2 ink `.file-letter-tick` under the current one) + `.btn-rank` for the
+  card in view. Main content gets `pb-28`.
+- **Phone ranking is two deliberate taps**: "Rank B 1st" for the card in view, then two buttons
+  "Rank A 2nd" / "Rank C 2nd"; Undo stays in the same spot. After locking the bar stays visible but
+  disabled ("Locked in A · C · B"). Any control that appears or changes under the finger ignores
+  taps for 400 ms (keyboard never blocked).
+- **At-a-glance table (phones)**: above the cards, frame `border-line-strong`, table 14/20 800, head
+  12px 600 `fg-muted` with an `fg` rule; best value per column 800 `fg`, others 400 `fg-muted`; the
+  row header is `.file-letter.file-letter-sm[data-place]` (picked colours); tapping a row scrolls to
+  that card.
 - **Lock in automatically** (saved setting, on by default): the second pick locks after a short
-  countdown; only a real mouse move or keyboard focus on Undo stops it.
-- One line under the cards: "#N = rank among all 138 FBS teams · Ratings: FEI by Brian
-  Fremeau" (`text-[0.8125rem] text-fg-muted`, link `.link`; 138 from `fbsCount`). This line
-  also appears in the reveal footer and on results (the attribution on every game view).
+  countdown (`.game-countdown`); only a real mouse move or keyboard focus on Undo stops it.
+- One line under the cards: "#N = rank among all 138 FBS teams · Ratings: FEI by Brian Fremeau"
+  (13px `fg-muted`, `.link`; 138 from `fbsCount`). It also appears in the reveal footer and on
+  results (the attribution on every game view).
 
-## 11. Reveal panel
+## 15. Reveal panel
 
-Modal: overlay `fixed inset-0 z-30 grid place-items-center overflow-y-auto bg-scrim p-gutter`;
-panel `w-full max-w-[34rem] rounded-panel border border-line bg-surface shadow-panel
-animate-rise`, `role="dialog" aria-modal="true"`, focus trapped, Esc / tap / any key continues,
-heading announced (`aria-labelledby`, plus a polite live region with the running line).
+Modal `dialog.game-dialog`: backdrop `scrim`; panel `reveal-panel animate-rise rounded-panel border
+border-line-strong bg-surface w-full max-w-[34rem]`, no shadow, `aria-modal`, focus trapped, heading
+announced (`aria-labelledby`, plus a polite live region with the running line).
 
-- Header `px-5 pt-4 pb-3`: `label-caps` "Round 3 of 15", `cond text-heading uppercase` "Your
-  order", ghost close button (44x44, 16px X icon, `aria-label="Close"`).
-- Three rows (`gap-4`, `px-5`), the user's order: `team-block h-14` (reveal size) with the place
-  numeral in the plate and the record as meta; it enters with `animate-wipe` staggered 60ms.
-  Under it `grid grid-cols-4 gap-1` cells `rounded-slab bg-raised px-2 py-1`: `label-caps`
-  You / Committee / FEI / Fans, value `cond 20px` "1st|2nd|3rd" + actual rank `#5` in
-  `fg-muted` 14px (Committee: `NR` when unranked). Values that equal the user's place are
-  `text-accent`. Hide the Fans cell (3 columns) until fan data exists.
-- Match chips: matched = `accent-tint` + accent text + inset `accent-edge` + 12px check icon
-  ("Matches committee"); not matched = `raised` + `fg-muted` + X icon ("Differs from FEI").
+- Header `px-5 pt-4 pb-3`: `label-caps` "Round 1 of 15", `text-heading` "Your order, revealed".
+- Three rows, the user's order: a **cover** team block (reveal size): primary bg, `teamInk` name,
+  `box-shadow: inset 0 -4px 0 team-rule, inset 0 0 0 1px team-edge`, no bottom border. The plate is
+  the **same ink file letter** as the blind card (`fg` bg, `surface` letter, `inset -2px 0 0 surface`:
+  a paper gap so plate and cover never merge, e.g. Iowa). The name shrink-wraps its text
+  (`flex-initial`), the record sits right (`ml-auto pl-3`, 800, team ink). The redaction bar lifts
+  off the name (section 9).
+- Cells `.reveal-cell` (`grid grid-cols-4 gap-1`, `rounded-slab bg-raised`, `inset 0 -1px 0
+  line-strong`): `label-caps` You / Committee / FEI SoR / Fans, value `.reveal-value` 20/24 800
+  "1st|2nd|3rd", sub "#19" 14px 600 `fg-muted` (Committee: `NR` when unranked). **Agreement**: a
+  cell whose place equals yours gets `data-match`, and its value is stamped (`accent` text in a 2px
+  `accent-edge` ruled box) plus sr-only ", same as your pick". The "You" cell is always stamped.
+  Hide the Fans cell (3 columns) until fan data exists; without a committee, two columns.
+- Match chips: matched = `accent-tint` + `accent` + inset 1px `accent-edge` + check ("Matches
+  committee"); differs = `raised` + `fg-muted` + cross ("Differs from FEI").
 - Running line 15px: "You've matched the committee in **4 of 6** rounds, FEI in **5 of 6**."
-- Footer `border-t border-line px-5 py-3 text-[0.75rem] text-fg-faint`: "Tap anywhere or press
-  any key to continue" left, attribution right; it and Next round stay pinned to the bottom edge
-  while the panel scrolls. Tap, Esc, Enter or a letter key closes; arrows, Page, Home/End and Space
-  scroll. The panel opens scrolled to the top. Without a committee the cells are two columns (You,
-  FEI SoR). The FEI cell is labeled "FEI SoR".
+- Footer: Next round `btn-primary` full width, credit under it; both stay pinned to the bottom edge
+  while the panel scrolls and stay operable during the lift. Tap, Esc, Enter or a letter key
+  continues; arrows, Page, Home/End and Space scroll. The panel opens scrolled to the top.
 
-## 12. "15 rankings in" panel
+## 16. "15 rankings in" panel
 
-Inline (replaces the card row), centered `max-w-[34rem] rounded-panel border border-line
-bg-surface px-6 py-8 text-center shadow-card animate-rise`: `cond text-hero text-accent` "15",
-`cond text-heading uppercase` "Rankings in", running line (`text-fg-muted`, numbers `fg`),
-buttons `btn btn-primary` "Final results" + `btn btn-secondary` "Do another" (stacked full width
-on phones, side by side `min-w-48` from 640px), note "Up to 30 rounds. More picks, sharper
-ranking." in `fg-faint` 13px.
+Inline (replaces the card row), centered `max-w-[34rem] rounded-panel border border-line-strong
+bg-surface px-6 py-8 text-center animate-rise`, no shadow: `text-hero text-accent` "15" (your
+count), `text-heading` "Rankings in", running line (`text-fg-muted`, numbers `fg`), `btn
+btn-primary` "Final results" + `btn btn-secondary` "Do another" (stacked full width on phones, side
+by side from 640px), note "Up to 30 rounds (15 more). More picks, sharper ranking." 13px `fg-faint`.
 
-## 13. Results
+## 17. Intro panel
+
+`intro-panel rounded-panel border border-line-strong bg-surface`, no shadow; two columns from
+1024px. Kicker `label-caps text-fg-muted` (not violet). Title `text-title`, 40px desktop. Steps:
+`.step-no` (32x32 numbered form box: inset 1.5px `fg`, radius 2px, 18px 800), step titles 18/24 800.
+Demo slabs (desktop column): `.demo-slab[data-place]` (56px, 1px `line-strong`, radius 3px,
+`surface`) with a `.file-letter` (48px / 30px glyph, picked colours), "Team B" `label-caps`, a 14px
+`[data-redacted]` bar and a `.pick-stamp`. Caption "Names appear only after you lock in your order."
+The intro is server-rendered: it reads (and Play is hidden by the noscript style) without JS.
+
+## 18. Results
 
 Order top to bottom: header, tabs, controls, top 25 + first five out, (ad), bracket, bid lists,
 agreement sentence, share module, play again.
 
-- **Header:** kicker `label-caps text-accent` "After Week 9 · 15 rounds" (add "· partial" when
-  skipped), `cond text-title lg:text-display uppercase` "Your top 25", `btn btn-secondary` "Play
-  again" right (phones: a jump row Bracket · Bids · Share instead). Under the title a headline stat
-  ("Matched the committee on **43%** of your head-to-head calls, FEI on **65%**.", numbers accent).
-- **Tabs:** `.tabs` with Your ranking / Committee / FEI / Fans (Fans only above the threshold).
-- **Controls row** (`flex flex-wrap gap-x-6 py-2`): two `.switch` ("Compare with committee",
-  "Highlight playoff field"), then `.segmented` right-aligned (`ml-auto`; full width with equal
-  segments on phones): "12 teams · 2026 format" | "24 teams · proposed" (below 360px "12 · 2026
-  format" | "24 · proposed", so both fit 288px). Selecting 24 shows under the controls: the one-line
-  rules, "Proposed for 2027 — not final" (`label-caps text-fg-muted`), source link (`.link`).
-- **Legend** (13px `fg-muted`, under the controls): the delta triangle, the field ring, `AQ`
-  (automatic bid tag, also on the tiles), Unseen / Not shown. "NR" marks positions past what the
-  selected source ranked (committee 25; the fans' list length). The Fans tab's next five shows only
-  the fans' own teams past 25 (as many as they ranked, up to five), then "The fans' ranking stops at
-  N teams so far."
-- **Grid (>= 640px):** `grid grid-cols-5 gap-x-3 gap-y-3.5` of tiles (team block, tile size).
-  >= 1024px: `grid lg:grid-cols-[minmax(0,5fr)_minmax(0,1fr)] gap-6`; right column `lg:border-l
-  lg:border-line lg:pl-6`, `label-caps` "First 5 out", tiles 26-30 in one column. 640-1023px: the
-  first five out is a 5-column row under the grid.
-- **List (< 640px):** `flex flex-col gap-2`; each row = `team-block h-12` (row size, record as
-  meta) + a 76px right cell on `page`: `label-caps text-fg-muted` "CFP 6" + `.delta` inline.
-- **Compare with committee:** under each tile a 16px line `mt-1.5 flex justify-between px-0.5`:
-  `label-caps text-fg-muted` "CFP 6" ("CFP NR" when unranked) and `.delta` up/down (omitted when
-  equal). Delta = committee rank minus your rank (positive = you rank them higher = up).
-- **Highlight playoff field:** `data-in-field` on the team block: a 2px `accent-edge` ring at 2px
-  offset (box-shadow, so the 3px `fg` focus outline stays distinct) + accent seed plate. Field = the
-  selected format's field.
-- **Unseen:** tag `label-caps rounded-slab bg-raised-2 px-1 text-fg` "Unseen" in the tile's
-  under-line (right side), never on the color block.
+- **Header**: kicker `label-caps text-fg-muted` "After Week 9 · 15 rounds" (+ "· partial" when
+  skipped), `text-title lg:text-display` "Your top 25", `btn btn-secondary` "Play again" (phones: a
+  jump row Bracket · Bids · Share, `btn btn-secondary min-h-10 text-label-lg`). Headline stat under
+  the title ("Matched the committee on **43%** of your head-to-head calls, FEI on **65%**."): your
+  numbers in `text-accent` 800.
+- **Tabs**: folder tabs Your ranking / Committee / FEI SoR / Fans (Fans only above the threshold;
+  "Shared ranking" on `/r/*`).
+- **Controls row**: two `.switch` checkboxes ("Compare with committee", "Highlight playoff field"),
+  then `.segmented` (full width with equal segments on phones): "12 teams · 2026 format" | "24 teams
+  · proposed". Selecting 24 shows the one-line rules, "Proposed for 2027 — not final" and the source
+  link under the controls (2px `line` left rule).
+- **Legend** (13px `fg-muted`): the delta triangle, `.field-swatch` "= in the 12-team field",
+  `.file-tag` AQ "= automatic bid", Unseen / Not shown tags. "NR" marks positions past what the
+  selected source ranked.
+- **Grid (>= 640px)**: `grid grid-cols-5 gap-x-3 gap-y-3.5` of index-tab tiles; >= 1024px a right
+  column (`lg:border-l lg:border-line lg:pl-6`) "Next five" with tiles 26-30 (names 14/16, plate
+  18px). 640-1023px: the next five is a row under the grid.
+- **List (< 640px)**: `flex flex-col gap-2`; each row an index tab (row size, record as meta) + a 76px
+  right cell: "CFP 6" `label-caps text-fg-muted` + `.delta` + `.file-tag`s.
+- **Compare with committee**: under each tile "CFP 6" ("CFP NR" when unranked) and `.delta`
+  (omitted when equal). Delta = committee rank minus your rank (positive = you rank them higher).
+- **Highlight playoff field**: `data-in-field` on the team block: the label's 1px `line-strong`
+  inset rule becomes a 2px `accent-edge` inset rule. One cue, no ring, no layout change; the colour
+  tab keeps the team colour. Focus stays a 3px `fg` outline outside it.
+- **Unseen / Not shown / AQ**: `.file-tag` in the tile's under-line, never on the colour.
 
-```html
-<li>
-  <a href="/teams/kentucky" class="team-block min-h-16 pr-3" data-in-field style="…teamVars…">
-    <span class="seed-plate min-w-9">3</span><span class="text-team line-clamp-2 min-w-0 flex-1 pl-2.5">Kentucky</span>
-  </a>
-  <div class="mt-1.5 flex h-4 items-center justify-between px-0.5">
-    <span class="label-caps text-fg-muted">CFP 6</span>
-    <span class="delta" data-dir="up">3<span class="sr-only"> spots above the committee</span></span>
-  </div>
-</li>
-```
-
-- **Bracket header:** `cond text-heading uppercase` "12-team bracket" + `text-sm text-fg-muted`
-  "Seeds from your ranking · seeds 1-4 have first-round byes", `border-b border-line pb-2`.
-- **Game box:** `flex flex-col gap-0.5 rounded-chip border border-line bg-surface p-1`, two slot-size
-  team blocks (seed in the plate). Undecided slot: same height, `rounded-slab bg-raised
-  border-b-4 border-transparent`, empty plate `–` in `fg-faint`, text condensed 600 15px
-  `fg-muted` "Winner 8 v 9" / "Winner SF 1".
-
-```html
-<li class="relative flex items-center py-2 after:absolute after:top-1/2 after:left-full after:h-px after:w-8 after:bg-line-strong">
-  <div class="relative z-[1] flex w-full flex-col gap-0.5 rounded-chip border border-line bg-surface p-1">
-    <a class="team-block h-9 pr-2.5" style="…"><span class="seed-plate min-w-8 text-[1.125rem]">8</span><span class="min-w-0 flex-1 truncate pl-2.5 text-[0.9375rem] leading-4">UCLA</span></a>
-    <a class="team-block h-9 pr-2.5" style="…"><span class="seed-plate min-w-8 text-[1.125rem]">9</span><span class="min-w-0 flex-1 truncate pl-2.5 text-[0.9375rem] leading-4">BYU</span></a>
-  </div>
-</li>
-```
-
-- **Desktop bracket (>= 1024px):** one grid column per round, `gap-x-8`, `label-caps` round
-  headers. Each column is an `ol` with `grid grid-rows-N` (12-team: 4 / 4 / 2 / 1; 24-team:
-  8 / 8 / 4 / 2 / 1) so every game is vertically centered on its feeders. Connectors are 1px
-  `line-strong`: a full-gap stub from a game into the next column when the pairing is 1:1
-  (first round → bye game), else a 16px stub out of each game plus a `]` on the receiving game
-  (`before:absolute before:right-full before:top-1/4 before:bottom-1/4 before:w-4 before:border-y
-  before:border-r`). Top-to-bottom order (12): 8v9→1, 5v12→4, 6v11→3, 7v10→2 (from
-  `buildBracket`). 24-team at 1024-1279px: wrap in `overflow-x-auto` with `min-w-[68rem]`.
-- **Phone bracket (< 1024px, 390px reference):** one round at a time. A full-width `.segmented`
+- **Bracket header**: `text-heading` "12-team bracket" + `text-sm text-fg-muted` "Seeds from your
+  ranking · seeds 1-4 have first-round byes".
+- **Game box**: `flex flex-col gap-0.5 rounded-chip border border-line-strong bg-surface p-1`, two
+  slot-size index tabs drawn as shaded fields (no box-in-box). Undecided slot `[data-slot="tbd"]`:
+  `bg-raised`, plate "–" `fg-faint`, "Winner 8 v 9" 15px 600 `fg-muted`.
+- **Desktop bracket (>= 1024px)**: one grid column per round, `gap-x-8`, `label-caps` round
+  headers; each column an `ol` with `grid grid-rows-N` (12-team: 4 / 4 / 2 / 1; 24-team: 8 / 8 / 4 /
+  2 / 1) so every game is centered on its feeders; connectors 1px `line-strong`. Top-to-bottom order
+  (12): 8v9→1, 5v12→4, 6v11→3, 7v10→2 (`buildBracket`). 24-team at 1024-1279px scrolls inside
+  `overflow-x-auto` with `min-w-[68rem]`.
+- **Phone bracket (< 1024px)**: one round at a time, chosen with a full-width `.segmented`
   (`role="tablist"`): First round | Quarters | Semis | Final (24: Round 1 | Round 2 | Quarters |
-  Semis | Final, scrolls horizontally). Below it the round's games stacked `gap-2.5`, full width
-  (358px), each game box adds a 13px line "Winner plays **Miami** (1) in the quarterfinals". Bye
-  games list the seeded team + "Winner 8 v 9". No connectors, no horizontal scroll.
-- **Bid lists:** two columns (`sm:grid-cols-2`, `border-t border-line pt-5`): `label-caps`
-  "Automatic bids · 5 highest-ranked champions" / "At-large · 7", then `.team-chip` links
-  `flex flex-wrap gap-x-4 gap-y-2`.
-- **Agreement sentence:** `text-lg`, numbers `cond text-[1.25rem] text-accent` (the user's own).
-- **Share module:** `rounded-card border border-line bg-surface p-4`: preview of the share image
-  (1200x630, `rounded-chip`), buttons `btn btn-primary` "Share" (Web Share), `btn btn-secondary`
-  "Copy link" (label flips to "Copied" for 2s with `aria-live`), `btn btn-secondary` "Save image".
-- One ad slot (`incontent`) just above the share module (after the bracket, bids and agreement
-  line), outside the play area; a plain div like the content slots.
+  Semis | Final). Games stacked full width, each with a 13px line "Winner plays **Miami** (1) in the
+  quarterfinals" (team name `fg`). No connectors, no horizontal scroll.
+- **Bid lists**: two columns (`sm:grid-cols-2`, `border-t border-line pt-5`): `label-caps`
+  "Automatic bids · 5" / "At-large · 7", then `.team-chip` links.
+- **Agreement sentence**: `text-lg`, counts `text-accent` (yours), percentages plain.
+- **Share module**: `rounded-card border border-line-strong bg-surface p-4`: preview image
+  (1200x630, `rounded-chip`), URL field `bg-raised border-control` 15px 600 `fg-muted`, buttons
+  `btn btn-primary` "Share" (Web Share), `btn btn-secondary` "Copy link" ("Copied" for 2s,
+  `aria-live`), `btn btn-secondary` "Save image".
+- One ad slot (`incontent`) just above the share module, outside the play area.
 
-## 14. Content pages
+## 19. Content pages
 
-Typographic, tables not cards; light or dark by OS. `max-w-page`, `px-gutter lg:px-gutter-lg`.
+Typographic, tables not cards; light or dark by OS (the page is the sheet). `max-w-page`,
+`px-gutter lg:px-gutter-lg`.
 
-- **Site header:** `h-14 border-b border-line`; wordmark `cond 20px 700 uppercase` with an
-  `accent` middot; nav `text-sm text-fg-muted`, current page `text-fg`. Footer: `border-t
-  border-line py-6 text-sm text-fg-muted`, always "Ratings: FEI by Brian Fremeau" linking to
+- **Site header**: `h-14 border-b border-line`; `.wordmark` with the redacted "Blind"; nav 14px 400
+  `fg-muted`, current page `font-bold text-fg shadow-[inset_0_-3px_0_var(--color-fg)]` (an ink rule,
+  not violet); phone Play button `btn btn-primary`. **Footer**: `border-t border-line py-6 text-sm
+  text-fg-muted`, the wordmark, always "Ratings: FEI by Brian Fremeau" linking to
   `https://bcftoys.com/{season}-fei` + data credits.
-- **Breadcrumb/kicker:** `label-caps text-fg-muted` above every h1.
-- **Team page header:** hero team block (`h-[4.5rem] sm:h-24`, name `cond text-title
-  sm:text-display uppercase pl-4 sm:pl-6`, right meta: record 20/28px + "ACC 6-0" 13/15px;
-  independents show the record only). Below, the **four ranks + committee rank** as a stat row
-  `dl grid grid-cols-2 sm:grid-cols-5 gap-x-6 gap-y-5 mt-5`: Committee first (phones: `col-span-2`;
-  desktop: `sm:border-r sm:border-line sm:pr-6`), `label-caps text-fg-muted` label, `cond
-  text-stat-lg` "#1" ("NR" if unranked), then a 6px bar: every rank, the committee's included, is a
-  `.meter` with the tier color of its rank band and `rankFill` (`track` when unranked), so a #20
-  committee bar is never longer than a #14 strength of record. Strength of record and schedule add
-  one plain line under the bar ("1.22 more wins than a good team would expect on this schedule",
-  "An elite team would expect 1.25 losses on this schedule"), the raw value below in `fg-muted`.
-- **Status line** under the hero: one sentence from the committee's projected fields ("By the
-  committee's ranking, Ohio State would be the 1st team out of the 12-team field and the No. 12
-  seed in the proposed 24-team field.").
-- **Resume highlights** (team page Resume section and compare cards): record vs the committee top
-  25, best win, worst loss (`resumeHighlights()` in site.ts).
-- **Labels:** the strength-of-record (GWD) rank is "SoR" in tight spots (columns, chips, "SoR 16"),
-  "FEI strength of record" / "Strength of record" in prose. Bare "FEI" only ever means FEI overall
-  (`ranks.fei`) or the system; `scripts/content-verify.mjs` fails on a bare "FEI 16"-style label.
-- **Jump nav** (`JumpNav`): a grid of 44px chips, 2 columns on phones, equal columns >= 10.5rem
-  from 640px: every chip visible (no hidden sideways scroll), and the row count never depends on
-  text width, so a late font swap cannot re-wrap it.
-- **Committee vs FEI callout:** `.callout mt-8`: `label-caps` "Committee vs FEI" + one 18px
-  sentence with ranks in `cond 20px 700`: "The committee has Miami **#1**. FEI's strength of
-  record puts them **#3**, two spots lower."
-- **Tables:** `.table-wrap` > `table.data-table`; team cells use `.team-chip` links; numeric
-  columns `data-num`; results as `.result-chip`; score `pf-pa` in the condensed numeric cell.
-  Game log columns: Opponent | Tier (stars + tier label in `fg-muted`) | Site | Result | Score.
-  Under 640px drop the Date and Site columns, the tier label (stars keep their `aria-label`) and
-  shorten the head to "Tier"; the site (and "CFP N") becomes a second line under the opponent
-  (`pl-5 text-[0.8125rem] leading-4 text-fg-muted`), the date a second line under the score, and
-  inner cell padding drops to 6px, so the table fits 328px (a 360px phone) without scrolling. Non-FBS opponents: `.team-chip` with
-  `--team-bg: var(--color-raised-2)` (default rule), not a link. Rankings
-  tables: Rank | Team | Record | SoR (or CFP) | SoR vs CFP delta; cut lines for "in the 12" and "in the 24
-  (proposed)" as `tr[data-cut]` + a right-aligned `label-caps text-accent` note in the last cell.
-- **Still to play** (team page, after the game log; `UpcomingTable` from `upcomingRows`): h2 + one
-  muted line ("4 games left · 1 vs the committee's top 25 · toughest: at Notre Dame (FEI 1-5
-  team)"), then a `data-table` in date order: Date | Opponent (chip + `CFP N`) | Opponent tier
-  (stars + label) | Site (· Conf for conference games). Under 640px the site and CFP rank fold into
-  a second line under the opponent and the tier label drops (stars keep their name). Hidden when
-  the week file has no schedule; "No regular-season games left." when it is empty.
-- **Remaining schedule** (compare page): the same table per team, `compact` (always folded), in
-  two columns from 768px (`md:grid-cols-2 gap-8`), each under its team chip and summary line.
-- **Rank-history strip:** `ol flex gap-1.5 overflow-x-auto`, one cell per week file:
-  `w-16 rounded-slab bg-surface px-2 py-1.5` with `label-caps` "Wk 9", `cond 24px 700` GWD
-  "#3", `label-caps text-fg-muted` "CFP 1" ("CFP —" before the first release).
-- **Compare page:** two un-blinded cards side by side (`md:grid-cols-2 gap-5`; stacked on phones),
-  each with its hero team block (reveal size) on top instead of the redacted header. Above them a
-  head-to-head note (same style as the H2H flag) and a two-line verdict: "Committee: A (#4) over
-  B (#9)" / "FEI strength of record: B (#6) over A (#11)", team names as `.team-chip`.
-- **Bubble:** a `data-table` of committee 8-20 sorted by GWD rank; the gap column uses `.delta`; the
-  gap chart is drawn in % of its column (fills any width). In/out cells: "In 10" / "2nd out" / "Out"
-  (one out-wording everywhere: `outText()` = "1st out"), 14px with 4px padding on phones.
-- **Play pitch** (`PlayCta`): `rounded-card border border-line bg-surface p-5`, kicker, one
-  question in condensed caps, one line, `btn btn-primary` "Rank them blind" to `/#play`. On compare,
-  bubble and team pages; never inside an ad slot.
+- **Breadcrumb / kicker**: `label-caps text-fg-muted` above every h1. Never violet.
+- **Headings**: one colour; second lines are `.title-sub` (rankings, bubble, compare hub);
+  "Georgia vs Indiana" and "Game log, toughest first" print in one colour.
+- **Home hero**: `Rank the resumes. <span class="hero-redacted">Names hidden.</span>`.
+- **Team page header**: a cover team block (`data-size="hero"`): 6px `team-rule` bottom border,
+  radius 4px 4px 0 0, name `.hero-name` 800 -0.025em sized by `heroNameFit` (measures the name as
+  printed in Archivo 800 display case, reserves the real meta width + 16px gutter, up to 31px phones
+  / 52px from 640px; long names two balanced `.hero-line`s on phones; never recased, never
+  truncated); meta right: record 20 / 28px 800, conference line `.hero-conf` 13 / 15px 600 that
+  wraps inside 92px on phones. Independents show the record only.
+- **Stat row** (`dl grid grid-cols-2 sm:grid-cols-5 gap-x-6 gap-y-5 mt-5`): Committee first
+  (phones `col-span-2`; desktop `sm:border-r sm:border-line sm:pr-6`), `label-caps text-fg-muted`
+  label, `text-stat-lg` "#1" ("NR" if unranked), then a 5px `.meter`: every rank, the committee's
+  included, uses the toner of its rank band and `rankFill` (`track` when unranked). Strength of record
+  and schedule add one plain 13px line under the bar, the raw value below in `fg-muted`.
+- **Status line** under the hero: one sentence from the committee's projected fields.
+- **Resume highlights** (team Resume section and compare cards): record vs the committee top 25,
+  best win, worst loss (`resumeHighlights()` in site.ts).
+- **Resume strip** (`ResumeStrip.astro`): season ticks on a 1px `line-strong` baseline (section
+  10), W/L 15px 700 (`fill-win` / `fill-loss`), margin 12px 600 `fill-fg-muted`; the wrapper is
+  focusable (`tabindex="0" role="group" aria-label="Season in order"`) because it scrolls sideways on
+  narrow cards. Legend: "Tick height = opponent tier" with three `.tier-tick-cell` samples.
+- **Labels**: the strength-of-record (GWD) rank is "SoR" in tight spots, "FEI strength of record" /
+  "Strength of record" in prose. Bare "FEI" only ever means FEI overall or the system;
+  `scripts/content-verify.mjs` fails on a bare "FEI 16"-style label.
+- **Jump nav** (`JumpNav`): a grid of 44px chips (`border-control`, radius 3px, 15/18 600), 2 columns
+  on phones, equal columns >= 10.5rem from 640px; the row count never depends on text width.
+- **Committee vs FEI callout**: `.callout mt-8`: `label-caps` "Committee vs FEI" + one 18px sentence
+  with ranks in 20px 800.
+- **Tables**: `.table-wrap` > `table.data-table`; team cells `.team-chip` links; numeric columns
+  `data-num`; results `.result-chip`; score `pf-pa` in the numeric cell. Game log columns: Opponent
+  | Tier | Site | Result | Score; the tier cell is `.tier-cell` = pips + band text on **every row**
+  (desktop "FEI 11-25 team" beside the pips; phones the short band "FEI 11-25" 12/16 under them).
+  Under 640px drop the Date and Site columns; the site (and "CFP N") becomes a second line under
+  the opponent, the date a second line under the score, and cell padding drops to 6px, so the table
+  fits 328px. Non-FBS opponents: `.team-chip` with `--team-bg: var(--color-raised-2)`, not a link.
+- **Rankings tables**: Rank | Team | Record | SoR (or CFP) | SoR vs CFP delta; ink head rule; cut
+  lines for "in the 12" and "in the 24 (proposed)" as `tr[data-cut]` (2px dashed `fg`) + a
+  `.cut-note` (scissors, ink, not violet) in the last cell. "Auto bid" tags `label-caps rounded-slab
+  bg-raised-2 text-fg`. Archive weeks (`RankingsView`): current week `border-fg` + inset 1px `fg`.
+- **Still to play** (team page, `UpcomingTable` from `upcomingRows`): h2 + one muted line, then a
+  `data-table` in date order: Date | Opponent (chip + `CFP N`) | Opponent tier (`.tier-cell`) | Site
+  (· Conf). Under 640px the site and CFP rank fold under the opponent. Hidden when the week file has
+  no schedule; "No regular-season games left." when it is empty. On compare pages the same table per
+  team, `compact`, in two columns from 768px.
+- **Rank-history strip**: `ol flex gap-1.5 overflow-x-auto`, one cell per week file: `w-16
+  rounded-slab bg-surface px-2 py-1.5`, current week inset 2px `line-strong`; `label-caps` "Wk 9",
+  24px 800 GWD "#3", `label-caps text-fg-muted` "CFP 1" ("CFP —" before the first release).
+- **Compare page**: two un-blinded cards (`ResumeCard`, `rounded-card border border-line-strong`,
+  stacked on phones) with a cover team block on top; rows show site + short band (12px) stacked in
+  the site cell. Above them a head-to-head note and a two-line verdict with `.team-chip` names.
+- **Bubble**: a `data-table` of committee 8-20 sorted by GWD rank; gap column `.delta`; In/out cells
+  "In 10" / "2nd out" / "Out" (`outText()`).
+- **Play pitch** (`PlayCta`, compare, bubble and team pages; never inside an ad slot): `play-pitch
+  rounded-card border border-line-strong bg-surface p-5`, row layout from 640px. Opens with
+  `.pitch-file` (aria-hidden): 216px wide, min 48px tall, 2px `fg` bottom rule, ink `.file-letter`
+  "A" (40px / 24px), "Team A" 12px 600 `fg-muted` over a 12px redaction bar, record "7-1" 22px 800.
+  Then the kicker, the question (`text-heading`), one line, `btn btn-primary` "Rank them blind" to
+  `/#play`.
+- **Cards and frames** on content pages (`rounded-card border …`): `border-line-strong`.
 - **Compare hub** (`/compare`): neighbors in the ranking, the cut-line matchups (`CutPairs`), then a
   no-JS `<details>` per committee team with all of its compares.
 
-## 15. Ad slots
+## 20. Ad slots
 
 ```html
 <div class="ad-slot" data-kind="incontent">
@@ -542,78 +678,103 @@ Typographic, tables not cards; light or dark by OS. `max-w-page`, `px-gutter lg:
 </div>
 ```
 
-A plain div with the visible label, not a landmark (two `aside aria-label="Advertisement"` on one
-page were two identically named landmarks). The ad loader is injected only on pages that render a
-slot (`BaseLayout ads`).
+A plain div with the visible label (sentence case, `fg-faint`), not a landmark. The ad loader is
+injected only on pages that render a slot (`BaseLayout ads`). Reserved creative heights = the
+tallest unit the slot's width accepts: `leaderboard` 100px phones / 90px >= 768 (max 728 wide);
+`incontent` 280px (max 336); `sidebar` 280px phones (max 336), 600px sticky (`top-6`) >= 1024 in a
+300px right column. Hairlines above and below. Nothing else may look like this; never inside cards
+or modals.
 
-Reserved creative heights = the tallest unit the slot's width accepts: `leaderboard` 100px phones /
-90px >= 768 (max 728 wide); `incontent` 280px (max 336, so a 336x280 fill cannot grow it);
-`sidebar` 280px phones (max 336), 600px sticky (`top-6`) >= 1024 in a 300px right column
-(`lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-10`). Hairlines above/below, label
-`fg-faint`. Nothing else may look like this (no ads styled as content); never inside cards or
-modals.
+## 21. Forced colours and reduced motion
 
-## 16. OG images (1200x630, rectangles + Barlow Condensed glyphs only)
+- `@media (forced-colors: active)`: every redaction (`[data-redacted]`, the reveal bar) keeps
+  `forced-color-adjust: none; background: CanvasText`; `.wm-redacted`, `.hero-redacted`:
+  `CanvasText` bg, `Canvas` text. Pips, ticks and bars keep their shapes (filled `CanvasText`, empty
+  pips `GrayText`, meter track outlined `GrayText`). File letters `CanvasText` / `Canvas`. Your marks
+  map to `Highlight` / `HighlightText` (picked card border, in-field rule, legend swatch, 1st/2nd
+  letters, pick stamps, picked rank buttons, you-are-here tick, match stamps, checked tick, focus
+  outline). Selection chrome drawn with inset shadows (selected segment, open tab) gets `outline:
+  2px solid Highlight; outline-offset: -2px`; step boxes, tags and index tabs a 1px `CanvasText`
+  outline. Progress ticks: `GrayText` / `CanvasText`.
+- `@media (prefers-reduced-motion: reduce)`: the reveal bar is never drawn (names show at once); the
+  global rule zeroes all other durations.
 
-No rounded corners, gradients or images, so the build-time resvg renderer and the Worker glyph
-atlas produce identical results. Colors from `colors.dark` / `teamPaint()`; text widths from the
-TTF advance widths (`src/assets/fonts/BarlowCondensed-{600,700}.ttf`).
+## 22. OG and share images
 
-**Team image** (`public/og/teams/{slug}.png`):
-- Page `#0e0f12`. Color block x 0-1200, y 0-300 in primary (1px `#3a3f49` inset stroke when
-  `teamPaint().edge`), 12px secondary rule y 300-312.
-- Kicker x 56 baseline 96: condensed 600 36px, +2 tracking, ink: "ACC · CONF 6-0" (conference
-  only for independents). Name x 56 baseline 250: 700 caps, 150px, shrink by 2px to fit
-  `1088 - recordWidth - 48` (min 72px). Record right-aligned at x 1144 baseline 250, 700 120px.
-- Stat row y 312-558: five cells of 217.6px from x 56: label 600 caps 26px (shrink to fit cell
-  minus 24, min 20) `fg-muted` baseline 388; numeral 700 92px `fg` baseline 478; bar y 500 h 10,
-  width cell minus 28, `track` + fill: every bar, the committee's included, is the tier color of its
-  rank band x `rankFill` (a #20 committee rank must not draw a full bar). Order: Committee, Strength of record, Offense, Defense, Schedule.
-- Footer y 558-630 `surface`: "CFBBLINDRESUME.COM" 700 32px +1.5 tracking `fg` at x 56 baseline
-  605; right-aligned at x 1144 "After Week 9 · Ratings: FEI by Brian Fremeau" 600 28px `fg-muted`.
+All images: 1200x630, rectangles + Archivo glyphs only (no rounded corners, gradients, images or
+strokes: frames are four 1px rects), so resvg (build time, `src/components/og.ts`) and the Worker
+glyph atlas (`functions/_lib`) render alike. Palette `colors.light` (paper `#fdfdfa`, sheet
+`#f4f4ef`, ink `#18191d`, carbon `#50524b`, `line-strong` `#b2b3aa`, `track` `#e2e2db`, toner,
+violet `#4b2c92` only for "you", win/loss for the triangle), team colours via `teamPaint()` (a frame
+when the primary is within 1.5:1 of paper). Text widths from the static TTFs (`text-metrics.ts`
+`textWidth(s, size, 400|600|800, trackPx)`); tracking in em x size. Sentence case.
 
-**Share image** (user's top 12, `/og/r/{code}.png`):
-- Page `#0e0f12`; 8px `accent-fill` bar at the top.
-- "MY TOP 12" 700 76px `fg` x 56 baseline 104; right-aligned "AFTER WEEK 9 · 2026" 600 30px
-  +2 tracking `fg-muted` baseline 102 (66 when the hook is drawn).
-- Hook (right-aligned, baseline 104, 600 28px, +0.3 tracking): "Matched the committee on **43%** ·
-  Biggest call: **Kentucky** ▲4" (`fg-muted`, the percentage in `accent`, the team and number in
-  `fg`, the triangle drawn as rectangles 15x13 in `win`/`loss`). Biggest call = the top-12 team
-  furthest from its committee rank (unranked by the committee counts as 26 − position). Shorter
-  wordings are used when it does not fit beside the title; no committee: "Matched FEI on 65%".
-- Two columns of six rows: x 56 and 628, width 516, rows 60px tall, 12px apart, from y 140.
-  Each row: seed plate 64x60 (`accent-fill` + `on-accent` numeral for seeds 1-4 (byes),
-  `raised-2` + `fg` otherwise), numeral 700 40px centered baseline +44; color block 452x60 in
-  primary with a 6px secondary rule at its bottom; name 700 caps 34px (shrink to 26) in ink at
-  +20, baseline +42; record 600 30px right-aligned at -18.
-- Footer baseline 600: "Same game. Different numbers." 600 28px `fg-muted` left; right-aligned
-  "CFBBLINDRESUME.COM · RATINGS: FEI BY BRIAN FREMEAU" 600 26px +1.5 tracking.
-- Atlas glyph sizes needed: 76, 40, 34 (down to 26), 30, 28, 26 at weights 700/600 (600/28 also
-  carries mixed-case names and `%` for the hook).
+- **Common footer and wordmark**: footer band y 558-630 `sheet`, 2px `ink` rule at y 558. Wordmark
+  (`wordmark(x, baseline, size)` in og.ts) at x 56, baseline 606, 32px: "CFB" ink, a `redaction`
+  rect behind "Blind" (`on-redaction`, padded 0.16 x size), then " Resume" ink; 800, -0.015em.
+  Right, anchor end at x 1144, baseline 604: "After Week 9 · Ratings: FEI by Brian Fremeau" 600 26px
+  carbon.
+- **Team image** (`/og/teams/{slug}.png`): cover rect 0,0,1200,300 in the primary, 12px secondary
+  rule y 300-312. Kicker x 56 baseline 96, 600 32px, team ink ("ACC · Conf 6-0"; independents: the
+  conference name). Name x 56 baseline 250, 800, -0.025em, display case, 132px shrinking by 2px to
+  fit `1088 - recordWidth - 48` (min 64). Record anchor end x 1144 baseline 250, 800 112px. Stat row
+  on paper, five cells of 217.6px from x 56: label 600 26px carbon baseline 382; numeral 800
+  baseline 470, one size for the row (the largest <= 84px at which every rank fits); bar y 494 h 8:
+  `track` + toner of the rank band x `rankFill` (committee included). Order: Committee (or FEI
+  overall), Strength of record, Offense, Defense, Schedule.
+- **Default** (`/og/default.png`): wordmark x 56 baseline 112 at 64px; tagline "Same game.
+  Different numbers." 600 32px carbon; "2026 season" right. Two columns (Committee | FEI strength of
+  record) of five index-tab rows (sheet row + 1px `line-strong` frame, 56px plate in the primary
+  with a 5px secondary rule, numeral 800 30px team ink, name 800 28px ink, record 600 26px carbon).
+- **Compare** (`/og/compare/{pair}.png`): two covers (each half, 272px) with 12px rules; kicker 600
+  28px; name 800 fit 96 -> 40; record 800 60px; a centred ink 84x84 plate with "vs" 800 40px in
+  paper. Ratings rows on paper (1px `line` separators): the better rank 800 40px ink, the other 600
+  40px carbon; label 600 26px carbon centred.
+- **Share image** (`/og/r/{code}.png`, Worker, `functions/_lib/share-image.ts`): paper page. "My
+  top 12" 800 76px ink, -0.03em, x 56 baseline 104; "After Week 9 · 2026" 600 28px carbon anchor end
+  x 1144 baseline 62. Hook, anchor end x 1144 baseline 104, 26px: "Matched the committee on " (600
+  carbon) **"43%"** (800 violet: the fan's number) " · Biggest call: " (600 carbon) **"Kentucky"**
+  (800 ink) + a 15x13 triangle and the number 800 in win/loss; shorter wordings when it does not fit;
+  no committee: "Matched FEI on 65%". Two columns of six index tabs at x 56 and 628, width 516, rows
+  60px, 70px pitch, from y 136: sheet row + 1px `line-strong` frame; plate 64x60 primary with a 6px
+  secondary rule; seed numeral 800 36px team ink; name 800 32px (shrink to 24) ink at x + 82; meta
+  600 26px carbon anchor end at x + 498: "Bye · 8-0" for seeds 1-4, else "7-1". Footer as above
+  with right text "cfbblindresume.com · Ratings: FEI by Brian Fremeau" 600 24px. The atlas
+  (`scripts/fn-build-atlas.mjs`) reads `src/assets/fonts/Archivo-{600,800}.ttf` (via `fonts.ttf`),
+  strikes 800 at 76, 36, 32, 30, 28, 26, 24; 600 at 28, 26, 24. After any change: `npm run fn:atlas`,
+  `node scripts/fn-build-atlas.mjs --check`, `npm run fn:integration`, `npm run fn:bench` (CPU
+  budget).
+  *Not yet ported:* the Worker still draws the previous dark/Barlow share image from the Barlow
+  atlas (`src/assets/fonts/BarlowCondensed-*.ttf` remain only for that); port it to this spec, then
+  delete the Barlow TTFs and `OFL.txt`.
 
-Reference renders (resvg, real data): see the mock list at the end.
+## 23. Icons
 
-## 17. Icons
+`public/favicon.svg`: a paper tile `#fdfdfa` with a 2px ink frame (radius 5 in a 32 viewBox),
+three redaction bars `#121317` (18 / 14 / 10 x 4 at x 7, y 8 / 14 / 20), the last ended by a 5x4
+violet stamp: a redacted list you marked. `public/apple-touch-icon.png` (180x180): the same drawing
+full bleed on paper, no frame. `public/site.webmanifest`: `theme_color` and `background_color`
+`#fdfdfa`.
 
-`public/favicon.svg`: a ranked list of three lower-thirds (light plates, slabs of decreasing
-length: accent, `fg-muted`, dim grey) on a `#0e0f12` rounded square. `public/apple-touch-icon.png`
-(180, full bleed) and `public/site.webmanifest` match.
+## 24. Do / don't
 
-## 18. Do / don't
+- Do: paper, ink, toner, ruled form fields, file letters, folder tabs, index tabs, the redaction
+  bar, sentence case, tabular numerals, violet only for the fan.
+- Don't: shadows or glows, gradients, pills, rounded-full knobs, caps or tracked labels, a second
+  font family, coloured tier ramps, star glyphs, red accents, violet links or kickers, slanted or
+  rotated stamps, sunburst backgrounds, dashed card borders (the only dashed line is the cut line),
+  question-mark badges, logos, colour-only meaning, coloured text on team colours other than the
+  computed ink, accented words in headings.
 
-- Do: lower-third slabs, square-ish shapes, condensed caps, tabular numerals, the tier ramp,
-  accent only for the user.
-- Don't: slanted or skewed badges, sunburst/ray backgrounds, dashed card borders, question-mark
-  badges, red accents, neon glows, logos, script/slab/serif display fonts (Graduate, Rye, Oswald),
-  colored text on team blocks other than the computed ink, color-only meaning.
+## 25. Verification
 
-## 19. Reference mocks
-
-Rendered from a throwaway Astro build of these exact classes
-(scratchpad `design/astro-mock`, built into `design-dist`):
-`design/game-1280.png`, `design/game-390.png` (cards, sticky rank bar/footer),
-`design/results-1280.png`, `design/results-390-top.png`, `design/results-390-bracket.png`,
-`design/reveal-390.png`, `design/reveal-1280.png`, `design/done-390.png`,
-`design/team-1280-light.png`, `design/team-390-light.png`, `design/team-1280.png` (dark),
-`design/swatches-1280.png` (tier ramp, both themes), `design/og-team-*.png`,
-`design/og-share.png`, `design/favicon-preview.png`.
+Before shipping a visual change: `npm test`, `npm run check`, `npm run build`,
+`node scripts/content-verify.mjs dist`, `node scripts/e2e-game.mjs --dist dist` (phone, laptop, skip,
+bad codes; it waits for the declassify animations and asserts no team name in the island before
+lock-in), axe + Lighthouse mobile on `/`, `/teams/ohio-state`, `/rankings`, `/teams`, `/r/<code>`
+with light and dark emulated (performance >= 90, accessibility = 100, CLS = 0, ads on and off), the
+no-JS intro in both schemes, a narrow matrix at 320 / 375 / 390 / 1280 (home, round, pick, reveal,
+results tabs, format segment, bracket, long-name team heroes: no clipped label, no horizontal
+scroll), `node scripts/fn-build-atlas.mjs --check`, and `rg -n "ESPN|FPI|SP\+|Game Control" dist`
+limited to about.html. `rg -n "uppercase|tracking-\[|shadow-(card|panel|footer)|data-theme" src`
+returns nothing.

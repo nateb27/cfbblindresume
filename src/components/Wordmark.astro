@@ -1,11 +1,9 @@
 ---
-/** "CFB·BLIND RESUME" wordmark: condensed 700 caps with an accent middot. */
+/** "CFB Blind Resume" wordmark: Archivo 800, the word "Blind" reversed out of a redaction bar. */
 interface Props {
   class?: string;
 }
 const { class: cls } = Astro.props;
 ---
 
-<span class:list={['cond text-[1.25rem] leading-none font-bold tracking-[0.02em] whitespace-nowrap uppercase', cls]}
-  >CFB<span class="text-accent" aria-hidden="true">·</span><span class="sr-only"> </span>Blind Resume</span
->
+<span class:list={['wordmark', cls]}>CFB <span class="wm-redacted">Blind</span> Resume</span>

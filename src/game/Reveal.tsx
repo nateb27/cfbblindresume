@@ -1,5 +1,5 @@
 /**
- * The reveal after each round (DESIGN.md §11): a native modal <dialog> (inert background, focus
+ * The reveal after each round (DESIGN.md §15): a native modal <dialog> (inert background, focus
  * inside, Esc handled), the three teams in the user's order with You / Committee / FEI (/ Fans),
  * match chips and the running line. Tap anywhere, Esc, Enter or a letter key continues; arrow,
  * Page, Home/End and Space keys scroll the panel instead (keyboard and zoomed-in users can read
@@ -7,7 +7,26 @@
  * bottom edge, so short screens scroll the list, never the button. Taps in the first moments after
  * it opens are ignored (a double tap on the last pick must not dismiss it unseen).
  */
-import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
+
+/* ─────────────────────────────────────────────────────────
+ * ANIMATION STORYBOARD: the declassify
+ *
+ * Read top-to-bottom. Each value is ms after the round locks and the dialog opens.
+ * CSS only (game.css "The declassify"): transform + opacity keyframes, no JS timers, no library.
+ *
+ *    0ms   the sheet lands: panel fades in, rises 8px → 0 (200ms)
+ *   80ms   the bar over your 1st pick lifts, scaleX 1 → 0 toward the record (240ms)
+ *  180ms   the bar over your 2nd pick lifts (stagger 100ms)
+ *  280ms   the bar over your 3rd pick lifts
+ *  520ms   all three names declassified; the panel is at rest
+ *
+ * Next round and Esc are live from 0ms: the bars are pointer-events: none pseudo-elements (taps
+ * and Enter are only held for the GUARD_MS double-tap window). Screen readers get the names at
+ * once. Reduced motion: no rise and no bars, the final frame at once. Forced colours: the bar is a
+ * solid CanvasText block while it lifts.
+ * ───────────────────────────────────────────────────────── */
+
+import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react';
 import { agreement, runningLine } from '@lib/agreement';
 import { gameAgreementRefs, type GameData } from '@lib/game-data';
 import { TRIO_RULES } from '@lib/trios';
@@ -15,6 +34,41 @@ import { useGame, useGameApi, useGameData } from './context';
 import { emphasize, LETTERS, ordinal, recordText } from './format';
 import { ArrowIcon, CheckIcon, CrossIcon, FeiCredit, Switch, TeamBlock } from './ui';
 import { GUARD_MS } from './hooks';
+
+const TIMING = {
+  panelIn:      0,    // the sheet lands on the desk
+  firstLift:    80,   // the bar over your 1st pick starts to lift
+  liftStagger:  100,  // each next bar, in your order (2nd at 180ms, 3rd at 280ms)
+  declassified: 520,  // the last bar is gone: firstLift + 2 × liftStagger + BAR.duration
+} as const;
+
+/* The panel: one sheet laid on the desk. */
+const PANEL = {
+  duration: 200,               // ms: fade 0 → 1 while it rises
+  rise:     8,                 // px it rises from
+  ease:     'var(--ease-out)', // quick start, soft stop
+} as const;
+
+/* The redaction bar over each name (`.team-name::after`, the marker-swipe shape). */
+const BAR = {
+  duration: 240,                      // ms each bar takes to lift
+  origin:   'right',                  // it peels off toward the record
+  ease:     'var(--ease-declassify)', // cubic-bezier(0.77, 0, 0.175, 1): holds, lifts, lands soft
+} as const;
+
+/** The storyboard handed to game.css as custom properties: the numbers live only above. */
+const MOTION = {
+  '--reveal-in-duration': `${PANEL.duration}ms`,
+  '--reveal-in-delay': `${TIMING.panelIn}ms`,
+  '--reveal-in-rise': `${PANEL.rise}px`,
+  '--reveal-in-ease': PANEL.ease,
+  '--declassify-duration': `${BAR.duration}ms`,
+  '--declassify-origin': BAR.origin,
+  '--declassify-ease': BAR.ease,
+} as CSSProperties;
+
+/** When the bar over row `i`'s name (0 = your 1st pick) starts to lift. */
+const liftAt = (i: number): CSSProperties => ({ '--lift-at': `${TIMING.firstLift + i * TIMING.liftStagger}ms` }) as CSSProperties;
 
 /** Keys that move around or scroll inside the panel rather than continue. */
 const NAV_KEYS = new Set(['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
@@ -29,14 +83,30 @@ function placesBy(trio: readonly string[], rankOf: (s: string) => number | null)
   return out;
 }
 
-function Cell(props: { label: string; place: number | null; you: number; sub?: string; testid?: string }) {
-  const { label, place, you, sub } = props;
+/**
+ * One place cell. `short` is the label shown when four cells share a 320px phone ("CFP" for
+ * Committee, as on the results tiles); screen readers always hear the full label.
+ */
+function Cell(props: { label: string; short?: string; place: number | null; you: number; sub?: string; testid?: string; dense: boolean }) {
+  const { label, short, place, you, sub, dense } = props;
   const same = place === you;
   return (
-    <div className="min-w-0 rounded-slab bg-raised px-2 py-0.5 sm:py-1" data-testid={props.testid}>
-      <dt className="label-caps whitespace-nowrap text-fg-muted max-[22rem]:tracking-[0.02em]">{label}</dt>
+    <div className={`reveal-cell min-w-0 rounded-slab bg-raised px-2 py-0.5 sm:py-1 ${dense ? 'max-sm:px-1.5' : ''}`} data-testid={props.testid} data-match={same ? '' : undefined}>
+      <dt className={`label-caps whitespace-nowrap text-fg-muted ${dense ? 'max-sm:text-[0.75rem]' : ''}`}>
+        {short ? (
+          <>
+            <span className="max-[359px]:sr-only">{label}</span>
+            <span className="hidden max-[359px]:inline" aria-hidden="true">
+              {short}
+            </span>
+          </>
+        ) : (
+          label
+        )}
+      </dt>
       <dd className="flex flex-wrap items-baseline gap-x-1.5">
-        <span className={`cond text-[1.25rem] leading-5 font-bold sm:leading-6 ${same ? 'text-accent' : 'text-fg'}`}>{place === null ? 'NR' : ordinal(place)}</span>
+        <span className="reveal-value">{place === null ? 'NR' : ordinal(place)}</span>
+        {same && label !== 'You' && <span className="sr-only">, same as your pick</span>}
         {sub && <span className="cond text-[0.875rem] leading-5 font-semibold text-fg-muted">{sub}</span>}
       </dd>
     </div>
@@ -115,7 +185,12 @@ export function Reveal() {
     close();
   };
   const cells = 1 + (gd.hasCommittee ? 1 : 0) + 1 + (fans ? 1 : 0);
-  const cols = ['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][cells];
+  // Four cells on a phone: the columns are weighted by their labels (You is short, Committee long)
+  // and the cells get 12px labels, so "Committee" fits from 360px; below that it reads "CFP".
+  const dense = cells === 4;
+  const cols = dense
+    ? 'grid-cols-4 max-sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.9fr)]'
+    : ['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3'][cells];
 
   return (
     <dialog
@@ -130,14 +205,15 @@ export function Reveal() {
       onClick={onClick}
       onKeyDown={onKeyDown}
       data-testid="reveal"
+      style={MOTION}
     >
-      <div className="animate-rise rounded-panel border border-line bg-surface shadow-panel">
+      <div className="reveal-panel rounded-panel border border-line-strong bg-surface">
         <header className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
           <div>
             <p className="label-caps text-fg-muted">
               Round {round} of {total}
             </p>
-            <h2 id="reveal-h" className="cond text-heading uppercase">
+            <h2 id="reveal-h" className="cond text-heading">
               Your order, revealed
             </h2>
           </div>
@@ -148,15 +224,13 @@ export function Reveal() {
             const you = i + 1;
             const letter = LETTERS[display.indexOf(slug)]!;
             return (
-              <li key={slug} className="animate-rise" style={{ animationDelay: `${i * 60}ms` }}>
-                <div className="animate-wipe" style={{ animationDelay: `${i * 60}ms` }}>
-                  <TeamBlock slug={slug} team={team} seed={letter} size="reveal" meta={recordText(team.record)} link={false} className="max-sm:h-12" label={`Team ${letter} was ${team.name}, ${recordText(team.record)}`} />
-                </div>
+              <li key={slug} style={liftAt(i)}>
+                <TeamBlock slug={slug} team={team} seed={letter} size="reveal" meta={recordText(team.record)} link={false} className="max-sm:h-12" label={`Team ${letter} was ${team.name}, ${recordText(team.record)}`} />
                 <dl className={`mt-1.5 grid gap-1 ${cols}`}>
-                  <Cell label="You" place={you} you={you} />
-                  {gd.hasCommittee && <Cell label="Committee" place={committee[slug] ?? null} you={you} sub={team.committee ? `#${team.committee}` : undefined} />}
-                  <Cell label="FEI SoR" place={fei[slug] ?? null} you={you} sub={`#${team.sor}`} />
-                  {fans && <Cell label="Fans" place={fans.indexOf(slug) + 1 || null} you={you} testid="fans-cell" />}
+                  <Cell label="You" place={you} you={you} dense={dense} />
+                  {gd.hasCommittee && <Cell label="Committee" short={dense ? 'CFP' : undefined} place={committee[slug] ?? null} you={you} sub={team.committee ? `#${team.committee}` : undefined} dense={dense} />}
+                  <Cell label="FEI SoR" place={fei[slug] ?? null} you={you} sub={`#${team.sor}`} dense={dense} />
+                  {fans && <Cell label="Fans" place={fans.indexOf(slug) + 1 || null} you={you} testid="fans-cell" dense={dense} />}
                 </dl>
               </li>
             );
@@ -175,7 +249,7 @@ export function Reveal() {
             </b>
           ))}
         </p>
-        <p className="px-5 pt-1 text-[0.8125rem] leading-5 text-fg-faint">
+        <p className="px-5 pt-1 text-[0.8125rem] leading-5 text-balance text-fg-faint">
           1st–3rd: order among these three · #: rank in the full ranking · FEI SoR: FEI strength of record
         </p>
         <div className="px-5 pt-1">

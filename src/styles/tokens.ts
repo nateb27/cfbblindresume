@@ -6,7 +6,8 @@
  * Pure TypeScript: no DOM, no Node APIs, safe in the browser, Node and Workers.
  */
 
-export type ThemeName = 'dark' | 'light';
+/** light = content pages ("sheet"), board = game pages in light mode, dark = photostat (both). */
+export type ThemeName = 'light' | 'board' | 'dark';
 
 /** Semantic colors per theme. Keys match the CSS custom properties `--color-<key>`. */
 export interface ThemeColors {
@@ -41,79 +42,121 @@ export interface ThemeColors {
   'tier-05': string;
   selection: string;
   'on-selection': string;
+  /** The redaction bar (marker black on paper; paper-white on the photostat negative). */
+  redaction: string;
+  'on-redaction': string;
 }
 
 export const colors: Readonly<Record<ThemeName, Readonly<ThemeColors>>> = Object.freeze({
-  dark: Object.freeze({
-    page: '#0e0f12',
-    surface: '#16181d',
-    raised: '#1e2128',
-    'raised-2': '#272b33',
-    line: '#2a2e36',
-    'line-strong': '#3a3f49',
-    control: '#7a808a',
-    track: '#2b2f37',
-    fg: '#ecedee',
-    'fg-muted': '#9ba1ab',
-    'fg-faint': '#878d97',
-    accent: '#c8f135',
-    'accent-fill': '#c8f135',
-    'on-accent': '#0e0f12',
-    'accent-tint': '#333f22',
-    'accent-edge': '#c8f135',
-    focus: '#c8f135',
-    win: '#3dd68c',
-    loss: '#ff6b6b',
-    'win-tint': '#1b3a2f',
-    'loss-tint': '#3e2329',
-    'tier-50': '#ffcd34',
-    'tier-45': '#f8b23d',
-    'tier-40': '#d9a461',
-    'tier-30': '#77abd7',
-    'tier-20': '#7f96af',
-    'tier-15': '#7c8999',
-    'tier-10': '#777e87',
-    'tier-05': '#717579',
-    selection: '#c8f135',
-    'on-selection': '#0e0f12',
-  }),
   light: Object.freeze({
-    page: '#ffffff',
-    surface: '#f5f6f8',
-    raised: '#ebedf0',
-    'raised-2': '#e1e4e8',
-    line: '#e1e4e8',
-    'line-strong': '#c5cad1',
-    control: '#6e7581',
-    track: '#e1e4e8',
-    fg: '#121317',
-    'fg-muted': '#555b66',
-    'fg-faint': '#5f6570',
-    accent: '#4a6b00',
-    'accent-fill': '#c8f135',
-    'on-accent': '#0e0f12',
-    'accent-tint': '#eef8d4',
-    'accent-edge': '#5f8700',
-    focus: '#4a6b00',
-    win: '#087040',
-    loss: '#b91e2a',
-    'win-tint': '#e3f3e9',
-    'loss-tint': '#fbe7e8',
-    'tier-50': '#937900',
-    'tier-45': '#b65a00',
-    'tier-40': '#8c6b56',
-    'tier-30': '#4479a9',
-    'tier-20': '#698098',
-    'tier-15': '#768392',
-    'tier-10': '#7e858e',
-    'tier-05': '#84888c',
-    selection: '#d9f27a',
-    'on-selection': '#0e0f12',
+    page: '#fdfdfa',
+    surface: '#f4f4ef',
+    raised: '#ecece6',
+    'raised-2': '#e2e2db',
+    line: '#d9d9d1',
+    'line-strong': '#b2b3aa',
+    control: '#74756d',
+    track: '#e2e2db',
+    fg: '#18191d',
+    'fg-muted': '#50524b',
+    'fg-faint': '#5f615a',
+    accent: '#4b2c92',
+    'accent-fill': '#4b2c92',
+    'on-accent': '#fdfdfa',
+    'accent-tint': '#e9e3f5',
+    'accent-edge': '#5a3aa3',
+    focus: '#4b2c92',
+    win: '#17683a',
+    loss: '#a3262b',
+    'win-tint': '#e0eee3',
+    'loss-tint': '#f6e0dd',
+    selection: '#d9cdf3',
+    'on-selection': '#18191d',
+    redaction: '#121317',
+    'on-redaction': '#fdfdfa',
+    'tier-50': '#25262b',
+    'tier-45': '#34363a',
+    'tier-40': '#43454a',
+    'tier-30': '#505257',
+    'tier-20': '#5c5e63',
+    'tier-15': '#66686c',
+    'tier-10': '#6f7175',
+    'tier-05': '#76787c',
+  }),
+  board: Object.freeze({
+    page: '#e8e8e3',
+    surface: '#fdfdfa',
+    raised: '#f1f1ec',
+    'raised-2': '#e6e6e0',
+    line: '#dadad3',
+    'line-strong': '#b4b5ad',
+    control: '#74756d',
+    track: '#e3e3dd',
+    fg: '#18191d',
+    'fg-muted': '#50524b',
+    'fg-faint': '#5d5f58',
+    accent: '#4b2c92',
+    'accent-fill': '#4b2c92',
+    'on-accent': '#fdfdfa',
+    'accent-tint': '#ebe5f6',
+    'accent-edge': '#5a3aa3',
+    focus: '#4b2c92',
+    win: '#17683a',
+    loss: '#a3262b',
+    'win-tint': '#e2efe5',
+    'loss-tint': '#f7e2df',
+    selection: '#d9cdf3',
+    'on-selection': '#18191d',
+    redaction: '#121317',
+    'on-redaction': '#fdfdfa',
+    'tier-50': '#25262b',
+    'tier-45': '#34363a',
+    'tier-40': '#43454a',
+    'tier-30': '#505257',
+    'tier-20': '#5f6166',
+    'tier-15': '#686a6e',
+    'tier-10': '#707276',
+    'tier-05': '#77797d',
+  }),
+  dark: Object.freeze({
+    page: '#161615',
+    surface: '#1f1f1d',
+    raised: '#282826',
+    'raised-2': '#32322f',
+    line: '#34342f',
+    'line-strong': '#4c4c46',
+    control: '#8a8a82',
+    track: '#33332f',
+    fg: '#ecebe4',
+    'fg-muted': '#aeada4',
+    'fg-faint': '#9d9c93',
+    accent: '#b9a7f1',
+    'accent-fill': '#b9a7f1',
+    'on-accent': '#161615',
+    'accent-tint': '#2d2742',
+    'accent-edge': '#b9a7f1',
+    focus: '#b9a7f1',
+    win: '#78d39c',
+    loss: '#f3968c',
+    'win-tint': '#1d3326',
+    'loss-tint': '#3f2523',
+    selection: '#4a3d78',
+    'on-selection': '#ecebe4',
+    redaction: '#e6e3d8',
+    'on-redaction': '#161615',
+    'tier-50': '#f3f2ec',
+    'tier-45': '#dad9d2',
+    'tier-40': '#c3c2bb',
+    'tier-30': '#acaba4',
+    'tier-20': '#9a9991',
+    'tier-15': '#8e8d86',
+    'tier-10': '#8a8982',
+    'tier-05': '#82817b',
   }),
 });
 
 /** Constant inks (theme independent). */
-export const INK = '#0e0f12';
+export const INK = '#0e0f12'; // team names on light primaries (teamInk); not the page ink
 export const PAPER = '#ffffff';
 
 /* ------------------------------------------------------------------ opponent tiers */
@@ -132,14 +175,14 @@ export function tierKey(stars: number): TierKey {
   return k as TierKey;
 }
 
-/** Ramp color for a star value, e.g. tierColor(4.5) -> "#f8b23d" (dark). */
-export function tierColor(stars: number, theme: ThemeName = 'dark'): string {
+/** Toner ramp color for a star value, e.g. tierColor(4.5) -> "#34363a" (light paper, OG images). */
+export function tierColor(stars: number, theme: ThemeName = 'light'): string {
   return colors[theme][`tier-${tierKey(stars)}`];
 }
 
-/** Resume-strip dot diameter in CSS px for a star value (mirrors [data-tier] in global.css). */
-export const TIER_DOT_PX: Readonly<Record<TierKey, number>> = Object.freeze({
-  '50': 14, '45': 12, '40': 11, '30': 10, '20': 9, '15': 8, '10': 7, '05': 6,
+/** Season-strip tick height in CSS px for a tier (mirrors --tier-tick on [data-tier] in global.css). */
+export const TIER_TICK_PX: Readonly<Record<TierKey, number>> = Object.freeze({
+  '50': 14, '45': 12, '40': 10, '30': 8, '20': 6, '15': 5, '10': 4, '05': 3,
 });
 
 /* ------------------------------------------------------------------ contrast */
@@ -198,8 +241,10 @@ export function teamRule(c: TeamColors): string {
   return contrast(c.secondary, c.primary) < 1.5 ? teamInk(c.primary) : c.secondary;
 }
 
-/** Below this contrast against the page, a team block gets a 1px hairline edge. */
+/** Below this contrast against a page/sheet it sits on, a team plate gets a 1px edge. */
 const EDGE_THRESHOLD = 1.5;
+/** The redaction bar must read on the team colour (graphics contrast) or it falls back to the ink. */
+const REDACT_THRESHOLD = 3;
 
 /**
  * CSS custom properties for `.team-block` / `.team-chip` (and anything else painted in team
@@ -209,37 +254,47 @@ const EDGE_THRESHOLD = 1.5;
  */
 export function teamVars(c: TeamColors): Record<string, string> {
   const primary = c.primary.toLowerCase();
-  const darkEdge = contrast(primary, colors.dark.surface) < EDGE_THRESHOLD;
-  const lightEdge = contrast(primary, colors.light.page) < EDGE_THRESHOLD;
+  const ink = teamInk(primary);
+  const vanishes = (...bgs: string[]) => bgs.some((bg) => contrast(primary, bg) < EDGE_THRESHOLD);
+  const darkEdge = vanishes(colors.dark.page, colors.dark.surface);
+  const lightEdge = vanishes(colors.light.page, colors.board.page, colors.board.surface);
+  // The reveal's redaction bar sits on the team colour: marker black (paper-white in dark) when it
+  // reads at >= 3:1 on the primary, else the team's own ink (always >= 4.5:1 on it).
+  const redact = (bar: string) => (contrast(bar, primary) >= REDACT_THRESHOLD ? 'var(--redaction)' : ink);
   return {
     '--team-bg': primary,
-    '--team-ink': teamInk(primary),
+    '--team-ink': ink,
     '--team-rule': teamRule(c).toLowerCase(),
-    '--team-edge-dark': darkEdge ? 'rgb(255 255 255 / 0.18)' : 'transparent',
-    '--team-edge-light': lightEdge ? 'rgb(18 19 23 / 0.18)' : 'transparent',
+    '--team-edge-dark': darkEdge ? 'rgb(236 235 228 / 0.42)' : 'transparent',
+    '--team-edge-light': lightEdge ? 'rgb(24 25 29 / 0.34)' : 'transparent',
+    '--team-redact-light': redact(colors.light.redaction),
+    '--team-redact-dark': redact(colors.dark.redaction),
   };
 }
 
-/** Same values as plain hex for raster renderers (OG images). Edge is for the dark page. */
-export function teamPaint(c: TeamColors): { bg: string; ink: string; rule: string; edge: string | null } {
+/** Same values as plain hex for raster renderers (OG images, paper page). Edge: primary vanishes into the paper. */
+export function teamPaint(c: TeamColors): { bg: string; ink: string; rule: string; edge: string | null; redact: string } {
   const primary = c.primary.toLowerCase();
+  const ink = teamInk(primary);
   return {
     bg: primary,
-    ink: teamInk(primary),
+    ink,
     rule: teamRule(c).toLowerCase(),
-    edge: contrast(primary, colors.dark.page) < EDGE_THRESHOLD ? '#3a3f49' : null,
+    edge: contrast(primary, colors.light.page) < EDGE_THRESHOLD ? colors.light['line-strong'] : null,
+    redact: contrast(colors.light.redaction, primary) >= REDACT_THRESHOLD ? colors.light.redaction : ink,
   };
 }
 
 /* ------------------------------------------------------------------ type, motion, OG */
 
 export const fonts = Object.freeze({
-  /** Family name to use in SVG/resvg (register both TTFs from src/assets/fonts/). */
-  condensed: 'Barlow Condensed',
-  /** Build-time TTFs (relative to the repo root) for @resvg/resvg-js and the glyph atlas. */
+  /** Family name to use in SVG/resvg (register the three TTFs from src/assets/fonts/). */
+  family: 'Archivo',
+  /** Build-time static TTFs (relative to the repo root) for @resvg/resvg-js and the glyph atlas. */
   ttf: Object.freeze({
-    600: 'src/assets/fonts/BarlowCondensed-600.ttf',
-    700: 'src/assets/fonts/BarlowCondensed-700.ttf',
+    400: 'src/assets/fonts/Archivo-400.ttf',
+    600: 'src/assets/fonts/Archivo-600.ttf',
+    800: 'src/assets/fonts/Archivo-800.ttf',
   }),
 });
 

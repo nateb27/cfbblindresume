@@ -1,43 +1,53 @@
 /**
- * The share image for /og/r/{code}.png (DESIGN.md §16 "Share image"): the user's top 12 as
- * lower-third rows (seed plate, team color block with condensed caps name and record, secondary
- * rule), on the dark stage with the accent bar. Rectangles + atlas glyphs only, so it renders in
- * about a millisecond and matches the build-time resvg images.
+ * The share image for /og/r/{code}.png (DESIGN.md "Share image"): the user's top 12 as a page of
+ * the committee file. Paper page, "My top 12" in ink, two columns of index tabs (the seed on a
+ * team-colour plate with its secondary rule, the name typed in ink on a sheet, the record and any
+ * bye as quiet meta), and the footer band with the wordmark ("Blind" reversed out of a redaction
+ * bar) and the FEI credit. Rectangles + atlas glyphs only, so it renders in about a millisecond
+ * and matches the build-time resvg images (src/components/og.ts).
  *
  * Everything shown comes from the week's game data and the run: names, colors, records, the
  * default format's field size and byes, the week label. Nothing is hard-coded about teams.
  *
- * The hook line (top right, under the kicker) says how the ranking compares, computed from the code
- * alone: "Matched the committee on 43% · Biggest call: Kentucky ▲4" (pairwise agreement, then the
- * top-12 team the ranking places furthest from the committee; the triangle is drawn, in win/loss
- * colors, because the font has none). Without a committee release it reads "Matched FEI on 65%".
+ * The hook line (top right, on the title's baseline) says how the ranking compares, computed from
+ * the code alone: "Matched the committee on 43% · Biggest call: Kentucky ▲4" (pairwise agreement in
+ * violet, the fan's own number; then the top-12 team the ranking places furthest from the
+ * committee; the triangle is drawn, in win/loss colors, because the font has none). Without a
+ * committee release it reads "Matched FEI on 65%".
  */
 import type { AgreementSummary } from '@lib/agreement';
 import type { GameData } from '@lib/game-data';
 import { defaultFormat } from '@lib/playoff';
 import { colors, teamPaint } from '../../src/styles/tokens';
-import { findStrike, fitStrike, layout, measure, type Atlas, type Weight } from './atlas';
+import { findStrike, layout, measure, strikeSizes, type Atlas, type Weight } from './atlas';
 import { crc32, encodePalettePng } from './png';
 import { IndexedCanvas, levelsFor } from './raster';
 
-const D = colors.dark;
+/** The paper palette (light sheet), as on every OG image. */
+const P = colors.light;
 
-/** Geometry (px). Matches the reference render in DESIGN.md §16. */
+/** Geometry (px). Matches the reference render in DESIGN.md "Share image". */
 export const SHARE = Object.freeze({
   width: 1200,
   height: 630,
   pad: 56,
-  colGap: 32,
+  /** Two columns of index tabs at x 56 and 628. */
+  colW: 516,
+  colGap: 56,
   rowH: 60,
-  rowGap: 12,
-  top: 140,
+  /** Row pitch (60px tab + 10px gap). */
+  pitch: 70,
+  top: 136,
   plate: 64,
   rule: 6,
-  accentBar: 8,
   perColumn: 6,
+  /** Title and hook baseline. */
+  titleBase: 104,
+  /** Footer band from here to the bottom edge, 2px ink rule on top. */
+  footerTop: 558,
 });
 
-const BRAND = 'CFBBLINDRESUME.COM · RATINGS: FEI BY BRIAN FREMEAU';
+const CREDIT = 'cfbblindresume.com · Ratings: FEI by Brian Fremeau';
 const TAGLINE = 'Same game. Different numbers.';
 
 type Align = 'start' | 'end' | 'middle';
@@ -62,7 +72,8 @@ interface TextOp {
   maxWidth?: number;
   /** Shorter text to use when `text` does not fit at the smallest size. */
   fallback?: string;
-  tracking: number;
+  /** Letter spacing in em (x the strike size = px between glyphs). */
+  trackEm: number;
   align: Align;
   ink: string;
   /** The solid color under the text (for the palette budget). */
@@ -81,7 +92,7 @@ export interface ShareRow {
   bye: boolean;
 }
 
-/** The one-line summary under the kicker (see the file comment). */
+/** The one-line summary on the title's baseline, right-aligned (see the file comment). */
 export interface ShareHook {
   /** Which ranking the percentage compares with. */
   ref: 'committee' | 'FEI';
@@ -158,140 +169,178 @@ export function shareImageModel(gd: GameData, order: readonly string[], byes?: r
   return { title: `My top ${rows.length}`, kicker: `${gd.label} · ${gd.season}`, rows, hook };
 }
 
-/** A hook segment: text in one ink, or the drawn delta triangle. */
-type HookSeg = { text: string; ink: string } | { tri: 'up' | 'down' };
+/** A hook segment: text in one weight and ink, or the drawn delta triangle. */
+type HookSeg = { text: string; ink: string; weight: Weight } | { tri: 'up' | 'down' };
 
-const HOOK_SIZE = 28;
-const HOOK_TRACKING = 0.3;
-const TRI = Object.freeze({ w: 15, h: 13, gap: 5 });
+/** Hook sizes: every wording with the call at 26px, then at 24px, before the call is dropped. */
+const HOOK_SIZES = [26, 24] as const;
+/** The delta triangle: 15x13, standing on the baseline. */
+const TRI = Object.freeze({ w: 15, h: 13, before: 7, after: 4 });
 
-/** Hook wordings, longest first; the first that fits the space beside the title is drawn. */
-function hookCandidates(h: ShareHook): HookSeg[][] {
-  const muted = D['fg-muted'];
-  const lead = (on: boolean): HookSeg[] => [
-    { text: `Matched ${h.ref === 'committee' ? 'the committee' : 'FEI'}${on ? ' on ' : ' '}`, ink: muted },
-    { text: h.pct, ink: D.accent },
-  ];
+/**
+ * Hook wordings with the biggest call, longest first, then the agreement alone. The call keeps the
+ * team's full name (short codes like "JXST" would read as noise in sentence case); the wording
+ * around it shortens instead.
+ */
+function hookCandidates(h: ShareHook): { withCall: HookSeg[][]; plain: HookSeg[] } {
+  const copy = (text: string): HookSeg => ({ text, ink: P['fg-muted'], weight: 600 });
+  const pct: HookSeg = { text: h.pct, ink: P.accent, weight: 800 };
+  const full = [copy(`Matched ${h.ref === 'committee' ? 'the committee' : 'FEI'} on `), pct];
+  const brief = [copy(`${h.ref === 'committee' ? 'Committee' : 'FEI'} match `), pct];
   const c = h.call;
-  if (!c) return [lead(true), lead(false)];
-  const call: HookSeg[][] =
+  if (!c) return { withCall: [], plain: full };
+  const name: HookSeg = { text: c.name, ink: P.fg, weight: 800 };
+  const calls: HookSeg[][] =
     c.delta === null
-      ? [
-          [{ text: c.name, ink: D.fg }, { text: ', unranked by the committee', ink: muted }],
-          [{ text: c.name, ink: D.fg }, { text: ' (committee NR)', ink: muted }],
-        ]
-      : [[{ text: c.name, ink: D.fg }, { tri: c.delta > 0 ? 'up' : 'down' }, { text: String(Math.abs(c.delta)), ink: D.fg }]];
-  return [
-    ...call.map((x) => [...lead(true), { text: ' · Biggest call: ', ink: muted }, ...x]),
-    ...call.map((x) => [...lead(false), { text: ' · ', ink: muted }, ...x]),
-    lead(true),
-    lead(false),
-  ];
+      ? [[name, copy(', unranked by the committee')], [name, copy(' (committee NR)')], [name, copy(' (NR)')]]
+      : [[name, { tri: c.delta > 0 ? 'up' : 'down' }, { text: String(Math.abs(c.delta)), ink: c.delta > 0 ? P.win : P.loss, weight: 800 }]];
+  const label = copy(' · Biggest call: ');
+  return { withCall: calls.flatMap((x) => [[...full, label, ...x], [...brief, label, ...x]]), plain: full };
 }
 
-function hookWidth(atlas: Atlas, segs: HookSeg[]): number {
-  const strike = findStrike(atlas, 600, HOOK_SIZE);
+function hookWidth(atlas: Atlas, segs: HookSeg[], size: number): number {
   let w = 0;
-  for (const seg of segs) w += 'tri' in seg ? TRI.w + 2 * TRI.gap : measure(atlas, strike, seg.text, HOOK_TRACKING);
+  for (const seg of segs) w += 'tri' in seg ? TRI.before + TRI.w + TRI.after : measure(atlas, findStrike(atlas, seg.weight, size), seg.text);
   return w;
 }
 
-/** The hook as ops, right-aligned at `right`, baseline `baseline`; nothing when no wording fits `maxW`. */
+/** The hook as ops, right-aligned at `right` on `baseline`; nothing when no wording fits `maxW`. */
 function hookOps(h: ShareHook, atlas: Atlas, right: number, baseline: number, maxW: number): Op[] {
-  const segs = hookCandidates(h).find((c) => hookWidth(atlas, c) <= maxW);
-  if (!segs) return [];
-  const strike = findStrike(atlas, 600, HOOK_SIZE);
+  const { withCall, plain } = hookCandidates(h);
+  const tries: [HookSeg[], number][] = [...HOOK_SIZES.flatMap((z) => withCall.map((c): [HookSeg[], number] => [c, z])), ...HOOK_SIZES.map((z): [HookSeg[], number] => [plain, z])];
+  const pick = tries.find(([c, z]) => hookWidth(atlas, c, z) <= maxW);
+  if (!pick) return [];
+  const [segs, size] = pick;
   const ops: Op[] = [];
-  let x = right - hookWidth(atlas, segs);
+  let x = right - hookWidth(atlas, segs, size);
   for (const seg of segs) {
     if ('tri' in seg) {
-      // An isosceles triangle as rows of odd width (crisp, centered), sitting on the cap height band.
-      const color = seg.tri === 'up' ? D.win : D.loss;
-      const left = Math.round(x + TRI.gap);
-      const top = baseline - 2 - TRI.h;
+      // An isosceles triangle as rows of odd width (crisp, centered), standing on the baseline.
+      const color = seg.tri === 'up' ? P.win : P.loss;
+      const left = Math.round(x + TRI.before);
+      const top = baseline - TRI.h;
       for (let r = 0; r < TRI.h; r++) {
         const fromTip = seg.tri === 'up' ? r : TRI.h - 1 - r;
         const half = Math.round(((fromTip + 1) / TRI.h) * ((TRI.w - 1) / 2));
         ops.push({ kind: 'rect', x: left + (TRI.w - 1) / 2 - half, y: top + r, w: 2 * half + 1, h: 1, color });
       }
-      x += TRI.w + 2 * TRI.gap;
+      x += TRI.before + TRI.w + TRI.after;
     } else {
-      ops.push({ kind: 'text', text: seg.text, x, baseline, weight: 600, size: HOOK_SIZE, tracking: HOOK_TRACKING, align: 'start', ink: seg.ink, bg: D.page });
-      x += measure(atlas, strike, seg.text, HOOK_TRACKING);
+      ops.push({ kind: 'text', text: seg.text, x, baseline, weight: seg.weight, size, trackEm: 0, align: 'start', ink: seg.ink, bg: P.page });
+      x += measure(atlas, findStrike(atlas, seg.weight, size), seg.text);
     }
   }
   return ops;
 }
 
+/** "CFB [Blind] Resume": Archivo 800, -0.015em, the word reversed out of a redaction bar (og.ts wordmark). */
+function wordmarkOps(atlas: Atlas, x: number, baseline: number, size: number, bg: string): Op[] {
+  const strike = findStrike(atlas, 800, size);
+  const trackEm = -0.015;
+  const t = trackEm * size;
+  // Widths include the tracking after the last glyph, as resvg spaces the next run.
+  const w = (s: string) => measure(atlas, strike, s, t) + t;
+  const padX = Math.round(size * 0.16);
+  const bx = x + w('CFB ');
+  const bw = w('Blind') + 2 * padX;
+  const text = (s: string, at: number, ink: string, under: string): TextOp => ({ kind: 'text', text: s, x: at, baseline, weight: 800, size, trackEm, align: 'start', ink, bg: under });
+  return [
+    text('CFB', x, P.fg, bg),
+    { kind: 'rect', x: bx, y: baseline - Math.round(size * 0.84), w: bw, h: Math.round(size * 1.06), color: P.redaction },
+    text('Blind', bx + padX, P['on-redaction'], P.redaction),
+    text('Resume', bx + bw + w(' '), P.fg, bg),
+  ];
+}
+
+/** Footer band (DESIGN.md "Common footer"): sheet, 2px ink rule, wordmark left, credit right. */
+function footerOps(atlas: Atlas, wordmark = true): Op[] {
+  const S = SHARE;
+  return [
+    { kind: 'rect', x: 0, y: S.footerTop, w: S.width, h: S.height - S.footerTop, color: P.surface },
+    { kind: 'rect', x: 0, y: S.footerTop, w: S.width, h: 2, color: P.fg },
+    ...(wordmark ? wordmarkOps(atlas, S.pad, 606, 32, P.surface) : []),
+    { kind: 'text', text: CREDIT, x: S.width - S.pad, baseline: 604, weight: 600, size: 24, trackEm: 0, align: 'end', ink: P['fg-muted'], bg: P.surface },
+  ];
+}
+
 function shareOps(m: ShareImageModel, atlas: Atlas): Op[] {
   const S = SHARE;
-  const colW = (S.width - 2 * S.pad - S.colGap) / 2;
-  const title = m.title.toUpperCase();
-  // With a hook the kicker moves up to the title's cap line and the hook sits on its baseline.
-  const hook = m.hook ? hookOps(m.hook, atlas, S.width - S.pad, 104, S.width - 2 * S.pad - measure(atlas, findStrike(atlas, 700, 76), title, 1) - 40) : [];
+  const titleTrack = -0.03;
+  const titleW = measure(atlas, findStrike(atlas, 800, 76), m.title, titleTrack * 76);
+  // The hook sits on the title's baseline, right-aligned; the kicker moves up to the cap line.
+  const hook = m.hook ? hookOps(m.hook, atlas, S.width - S.pad, S.titleBase, S.width - 2 * S.pad - titleW - 32) : [];
   const ops: Op[] = [
-    { kind: 'rect', x: 0, y: 0, w: S.width, h: S.accentBar, color: D['accent-fill'] },
-    { kind: 'text', text: title, x: S.pad, baseline: 104, weight: 700, size: 76, tracking: 1, align: 'start', ink: D.fg, bg: D.page },
-    { kind: 'text', text: m.kicker.toUpperCase(), x: S.width - S.pad, baseline: hook.length ? 66 : 102, weight: 600, size: 30, tracking: 2, align: 'end', ink: D['fg-muted'], bg: D.page },
+    { kind: 'text', text: m.title, x: S.pad, baseline: S.titleBase, weight: 800, size: 76, trackEm: titleTrack, align: 'start', ink: P.fg, bg: P.page },
+    { kind: 'text', text: m.kicker, x: S.width - S.pad, baseline: hook.length ? 62 : S.titleBase, weight: 600, size: 28, trackEm: 0, align: 'end', ink: P['fg-muted'], bg: P.page },
     ...hook,
   ];
   m.rows.forEach((r, i) => {
-    const col = Math.floor(i / S.perColumn);
-    const x = S.pad + col * (colW + S.colGap);
-    const y = S.top + (i % S.perColumn) * (S.rowH + S.rowGap);
+    const x = S.pad + Math.floor(i / S.perColumn) * (S.colW + S.colGap);
+    const y = S.top + (i % S.perColumn) * S.pitch;
     const p = teamPaint(r.colors);
-    const plateBg = r.bye ? D['accent-fill'] : D['raised-2'];
-    const plateInk = r.bye ? D['on-accent'] : D.fg;
-    const bx = x + S.plate;
-    const bw = colW - S.plate;
+    // Index tab: the seed on the team colour (+ secondary rule), the name typed on the sheet.
     ops.push(
-      { kind: 'rect', x, y, w: S.plate, h: S.rowH, color: plateBg },
-      { kind: 'text', text: String(r.rank), x: x + S.plate / 2, baseline: y + 44, weight: 700, size: 40, tracking: 0, align: 'middle', ink: plateInk, bg: plateBg },
-      { kind: 'rect', x: bx, y, w: bw, h: S.rowH, color: p.bg },
+      { kind: 'rect', x, y, w: S.colW, h: S.rowH, color: P.surface },
+      { kind: 'stroke', x, y, w: S.colW, h: S.rowH, color: P['line-strong'] },
+      { kind: 'rect', x, y, w: S.plate, h: S.rowH, color: p.bg },
+      { kind: 'rect', x, y: y + S.rowH - S.rule, w: S.plate, h: S.rule, color: p.rule },
     );
-    if (p.edge) ops.push({ kind: 'stroke', x: bx, y, w: bw, h: S.rowH - S.rule, color: p.edge });
+    if (p.edge) ops.push({ kind: 'stroke', x, y, w: S.plate, h: S.rowH, color: p.edge });
+    // Byes are said in words, no colour code.
+    const meta = r.bye ? `Bye · ${r.record}` : r.record;
+    const metaW = measure(atlas, findStrike(atlas, 600, 26), meta);
+    const metaRight = x + S.colW - 18;
+    const nameX = x + S.plate + 18;
     ops.push(
-      { kind: 'rect', x: bx, y: y + S.rowH - S.rule, w: bw, h: S.rule, color: p.rule },
+      { kind: 'text', text: String(r.rank), x: x + S.plate / 2, baseline: y + 42, weight: 800, size: 36, trackEm: -0.02, align: 'middle', ink: p.ink, bg: p.bg },
       {
         kind: 'text',
-        text: r.name.toUpperCase(),
-        fallback: r.short.toUpperCase(),
-        x: bx + 20,
-        baseline: y + 42,
-        weight: 700,
-        size: [34, 26],
-        maxWidth: bw - 110,
-        tracking: 0.5,
+        text: r.name,
+        fallback: r.short,
+        x: nameX,
+        baseline: y + 41,
+        weight: 800,
+        size: [32, 24],
+        maxWidth: metaRight - metaW - 24 - nameX,
+        trackEm: -0.01,
         align: 'start',
-        ink: p.ink,
-        bg: p.bg,
+        ink: P.fg,
+        bg: P.surface,
       },
-      { kind: 'text', text: r.record, x: x + colW - 18, baseline: y + 41, weight: 600, size: 30, tracking: 0, align: 'end', ink: p.ink, bg: p.bg },
+      { kind: 'text', text: meta, x: metaRight, baseline: y + 41, weight: 600, size: 26, trackEm: 0, align: 'end', ink: P['fg-muted'], bg: P.surface },
     );
   });
-  ops.push(
-    { kind: 'text', text: TAGLINE, x: S.pad, baseline: 600, weight: 600, size: 28, tracking: 0.5, align: 'start', ink: D['fg-muted'], bg: D.page },
-    { kind: 'text', text: BRAND, x: S.width - S.pad, baseline: 600, weight: 600, size: 26, tracking: 1.5, align: 'end', ink: D['fg-muted'], bg: D.page },
-  );
-  return ops;
+  return [...ops, ...footerOps(atlas)];
 }
 
 /** Generic card (no ranking): used when a code is invalid and the static default image is missing. */
-function brandOps(): Op[] {
+function brandOps(atlas: Atlas): Op[] {
   const S = SHARE;
   return [
-    { kind: 'rect', x: 0, y: 0, w: S.width, h: S.accentBar, color: D['accent-fill'] },
-    { kind: 'text', text: 'CFB BLIND RESUME', x: S.pad, baseline: 300, weight: 700, size: 76, tracking: 1, align: 'start', ink: D.fg, bg: D.page },
-    { kind: 'text', text: 'Rank three resumes. No names. Build your own top 25.', x: S.pad, baseline: 352, weight: 600, size: 28, tracking: 0.5, align: 'start', ink: D['fg-muted'], bg: D.page },
-    { kind: 'text', text: TAGLINE, x: S.pad, baseline: 600, weight: 600, size: 28, tracking: 0.5, align: 'start', ink: D['fg-muted'], bg: D.page },
-    { kind: 'text', text: BRAND, x: S.width - S.pad, baseline: 600, weight: 600, size: 26, tracking: 1.5, align: 'end', ink: D['fg-muted'], bg: D.page },
+    ...wordmarkOps(atlas, S.pad, 300, 76, P.page),
+    { kind: 'text', text: TAGLINE, x: S.pad, baseline: 356, weight: 600, size: 28, trackEm: 0, align: 'start', ink: P['fg-muted'], bg: P.page },
+    ...footerOps(atlas, false),
   ];
 }
 
+/** Largest strike of `weight` in [min, max] at which `text` fits `maxW` (tracking scales with size). */
+function fitText(atlas: Atlas, weight: Weight, text: string, maxW: number, max: number, min: number, trackEm: number) {
+  let last: { strike: ReturnType<typeof findStrike>; width: number; fits: boolean } | null = null;
+  for (const size of strikeSizes(atlas, weight)) {
+    if (size > max || size < min) continue;
+    const strike = findStrike(atlas, weight, size);
+    const width = measure(atlas, strike, text, trackEm * size);
+    last = { strike, width, fits: width <= maxW };
+    if (last.fits) break;
+  }
+  if (!last) throw new Error(`share image: no ${weight} strike between ${min} and ${max}px`);
+  return last;
+}
+
 function paint(ops: Op[], atlas: Atlas): IndexedCanvas {
-  const canvas = new IndexedCanvas(SHARE.width, SHARE.height, D.page);
+  const canvas = new IndexedCanvas(SHARE.width, SHARE.height, P.page);
   // Palette budget: every solid color, plus (levels - 1) blends per distinct (background, ink) pair.
-  const solids = new Set<string>([D.page.toLowerCase()]);
+  const solids = new Set<string>([P.page.toLowerCase()]);
   const combos = new Set<string>();
   for (const op of ops) {
     if (op.kind === 'text') {
@@ -311,24 +360,24 @@ function paint(ops: Op[], atlas: Atlas): IndexedCanvas {
       let width;
       if (Array.isArray(op.size)) {
         const maxW = op.maxWidth ?? Infinity;
-        let fit = fitStrike(atlas, op.weight, text, maxW, op.size[0], op.size[1], op.tracking);
+        let fit = fitText(atlas, op.weight, text, maxW, op.size[0], op.size[1], op.trackEm);
         if (!fit.fits && op.fallback) {
           text = op.fallback;
-          fit = fitStrike(atlas, op.weight, text, maxW, op.size[0], op.size[1], op.tracking);
+          fit = fitText(atlas, op.weight, text, maxW, op.size[0], op.size[1], op.trackEm);
         }
         while (!fit.fits && text.length > 1) {
           text = text.slice(0, -1).trimEnd();
-          fit = { ...fit, width: measure(atlas, fit.strike, text, op.tracking) };
+          fit = { ...fit, width: measure(atlas, fit.strike, text, op.trackEm * fit.strike.size) };
           fit.fits = fit.width <= maxW;
         }
         strike = fit.strike;
         width = fit.width;
       } else {
         strike = findStrike(atlas, op.weight, op.size);
-        width = measure(atlas, strike, text, op.tracking);
+        width = measure(atlas, strike, text, op.trackEm * op.size);
       }
       const x0 = op.align === 'start' ? op.x : op.align === 'end' ? op.x - width : op.x - width / 2;
-      canvas.drawGlyphs(layout(atlas, strike, text, x0, op.tracking), op.baseline, canvas.color(op.ink), atlas.data, canvas.color(op.bg));
+      canvas.drawGlyphs(layout(atlas, strike, text, x0, op.trackEm * strike.size), op.baseline, canvas.color(op.ink), atlas.data, canvas.color(op.bg));
     }
   }
   return canvas;
@@ -350,7 +399,7 @@ export async function renderShareImage(model: ShareImageModel, atlas: Atlas): Pr
 
 /** A generic branded 1200x630 PNG (last-resort default when /og/default.png is unavailable). */
 export async function renderBrandImage(atlas: Atlas): Promise<Uint8Array> {
-  return toPng(paint(brandOps(), atlas));
+  return toPng(paint(brandOps(atlas), atlas));
 }
 
 /**
@@ -373,7 +422,7 @@ export function warmShareRenderer(atlas: Atlas): number {
     const name = names[i % names.length]!;
     return { rank: i + 1, name, short: name.slice(0, 8), record: `${9 - (i % 4)}-${i % 3}`, colors: { primary, secondary }, bye: i < 4 };
   });
-  const hook: ShareHook = { ref: 'committee', pct: '43%', call: { name: names[0]!, rank: 3, delta: 4 } };
+  const hook: ShareHook = { ref: 'committee', pct: '43%', call: { name: names[1]!, rank: 3, delta: null } };
   const canvas = paint(shareOps({ title: 'My top 12', kicker: 'After Week 1 · 2000', rows, hook }, atlas), atlas);
   const raw = canvas.finishScanlines();
   return crc32(raw.subarray(0, 1 << 16)) ^ crc32(canvas.paletteBytes());

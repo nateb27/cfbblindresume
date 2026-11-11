@@ -4,7 +4,8 @@
  * scripts/fn-build-atlas.mjs (atlas.json metrics + atlas.bin masks); this module only indexes it.
  */
 
-export type Weight = 600 | 700;
+/** Archivo SemiBold (copy) and ExtraBold (names, numerals, title), the site's two display weights. */
+export type Weight = 600 | 800;
 
 /** atlas.json as written by scripts/fn-build-atlas.mjs. */
 export interface AtlasJson {
@@ -60,7 +61,7 @@ export function loadAtlas(json: AtlasJson, bin: ArrayBuffer | Uint8Array): Atlas
   const data = bin instanceof Uint8Array ? bin : new Uint8Array(bin);
   if (data.length !== json.bytes) throw new Error(`atlas: expected ${json.bytes} mask bytes, got ${data.length}`);
   const fonts = {} as Record<Weight, FontMetrics>;
-  for (const w of [600, 700] as const) {
+  for (const w of [600, 800] as const) {
     const m = json.metrics[String(w)];
     if (!m) throw new Error(`atlas: no metrics for weight ${w}`);
     const chars = [...m.chars];
@@ -92,8 +93,9 @@ export function strikeSizes(atlas: Atlas, weight: Weight): number[] {
 
 /**
  * Characters the strike can draw, after a fallback for anything missing: accents are stripped
- * (NFD), curly quotes become straight, and anything still missing becomes a space. Never throws, so
- * a new team name with an unexpected character renders rather than failing the image.
+ * (NFD), the okina (which Archivo lacks) becomes the turned comma ‘ it looks like, other quotes
+ * become straight, and anything still missing becomes a space. Never throws, so a new team name
+ * with an unexpected character renders rather than failing the image.
  */
 export function drawable(strike: Strike, text: string): string[] {
   const out: string[] = [];
@@ -104,6 +106,7 @@ export function drawable(strike: Strike, text: string): string[] {
     }
     const base = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (base.length === 1 && strike.index.has(base)) out.push(base);
+    else if (ch === 'ʻ' && strike.index.has('‘')) out.push('‘');
     else if (/[‘’ʻʼ`]/.test(ch) && strike.index.has("'")) out.push("'");
     else if (/[–—−]/.test(ch) && strike.index.has('-')) out.push('-');
     else out.push(' ');

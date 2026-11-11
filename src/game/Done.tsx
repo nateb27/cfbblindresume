@@ -34,11 +34,11 @@ export function Done() {
 
   return (
     <div className="mx-auto w-full max-w-game px-gutter py-6 lg:px-gutter-lg lg:py-10" onClickCapture={onClickCapture}>
-      <section className="mx-auto max-w-[34rem] animate-rise rounded-panel border border-line bg-surface px-6 py-8 text-center shadow-card sm:px-10" aria-labelledby="done-h" data-testid="done">
+      <section className="mx-auto max-w-[34rem] animate-rise rounded-panel border border-line-strong bg-surface px-6 py-8 text-center sm:px-10" aria-labelledby="done-h" data-testid="done">
         <p className="cond text-hero text-accent" aria-hidden="true">
           {n}
         </p>
-        <h2 id="done-h" ref={heading} tabIndex={-1} className="cond text-heading uppercase outline-none">
+        <h2 id="done-h" ref={heading} tabIndex={-1} className="cond text-heading outline-none">
           <span className="sr-only">{n} </span>Rankings in
         </h2>
         <p className="mx-auto mt-3 max-w-[26rem] text-[0.9375rem] leading-6 text-fg-muted">

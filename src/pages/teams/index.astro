@@ -45,7 +45,7 @@ const ld = [
 <BaseLayout title={title} description={description} path="/teams" jsonLd={ld} current="teams" week={week}>
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <Breadcrumbs items={[{ name: 'Teams', href: '/teams' }]} />
-    <h1 class="cond mt-2 text-title uppercase lg:text-display">All {n} FBS teams</h1>
+    <h1 class="cond mt-2 text-title lg:text-display">All {n} FBS teams</h1>
     <p class="mt-4 max-w-read text-lg leading-7">
       Every team's full resume, from the committee contenders to the rebuilds. Grouped by conference in standings order, with the committee rank
       (CFP) and FEI's strength of record rank ({SOR}), {labelLower}.
@@ -53,7 +53,7 @@ const ld = [
 
     <JumpNav label="Conferences" class="mt-6" items={confs.map((c) => ({ href: `#${confAnchor(c.conference)}`, label: c.conference }))} />
 
-    <details class="group mt-4 rounded-card border border-line open:bg-surface">
+    <details class="group mt-4 rounded-card border border-line-strong open:bg-surface">
       <summary class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 font-semibold hover:bg-surface [&::-webkit-details-marker]:hidden">
         <span>Find a team A to Z <span class="font-normal text-fg-muted">· all {n}</span></span>
         <span aria-hidden="true" class="text-lg leading-none text-fg-muted transition-transform group-open:rotate-45">+</span>
@@ -84,7 +84,7 @@ const ld = [
       {
         confs.map((c) => (
           <section aria-labelledby={confAnchor(c.conference)} class="min-w-0 scroll-mt-4">
-            <h2 id={confAnchor(c.conference)} class="cond text-heading uppercase">
+            <h2 id={confAnchor(c.conference)} class="cond text-heading">
               {c.conference}
             </h2>
             <p class="mt-0.5 text-sm text-fg-muted">

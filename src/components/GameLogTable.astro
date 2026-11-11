@@ -55,10 +55,11 @@ const cfp = (o: (typeof rows)[number]['opp']): number | null => (o.fbs ? (week.t
               </span>
             </td>
             <td>
-              <span class="flex items-center gap-2">
+              <span class="tier-cell">
                 <Stars stars={g.tier.stars} label={g.tier.label} />
-                <span class="whitespace-nowrap text-fg-muted max-sm:hidden" aria-hidden="true">
-                  {g.tier.label}
+                <span class="tier-band" aria-hidden="true">
+                  <span class="max-sm:hidden">{g.tier.label}</span>
+                  <span class="sm:hidden">{g.tier.label.replace(/ team$/, '')}</span>
                 </span>
               </span>
             </td>

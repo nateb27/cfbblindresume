@@ -11,10 +11,15 @@ interface Props {
 const { heading, body, class: cls } = Astro.props;
 ---
 
-<div class:list={['flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8', cls]}>
-  <div class="max-w-read">
+<div class:list={['play-pitch flex flex-col gap-4 rounded-card border border-line-strong bg-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8', cls]}>
+  <div class="pitch-file" aria-hidden="true">
+    <span class="file-letter">A</span>
+    <span class="pitch-file-title"><span class="label-caps text-[0.75rem] leading-[0.875rem] text-fg-muted">Team A</span><span data-redacted></span></span>
+    <span class="pitch-file-rec">7-1</span>
+  </div>
+  <div class="max-w-read sm:flex-1">
     <p class="label-caps text-fg-muted">The blind resume game</p>
-    <p class="cond mt-1 text-[1.5rem] leading-7 font-bold uppercase">{heading}</p>
+    <p class="mt-1 text-heading">{heading}</p>
     <p class="mt-1.5 text-[0.9375rem] leading-6 text-fg-muted">{body}</p>
   </div>
   <a href="/#play" class="btn btn-primary flex-none self-start sm:self-center">Rank them blind</a>

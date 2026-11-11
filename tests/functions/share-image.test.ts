@@ -9,44 +9,64 @@ import { drawable, findStrike, fitStrike, layout, measure, strikeSizes, type Atl
 import { paintShareImage, renderBrandImage, renderShareImage, SHARE, shareHook, shareImageAlt, shareImageModel } from '../../functions/_lib/share-image';
 import { decodePng, pixelHex, realGameData, testAtlas } from './helpers';
 
-const D = colors.dark;
+const P = colors.light;
 
 describe('glyph atlas', () => {
-  it('matches its manifest (bytes + sha256) and has every strike DESIGN.md §16 needs', () => {
-    const json = JSON.parse(readFileSync('functions/_lib/atlas.json', 'utf8')) as AtlasJson & { sha256: string };
+  it('matches its manifest (bytes + sha256), is Archivo 600/800, and has every strike DESIGN.md needs', () => {
+    const json = JSON.parse(readFileSync('functions/_lib/atlas.json', 'utf8')) as AtlasJson & { sha256: string; font: string };
     const bin = readFileSync('functions/_lib/atlas.bin');
     expect(bin.length).toBe(json.bytes);
     expect(createHash('sha256').update(bin).digest('hex')).toBe(json.sha256);
+    expect(json.font).toMatch(/^Archivo 600\/800/);
+    expect(Object.keys(json.metrics).sort()).toEqual(['600', '800']);
     const atlas = testAtlas();
-    expect(strikeSizes(atlas, 700)).toEqual([76, 40, 34, 32, 30, 28, 26]);
-    expect(strikeSizes(atlas, 600)).toEqual([30, 28, 26]);
+    expect(strikeSizes(atlas, 800)).toEqual([76, 36, 32, 30, 28, 26, 24]);
+    expect(strikeSizes(atlas, 600)).toEqual([28, 26, 24]);
   });
 
-  it('can draw every FBS school name in caps at every name size, without fallbacks', () => {
+  it('was built from the static TTFs filed under each weight (not a synthesized or swapped face)', () => {
+    // usWeightClass (OS/2) of the files the atlas and the OG images read, and the advance of a
+    // glyph that differs by weight: ExtraBold is wider than SemiBold.
+    const weightClass = (file: string) => {
+      const buf = readFileSync(file);
+      for (let i = 0; i < buf.readUInt16BE(4); i++) {
+        const o = 12 + 16 * i;
+        if (buf.toString('ascii', o, o + 4) === 'OS/2') return buf.readUInt16BE(buf.readUInt32BE(o + 8) + 4);
+      }
+      return -1;
+    };
+    expect(weightClass('src/assets/fonts/Archivo-600.ttf')).toBe(600);
+    expect(weightClass('src/assets/fonts/Archivo-800.ttf')).toBe(800);
+    const atlas = testAtlas();
+    expect(measure(atlas, findStrike(atlas, 800, 26), 'Committee')).toBeGreaterThan(measure(atlas, findStrike(atlas, 600, 26), 'Committee'));
+  });
+
+  it('can draw every FBS school name as printed (display case) at every name size, without fallbacks', () => {
     const atlas = testAtlas();
     const names = new Set<string>();
     for (const season of readdirSync('data').filter((d) => /^\d{4}$/.test(d))) {
       for (const f of readdirSync(`data/${season}`).filter((x) => /^week-\d+\.json$/.test(x))) {
         const week = JSON.parse(readFileSync(`data/${season}/${f}`, 'utf8')) as { teams: Record<string, { name: string; short: string }> };
-        for (const t of Object.values(week.teams)) names.add(t.name.toUpperCase()).add(t.short.toUpperCase());
+        for (const t of Object.values(week.teams)) names.add(t.name).add(t.short);
       }
     }
     expect(names.size).toBeGreaterThan(100);
-    for (const size of [34, 32, 30, 28, 26]) {
-      const strike = findStrike(atlas, 700, size);
+    for (const size of [32, 30, 28, 26, 24]) {
+      const strike = findStrike(atlas, 800, size);
       for (const n of names) expect(drawable(strike, n).join(''), `${n} @${size}`).toBe(n);
     }
   });
 
   it('falls back gracefully for characters it does not have', () => {
-    const strike = findStrike(testAtlas(), 700, 34);
-    expect(drawable(strike, 'HAWAIʻI').join('')).toBe('HAWAIʻI');
-    expect(drawable(strike, 'ŁÓDŹ').join('')).toBe(' ÓDZ');
+    const strike = findStrike(testAtlas(), 800, 32);
+    expect(drawable(strike, 'San José State').join('')).toBe('San José State');
+    expect(drawable(strike, 'Hawaiʻi').join('')).toBe('Hawai‘i'); // Archivo has no okina
+    expect(drawable(strike, 'Łódź').join('')).toBe(' ódz');
   });
 
   it('measures with kerning and tracking, and snaps glyphs to sub-pixel phases', () => {
     const atlas = testAtlas();
-    const s = findStrike(atlas, 700, 34);
+    const s = findStrike(atlas, 800, 32);
     const av = measure(atlas, s, 'AV');
     expect(av).toBeLessThan(measure(atlas, s, 'A') + measure(atlas, s, 'V')); // GPOS kern
     expect(measure(atlas, s, 'ABC', 2) - measure(atlas, s, 'ABC')).toBeCloseTo(4, 6); // tracking between glyphs, not after
@@ -60,16 +80,16 @@ describe('glyph atlas', () => {
 
   it('fitStrike shrinks in 2px steps', () => {
     const atlas = testAtlas();
-    const wide = 'MIDDLE TENNESSEE STATE';
-    const fit = fitStrike(atlas, 700, wide, measure(atlas, findStrike(atlas, 700, 30), wide, 0.5), 34, 26, 0.5);
-    expect(fit.strike.size).toBe(30);
+    const wide = 'Middle Tennessee State';
+    const fit = fitStrike(atlas, 800, wide, measure(atlas, findStrike(atlas, 800, 28), wide, -0.3), 32, 24, -0.3);
+    expect(fit.strike.size).toBe(28);
     expect(fit.fits).toBe(true);
-    expect(fitStrike(atlas, 700, wide, 10, 34, 26).fits).toBe(false);
+    expect(fitStrike(atlas, 800, wide, 10, 32, 24).fits).toBe(false);
   });
 });
 
-function loadAllTeams(): Record<string, { name: string }> {
-  return (JSON.parse(readFileSync('data/2026/week-9.json', 'utf8')) as { teams: Record<string, { name: string }> }).teams;
+function loadAllTeams(): Record<string, { name: string; record: { w: number; l: number } }> {
+  return (JSON.parse(readFileSync('data/2026/week-9.json', 'utf8')) as { teams: Record<string, { name: string; record: { w: number; l: number } }> }).teams;
 }
 
 /** A plausible 15-round run: trios from the real selector, ordered by FEI GWD rank with a twist. */
@@ -99,7 +119,7 @@ describe('share image', () => {
     expect(shareImageAlt(m)).toMatch(/^My top 12 of a blind-resume college football ranking, After Week 9 · 2026: 1 .+, 12 .+\. Ratings: FEI by Brian Fremeau\.$/);
   });
 
-  it('renders a 1200x630 palette PNG with the DESIGN.md layout', async () => {
+  it('renders a 1200x630 palette PNG with the DESIGN.md layout (paper, index tabs, footer)', async () => {
     const order = gd.committee!;
     const m = shareImageModel(gd, order);
     const bytes = await renderShareImage(m, testAtlas());
@@ -109,24 +129,31 @@ describe('share image', () => {
     expect(img.chunks.every((c) => c.crcOk)).toBe(true);
     expect(bytes.length).toBeLessThan(60_000);
 
-    expect(pixelHex(img, 600, 3)).toBe(D['accent-fill']); // accent bar
-    expect(pixelHex(img, 600, 20)).toBe(D.page);
     const S = SHARE;
-    const colW = (S.width - 2 * S.pad - S.colGap) / 2;
+    expect(pixelHex(img, 600, 3)).toBe(P.page); // paper page, no accent bar
+    expect(pixelHex(img, 10, 300)).toBe(P.page);
     for (let i = 0; i < 12; i++) {
-      const x = S.pad + Math.floor(i / 6) * (colW + S.colGap);
-      const y = S.top + (i % 6) * (S.rowH + S.rowGap);
+      const x = S.pad + Math.floor(i / 6) * (S.colW + S.colGap);
+      const y = S.top + (i % 6) * S.pitch;
       const p = teamPaint(gd.teams[order[i]!]!.colors);
-      expect(pixelHex(img, x + 3, y + 3), `plate ${i + 1}`).toBe(i < 4 ? D['accent-fill'] : D['raised-2']);
-      expect(pixelHex(img, x + colW - 6, y + 20), `block ${i + 1}`).toBe(p.bg);
-      expect(pixelHex(img, x + colW - 6, y + S.rowH - 2), `rule ${i + 1}`).toBe(p.rule);
-      if (p.edge) expect(pixelHex(img, x + S.plate, y + 20), `edge ${i + 1}`).toBe(p.edge);
+      expect(pixelHex(img, x + 3, y + 3), `plate ${i + 1}`).toBe(p.bg); // byes are words, not a colour
+      expect(pixelHex(img, x + 3, y + S.rowH - 2), `rule ${i + 1}`).toBe(p.rule);
+      expect(pixelHex(img, x, y + 20), `plate edge ${i + 1}`).toBe(p.edge ?? p.bg);
+      expect(pixelHex(img, x + S.colW - 6, y + 20), `sheet ${i + 1}`).toBe(P.surface);
+      expect(pixelHex(img, x + S.colW - 1, y + 20), `frame ${i + 1}`).toBe(P['line-strong']);
+      expect(pixelHex(img, x + 200, y + S.rowH + 5), `gap ${i + 1}`).toBe(P.page);
     }
-    // The name is drawn in the block's ink: some pixel in the name area has exactly that color.
-    const p0 = teamPaint(gd.teams[order[0]!]!.colors);
+    // The name is typed in ink on the sheet: some pixels in the first name's area have exactly that color.
     let inked = 0;
-    for (let x = S.pad + S.plate + 20; x < S.pad + S.plate + 140; x++) for (let y = S.top + 16; y < S.top + 44; y++) if (pixelHex(img, x, y) === p0.ink) inked++;
+    for (let x = S.pad + S.plate + 18; x < S.pad + S.plate + 140; x++) for (let y = S.top + 16; y < S.top + 44; y++) if (pixelHex(img, x, y) === P.fg) inked++;
     expect(inked).toBeGreaterThan(100);
+    // Footer band: 2px ink rule, sheet, and the wordmark's redaction bar behind "Blind".
+    expect(pixelHex(img, 600, S.footerTop)).toBe(P.fg);
+    expect(pixelHex(img, 600, S.footerTop + 1)).toBe(P.fg);
+    expect(pixelHex(img, 600, S.footerTop + 3)).toBe(P.surface);
+    let bar = 0;
+    for (let x = 120; x < 230; x++) for (let y = 580; y < 612; y++) if (pixelHex(img, x, y) === P.redaction) bar++;
+    expect(bar).toBeGreaterThan(400);
   });
 
   it('is deterministic and fast once warm', async () => {
@@ -141,12 +168,14 @@ describe('share image', () => {
     expect((performance.now() - t0) / 10).toBeLessThan(25); // generous bound; real numbers in functions/README.md
   });
 
-  it('fits every school name in its block (34px, shrinking to 26px) clear of the record', () => {
+  it('fits every school name on its tab (32px, shrinking to 24px) clear of "Bye · record"', () => {
     const atlas = testAtlas();
     const S = SHARE;
-    const maxW = (S.width - 2 * S.pad - S.colGap) / 2 - S.plate - 110;
     for (const t of Object.values(loadAllTeams())) {
-      const fit = fitStrike(atlas, 700, t.name.toUpperCase(), maxW, 34, 26, 0.5);
+      // Same space as the renderer: name from plate + 18 to 24px before the right-aligned meta.
+      const meta = measure(atlas, findStrike(atlas, 600, 26), `Bye · ${t.record.w}-${t.record.l}`);
+      const maxW = S.colW - 18 - meta - 24 - (S.plate + 18);
+      const fit = fitStrike(atlas, 800, t.name, maxW, 32, 24, -0.01 * 24);
       expect(fit.fits, t.name).toBe(true);
     }
   });
@@ -167,11 +196,32 @@ describe('share image', () => {
     const at = dist.indexOf(best);
     expect(m.hook!.call).toEqual({ name: gd.teams[order[at]!]!.name, rank: at + 1, delta: gd.teams[order[at]!]!.committee === null ? null : gd.teams[order[at]!]!.committee! - (at + 1) });
     expect(shareImageAlt(m)).toContain(` Matched the committee on ${m.hook!.pct}; biggest call: ${m.hook!.call!.name}`);
-    // Drawn: the kicker moves up and the hook (accent percentage) sits on the title baseline, right side.
+    // Drawn: the kicker moves up and the hook (the fan's percentage in violet) sits on the title
+    // baseline, right side.
     const img = decodePng(await renderShareImage(m, testAtlas()));
     let accent = 0;
-    for (let x = 600; x < 1144; x++) for (let y = 80; y < 108; y++) if (pixelHex(img, x, y) === D.accent) accent++;
+    for (let x = 600; x < 1144; x++) for (let y = 80; y < 108; y++) if (pixelHex(img, x, y) === P.accent) accent++;
     expect(accent).toBeGreaterThan(20);
+  });
+
+  it('hook: shortens its wording for long names, never collides with the title, keeps the full name', async () => {
+    const atlas = testAtlas();
+    const committee = gd.committee!;
+    const agreement = { ...computeRunResults(gd, []).agreement, hasCommittee: true, pairwise: { calls: 3, committee: { matched: 1, comparable: 3, share: 1 / 3 }, fei: { matched: 2, comparable: 3, share: 2 / 3 } } };
+    const byLength = (xs: string[]) => [...xs].sort((a, b) => gd.teams[b]!.name.length - gd.teams[a]!.name.length);
+    const unranked = byLength(Object.keys(gd.teams).filter((s) => gd.teams[s]!.committee === null))[0]!;
+    const ranked = byLength(committee)[0]!;
+    const titleRight = SHARE.pad + measure(atlas, findStrike(atlas, 800, 76), 'My top 12', -0.03 * 76);
+    for (const order of [[committee[0]!, unranked, ...committee.slice(1)], [ranked, ...committee.filter((s) => s !== ranked)]]) {
+      const m = shareImageModel(gd, order, undefined, agreement);
+      expect(m.hook!.call!.name).toBe(gd.teams[order[order[0] === ranked ? 0 : 1]!]!.name);
+      const img = decodePng(await renderShareImage(m, atlas));
+      let accent = 0;
+      for (let x = 400; x < 1144; x++) for (let y = 80; y < 108; y++) if (pixelHex(img, x, y) === P.accent) accent++;
+      expect(accent, 'percentage drawn').toBeGreaterThan(20);
+      // At least 24px of clear paper between the title and the hook.
+      for (let x = Math.ceil(titleRight) + 4; x < titleRight + 28; x++) for (let y = 70; y < 110; y++) expect(pixelHex(img, x, y), `gap at ${x},${y}`).toBe(P.page);
+    }
   });
 
   it('hook: the committee order has no call; an unranked team in the top 12 is the call; no committee means FEI', () => {
@@ -187,9 +237,13 @@ describe('share image', () => {
     expect(shareHook(gd, committee, { ...withShare, pairwise: { calls: 0, committee: { matched: 0, comparable: 0, share: null }, fei: { matched: 0, comparable: 0, share: null } } }, 12)).toBeNull();
   });
 
-  it('renders the generic brand image', async () => {
+  it('renders the generic brand image (paper, the wordmark with its redaction bar, footer credit)', async () => {
     const img = decodePng(await renderBrandImage(testAtlas()));
     expect([img.width, img.height]).toEqual([1200, 630]);
-    expect(pixelHex(img, 10, 2)).toBe(D['accent-fill']);
+    expect(pixelHex(img, 10, 2)).toBe(P.page);
+    expect(pixelHex(img, 600, SHARE.footerTop)).toBe(P.fg);
+    let bar = 0;
+    for (let x = 200; x < 460; x++) for (let y = 236; y < 316; y++) if (pixelHex(img, x, y) === P.redaction) bar++;
+    expect(bar).toBeGreaterThan(5000);
   });
 });

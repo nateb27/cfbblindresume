@@ -10,7 +10,7 @@ import { columnRoundLabel, roundAbbrev, shortRoundLabel } from './format';
 import { useIsDesktop } from './hooks';
 import { TeamBlock } from './ui';
 
-const BOX = 'relative z-[1] flex w-full flex-col gap-0.5 rounded-chip border border-line bg-surface p-1';
+const BOX = 'relative z-[1] flex w-full flex-col gap-0.5 rounded-chip border border-line-strong bg-surface p-1';
 
 function useBracketModel(playoff: PlayoffResult) {
   return useMemo(() => {
@@ -49,7 +49,7 @@ function Slot({ side, gd, winnerOf }: { side: BracketSide; gd: GameData; winnerO
     return <TeamBlock slug={slug} team={gd.teams[slug]!} seed={seed} size="slot" className="pr-2.5" />;
   }
   return (
-    <div className="flex h-9 items-center rounded-slab border-b-4 border-transparent bg-raised pr-2.5">
+    <div className="flex h-9 items-center rounded-slab bg-raised pr-2.5" data-slot="tbd">
       <span className="seed-plate min-w-8 bg-transparent text-[1rem] text-fg-faint" aria-hidden="true">
         –
       </span>
@@ -89,7 +89,7 @@ export function Bracket({ playoff, gd, source }: { playoff: PlayoffResult; gd: G
   return (
     <section className="mt-10" aria-labelledby="bracket-h" data-testid="bracket">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-2">
-        <h3 id="bracket-h" tabIndex={-1} className="cond text-heading uppercase outline-none">
+        <h3 id="bracket-h" tabIndex={-1} className="cond text-heading outline-none">
           {f.size}-team bracket
         </h3>
         <p className="text-sm text-fg-muted">

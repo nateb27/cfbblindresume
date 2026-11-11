@@ -45,7 +45,7 @@ if (views.committee) {
   pairs.length > 0 && (
     <section aria-labelledby="cut-pairs" class={cls}>
       {heading && (
-        <h2 id="cut-pairs" class="cond text-heading uppercase">
+        <h2 id="cut-pairs" class="cond text-heading">
           {heading}
         </h2>
       )}
@@ -57,7 +57,7 @@ if (views.committee) {
             <li>
               <a
                 href={compareHref(`${p.a}-vs-${p.b}`)}
-                class="flex min-h-12 flex-col justify-center gap-1 rounded-chip border border-line px-3 py-2 transition-colors hover:border-control hover:bg-surface"
+                class="flex min-h-12 flex-col justify-center gap-1 rounded-chip border border-line-strong px-3 py-2 transition-colors hover:border-control hover:bg-surface"
               >
                 <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span class="team-chip" style={teamVars(x.colors)}>

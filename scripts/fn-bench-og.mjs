@@ -7,6 +7,7 @@
  * CompressionStream('deflate') runs natively in workerd), plus PNG chunk CRCs.
  *
  *   node scripts/fn-bench-og.mjs [--runs 300] [--cold 7]
+ *   (FN_SCRATCH: where the bundled worker and fn-bench-og.json go; default <tmpdir>/cfbblindresume-fn)
  *
  * Also times "1st request after warm-up": a fresh process that first runs warmShareRenderer() (what
  * the deployed route does at module scope, i.e. at isolate startup) and then serves one request.
@@ -16,12 +17,13 @@
  * Node's thread-pool stream overhead (absent in workerd) does not distort the number.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SCRATCH = process.env.FN_SCRATCH ?? '/tmp/claude-0/-home-user/38da28a1-5927-5734-b75e-1321c36c6410/scratchpad';
+const SCRATCH = process.env.FN_SCRATCH ?? join(tmpdir(), 'cfbblindresume-fn');
 const OUT = join(SCRATCH, 'backend');
 mkdirSync(OUT, { recursive: true });
 const argv = process.argv.slice(2);

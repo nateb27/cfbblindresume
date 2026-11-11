@@ -99,9 +99,9 @@ const ld = itemListLd(
 <BaseLayout title={title} description={description} path="/bubble" jsonLd={ld} ads current="bubble" week={week}>
   <div class="mx-auto max-w-page px-gutter lg:px-gutter-lg">
     <Breadcrumbs items={[{ name: 'Bubble', href: '/bubble' }]} />
-    <h1 class="cond mt-2 text-title uppercase lg:text-display">
+    <h1 class="cond mt-2 text-title lg:text-display">
       Bubble watch{' '}
-      <span class="block text-fg-muted">{committee ? `Committee ${FROM}-${TO}, by strength of record` : week.label}</span>
+      <span class="title-sub">{committee ? `Committee ${FROM}-${TO}, by strength of record` : week.label}</span>
     </h1>
     <p class="mt-4 max-w-read text-lg leading-7">
       {
@@ -115,7 +115,7 @@ const ld = itemListLd(
       committee && (
         <div class:list={['mt-10', ADS_ON && 'lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12']}>
           <section aria-labelledby="sorted" class="min-w-0">
-            <h2 id="sorted" class="cond text-heading uppercase">
+            <h2 id="sorted" class="cond text-heading">
               Committee {FROM}-{TO}, sorted by strength of record
             </h2>
             <p class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-fg-muted">
@@ -173,7 +173,7 @@ const ld = itemListLd(
                     const x1 = pct(r.committee!);
                     const x2 = pct(r.gwd);
                     return (
-                      <tr class:list={[big && 'bg-surface']}>
+                      <tr class:list={[big && 'bg-raised']}>
                         <td class="cond text-[1.125rem] font-bold">{r.gwd}</td>
                         <td class="md:whitespace-nowrap">
                           <span class="flex flex-col items-start">
@@ -228,7 +228,7 @@ const ld = itemListLd(
     <AdSlot kind="incontent" class="mt-10" />
 
     <section aria-labelledby="inout" class="mt-12">
-      <h2 id="inout" class="cond text-heading uppercase">In or out</h2>
+      <h2 id="inout" class="cond text-heading">In or out</h2>
       <p class="mt-1 max-w-read text-sm text-fg-muted">
         Every bubble team, plus anyone who changes sides between the two rankings or sits among the first five out, sorted by strength of record.
         CFP = by the committee's ranking, {SOR} = by FEI's strength of record. "In 10" = in the field as the 10th seed; "2nd out" = second team out.
@@ -244,14 +244,14 @@ const ld = itemListLd(
                   <th scope="colgroup" colspan={orders.length} class="!border-b-0 !pb-0 text-center !text-fg">
                     {formatSizeLabel(f)}
                     {f.status === 'proposed' && (
-                      <span class="block !normal-case !tracking-normal font-sans text-[0.6875rem] leading-3 font-normal text-fg-muted">proposed</span>
+                      <span class="block font-sans text-[0.6875rem] leading-3 font-normal text-fg-muted">proposed</span>
                     )}
                   </th>
                 ))
               }
             </tr>
             <tr>
-              {views.formats.map(() => orders.map((o) => <th scope="col" class="text-center max-sm:!px-1">{orderHead(o)}</th>))}
+              {views.formats.map(() => orders.map((o) => <th scope="col" class="text-center max-sm:!px-0.5">{orderHead(o)}</th>))}
             </tr>
           </thead>
           <tbody>
@@ -259,16 +259,18 @@ const ld = itemListLd(
               matrix.map((slug) => (
                 <tr>
                   <td>
-                    <TeamChip week={week} slug={slug} tap />
+                    <TeamChip week={week} slug={slug} tap class="max-sm:pr-0" />
                   </td>
                   {views.formats.map((f) => {
                     const differs = orders.length === 2 && inField('committee', f, slug) !== inField('fei', f, slug);
                     return orders.map((o) => {
                       const cl = cell(status(o, f, slug));
+                      // Phones: 13px values and 2px cell padding so all five columns fit a 375px screen without
+                      // scrolling. Disagreeing cells take the form-field shade (raised), which reads on paper.
                       return (
-                        <td class:list={['text-center whitespace-nowrap max-sm:!px-1', differs && 'bg-surface']}>
+                        <td class:list={['text-center whitespace-nowrap max-sm:!px-0.5', differs && 'bg-raised']}>
                           <span
-                            class:list={['cond text-[0.875rem] font-bold sm:text-[1rem]', !cl.inField && 'text-fg-muted', differs && cl.inField && 'text-fg']}
+                            class:list={['cond text-[0.8125rem] font-bold sm:text-[1rem]', !cl.inField && 'text-fg-muted', differs && cl.inField && 'text-fg']}
                             aria-hidden="true"
                           >
                             {cl.short}
@@ -290,7 +292,7 @@ const ld = itemListLd(
     {
       views.committee && (
         <section aria-labelledby="sides" class="mt-12">
-          <h2 id="sides" class="cond text-heading uppercase">
+          <h2 id="sides" class="cond text-heading">
             Who changes sides
           </h2>
           <div class="mt-4 grid gap-8 md:grid-cols-2">

@@ -18,8 +18,8 @@
  *   It does not load any ad script; the page's ad loader fills `.ad-slot .ad-box` elements.
  * - The server-rendered HTML is meaningful without the fetch (intro panel, or a loading state for a
  *   shared link), so LCP never waits on game data. No `window` access during render.
- * - The page should set `<html data-theme="dark">` (game pages are dark); the island also forces the
- *   dark tokens on its own subtree.
+ * - The page sets `<html data-surface="board">`; the island repeats it on its own subtree, so the
+ *   board tokens (white sheets on a grey board) apply in light mode. Dark mode = photostat, by OS.
  * - Play mode emits a tiny inline boot script (saved.ts `bootScript`): it reserves the viewport when a
  *   saved run will resume (no layout shift when the intro is swapped out) and catches Play taps made
  *   before hydration so they are not lost. Shared mode reserves the viewport in CSS (game.css).
@@ -125,7 +125,7 @@ export default function GameApp(props: GameAppProps) {
   return (
     <section
       aria-label="Blind resume game"
-      data-theme="dark"
+      data-surface="board"
       data-mode={mode}
       className="game-root relative w-full bg-page text-fg"
     >

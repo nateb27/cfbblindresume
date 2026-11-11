@@ -17,8 +17,10 @@ interface Props {
   week: WeekFile;
   slug: string;
   headingLevel?: 'h2' | 'h3';
+  /** Resume strip column (px): the compare page passes the wider of the two teams' so both strips share one scale. */
+  stripCol?: number;
 }
-const { week, slug, headingLevel = 'h2' } = Astro.props;
+const { week, slug, headingLevel = 'h2', stripCol } = Astro.props;
 const t = week.teams[slug]!;
 const n = week.fbsCount;
 const rows = gameRows(week, slug);
@@ -36,7 +38,7 @@ const lines = [
 ];
 ---
 
-<article class="flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card" aria-label={`${t.name} resume`}>
+<article class="flex flex-col overflow-hidden rounded-card border border-line-strong bg-surface" aria-label={`${t.name} resume`}>
   <TeamBlock team={t} size="reveal" meta={record(t)} class="rounded-none" nameAs={headingLevel} />
   <p class="flex flex-wrap gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 text-sm text-fg-muted">
     <span>{independent ? t.conference : `${t.conference} ${confRecord(t)}`}</span>
@@ -96,20 +98,25 @@ const lines = [
     <h3 class="label-caps text-fg-muted">Quality wins (by FEI rank)</h3>
     <QualityWins week={week} slug={slug} class="mt-1.5" />
     <h3 class="label-caps mt-3 text-fg-muted">Season in order</h3>
-    <ResumeStrip week={week} slug={slug} variant="full" class="mt-2" />
+    <ResumeStrip week={week} slug={slug} variant="full" minCol={stripCol} class="mt-2" />
   </section>
   <section class="border-t border-line px-4 pt-3 pb-2">
     <h3 class="label-caps text-fg-muted">Toughest opponent first</h3>
-    <ol class="mt-1">
+    {/* A size container: in a narrow card (under 19rem, e.g. a 320px phone) the site and band move under the opponent's name, so a long single-word name never runs into them. */}
+    <ol class="@container mt-1">
       {
         rows.map((g) => (
-          <li class="grid min-h-9 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 border-t border-line py-1 first:border-t-0">
-            <Stars stars={g.tier.stars} label={g.tier.label} />
-            <span class="min-w-0">
+          <li class="grid min-h-9 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5 border-t border-line py-1 first:border-t-0 @max-[19rem]:grid-cols-[auto_minmax(0,1fr)_auto]">
+            <Stars stars={g.tier.stars} label={g.tier.label} class="@max-[19rem]:col-start-1 @max-[19rem]:row-span-2 @max-[19rem]:row-start-1" />
+            <span class="min-w-0 @max-[19rem]:col-start-2 @max-[19rem]:row-start-1">
               <TeamChip week={week} slug={g.opp.slug} nonFbs={!g.opp.fbs} />
             </span>
-            <span class="text-[0.8125rem] text-fg-muted">{SITE_LABELS[g.site]}</span>
-            <span class="result-chip" data-result={g.result}>
+            <span class="text-right text-[0.8125rem] leading-4 text-fg-muted @max-[19rem]:col-start-2 @max-[19rem]:row-start-2 @max-[19rem]:pl-[1.125rem] @max-[19rem]:text-left @max-[19rem]:text-[0.75rem]">
+              {SITE_LABELS[g.site]}
+              <span class="hidden @max-[19rem]:inline" aria-hidden="true">{' · '}</span>
+              <span class="block text-[0.75rem] @max-[19rem]:inline" aria-hidden="true">{g.tier.label.replace(/ team$/, '')}</span>
+            </span>
+            <span class="result-chip @max-[19rem]:col-start-3 @max-[19rem]:row-span-2 @max-[19rem]:row-start-1" data-result={g.result}>
               <span>{g.result}</span>
               <span>{signed(g.margin)}</span>
             </span>
